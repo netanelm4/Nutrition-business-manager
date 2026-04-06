@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(sudo rm:*)",
+      "Bash(npm cache:*)",
+      "Bash(npm create:*)",
+      "Bash(npm run:*)"
+    ]
+  }
+}
