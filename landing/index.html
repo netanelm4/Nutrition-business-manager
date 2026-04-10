@@ -110,20 +110,30 @@
     }
 
     .hero-logo {
-      font-size: clamp(4rem, 12vw, 8rem);
-      font-weight: 700;
-      letter-spacing: -2px;
-      color: var(--text);
-      line-height: 1;
-      margin-bottom: 4px;
+      display: block;
+      max-width: 180px;
+      margin-inline: auto;
+      margin-bottom: 56px;
     }
 
-    .hero-clinic {
-      font-size: clamp(0.9rem, 2vw, 1.1rem);
-      color: var(--muted);
-      letter-spacing: 6px;
-      text-transform: uppercase;
-      margin-bottom: 56px;
+    .contact-logo {
+      display: block;
+      max-width: 180px;
+      margin-inline: auto;
+      margin-bottom: 24px;
+    }
+
+    .footer-logo {
+      display: block;
+      max-width: 140px;
+      margin-inline: auto;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 640px) {
+      .hero-logo    { max-width: 140px; }
+      .contact-logo { max-width: 140px; }
+      .footer-logo  { max-width: 120px; }
     }
 
     .hero-headline {
@@ -538,12 +548,6 @@
       padding: 36px 24px;
     }
 
-    .footer-brand {
-      font-size: 1.1rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
     .footer-contact {
       font-size: 0.93rem;
       color: rgba(255,255,255,0.7);
@@ -564,8 +568,7 @@
   ══════════════════════════════════════════════ -->
   <section id="hero">
     <div class="container">
-      <p class="hero-logo fade-in">נתא</p>
-      <p class="hero-clinic fade-in">קליניקת • תזונה</p>
+      <img src="assets/logo-color.png" class="hero-logo fade-in" alt="נתא | קליניקת תזונה" />
 
       <h1 class="hero-headline fade-in">
         תזונה שמתאימה לחיים שלך —<br>
@@ -766,6 +769,7 @@
   <section id="contact">
     <div class="container">
       <div class="contact-header fade-in">
+        <img src="assets/logo-light.png" class="contact-logo" alt="נתא" />
         <h2 class="contact-title">מתעניינ/ת?</h2>
         <p class="contact-sub">
           השאירו פרטים ואחזור אליכם לשיחת היכרות קצרה —<br>
@@ -840,7 +844,7 @@
        FOOTER
   ══════════════════════════════════════════════ -->
   <footer>
-    <p class="footer-brand">נתא | קליניקת • תזונה</p>
+    <img src="assets/logo-light.png" class="footer-logo" alt="נתא | קליניקת תזונה" />
     <p class="footer-contact">
       נתנאל מלכה &nbsp;|&nbsp;
       <a href="mailto:nm.nutritionist@gmail.com" style="color:rgba(255,255,255,0.7);">nm.nutritionist@gmail.com</a>
