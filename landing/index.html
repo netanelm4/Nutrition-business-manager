@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>נתא | קליניקת תזונה — נתנאל מלכה</title>
+  <meta name="description" content="תזונה קלינית שמתאימה לחיים שלך. ליווי אישי, מבוסס מחקר, בלי קיצוניות. נתנאל מלכה — קליניקת נתא." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & base ─────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:    #fcf4f9;
+      --pink:  #F5DBEA;
+      --blue:  #567DBF;
+      --green: #31B996;
+      --text:  #1a1a1a;
+      --muted: #666666;
+      --white: #ffffff;
+      --radius-card: 16px;
+      --radius-btn:  50px;
+      --pad-desktop: 80px;
+      --pad-mobile:  48px;
+      --max-w: 1100px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Heebo', sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout helpers ───────────────────────────────────── */
+    .container {
+      width: 100%;
+      max-width: var(--max-w);
+      margin-inline: auto;
+      padding-inline: 24px;
+    }
+
+    section {
+      padding-block: var(--pad-desktop);
+    }
+
+    @media (max-width: 640px) {
+      section { padding-block: var(--pad-mobile); }
+    }
+
+    .section-title {
+      font-size: clamp(1.6rem, 4vw, 2.2rem);
+      font-weight: 700;
+      color: var(--blue);
+      margin-bottom: 12px;
+    }
+
+    .section-sub {
+      color: var(--muted);
+      font-size: 1rem;
+      max-width: 580px;
+      margin-bottom: 48px;
+    }
+
+    /* ── Fade-in animation (IntersectionObserver) ─────────── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.55s ease, transform 0.55s ease;
+    }
+    .fade-in.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Buttons ──────────────────────────────────────────── */
+    .btn {
+      display: inline-block;
+      padding: 14px 36px;
+      border-radius: var(--radius-btn);
+      font-family: 'Heebo', sans-serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      transition: filter 0.2s, transform 0.15s;
+    }
+    .btn:hover { filter: brightness(1.07); transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-green {
+      background: var(--green);
+      color: var(--white);
+    }
+
+    /* ══════════════════════════════════════════════════════ */
+    /* SECTION 1 — HERO                                       */
+    /* ══════════════════════════════════════════════════════ */
+    #hero {
+      background: var(--bg);
+      text-align: center;
+      padding-block: 96px var(--pad-desktop);
+    }
+
+    .hero-logo {
+      font-size: clamp(4rem, 12vw, 8rem);
+      font-weight: 700;
+      letter-spacing: -2px;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .hero-clinic {
+      font-size: clamp(0.9rem, 2vw, 1.1rem);
+      color: var(--muted);
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      margin-bottom: 56px;
+    }
+
+    .hero-headline {
+      font-size: clamp(1.7rem, 4.5vw, 2.8rem);
+      font-weight: 700;
+      color: var(--blue);
+      line-height: 1.3;
+      max-width: 720px;
+      margin-inline: auto;
+      margin-bottom: 20px;
+    }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2vw, 1.15rem);
+      color: var(--muted);
+      max-width: 540px;
+      margin-inline: auto;
+      margin-bottom: 40px;
+      line-height: 1.75;
+    }
+
+    /* ══════════════════════════════════════════════════════ */
+    /* SECTION 2 — BELIEFS                                    */
+    /* ══════════════════════════════════════════════════════ */
+    #beliefs {
+      background: var(--white);
+    }
+
+    .beliefs-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 640px) {
+      .beliefs-grid { grid-template-columns: 1fr; }
+    }
+
+    .belief-card {
+      background: var(--bg);
+      border-radius: var(--radius-card);
+      border-right: 4px solid var(--blue);
+      padding: 28px 24px;
+    }
+
+    .belief-icon {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
+      display: block;
+    }
+
+    .belief-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .belief-desc {
+      font-size: 0.93rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ══════════════════════════════════════════════════════ */
+    /* SECTION 3 — BENEFITS                                   */
+    /* ══════════════════════════════════════════════════════ */
+    #benefits {
+      background: var(--pink);
+    }
+
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 768px) {
+      .benefits-grid { grid-template-columns: 1fr; }
+    }
+
+    .benefit-card {
+      background: var(--white);
+      border-radius: var(--radius-card);
+      padding: 36px 28px;
+      text-align: center;
+    }
+
+    .benefit-num {
+      font-size: 2.8rem;
+      font-weight: 900;
+      color: var(--green);
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+
+    .benefit-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+
+    .benefit-desc {
+      font-size: 0.93rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    /* ══════════════════════════════════════════════════════ */
+    /* SECTION 4 — PROCESS                                    */
+    /* ══════════════════════════════════════════════════════ */
+    #process {
+      background: var(--white);
+    }
+
+    .timeline {
+      position: relative;
+      max-width: 720px;
+      margin-inline: auto;
+    }
+
+    /* Vertical line on the right (RTL = right side is start) */
+    .timeline::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      right: 18px;
+      width: 2px;
+      background: var(--pink);
+    }
+
+    .timeline-step {
+      position: relative;
+      padding-right: 60px;
+      padding-bottom: 44px;
+    }
+
+    .timeline-step:last-child { padding-bottom: 0; }
+
+    /* Dot on the line */
+    .timeline-step::before {
+      content: '';
+      position: absolute;
+      right: 10px;
+      top: 6px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--blue);
+      border: 3px solid var(--white);
+      box-shadow: 0 0 0 2px var(--blue);
+    }
+
+    .step-num {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .step-desc {
+      font-size: 0.93rem;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    .price-box {
+      max-width: 420px;
+      margin: 56px auto 0;
+      border: 2px solid var(--blue);
+      border-radius: var(--radius-card);
+      padding: 36px 28px;
+      text-align: center;
+    }
+
+    .price-label {
+      font-size: 0.95rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    .price-amount {
+      font-size: 3rem;
+      font-weight: 900;
+      color: var(--blue);
+      line-height: 1;
+      margin-bottom: 10px;
+    }
+
+    .price-includes {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    /* ══════════════════════════════════════════════════════ */
+    /* SECTION 5 — TESTIMONIALS                               */
+    /* ══════════════════════════════════════════════════════ */
+    #testimonials {
+      background: var(--bg);
+    }
+
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .testimonials-grid {
+        grid-template-columns: 1fr;
+        /* horizontal scroll on mobile */
+        display: flex;
+        overflow-x: auto;
+        gap: 16px;
+        padding-bottom: 12px;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+      }
+      .testimonial-card {
+        flex: 0 0 82vw;
+        scroll-snap-align: start;
+      }
+    }
+
+    .testimonial-card {
+      background: var(--white);
+      border-radius: var(--radius-card);
+      border-top: 4px solid var(--pink);
+      padding: 28px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .testimonial-quote {
+      font-size: 0.97rem;
+      color: var(--text);
+      line-height: 1.75;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .testimonial-quote::before {
+      content: '"';
+      font-size: 3rem;
+      color: var(--pink);
+      line-height: 0.5;
+      vertical-align: -0.6rem;
+      margin-left: 4px;
+    }
+
+    .testimonial-meta {
+      font-size: 0.85rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .testimonial-meta strong {
+      display: block;
+      color: var(--text);
+      font-size: 0.93rem;
+      margin-bottom: 2px;
+    }
+
+    /* ══════════════════════════════════════════════════════ */
+    /* SECTION 6 — LEAD FORM                                  */
+    /* ══════════════════════════════════════════════════════ */
+    #contact {
+      background: var(--blue);
+    }
+
+    .contact-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .contact-title {
+      font-size: clamp(1.8rem, 4vw, 2.4rem);
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 12px;
+    }
+
+    .contact-sub {
+      color: rgba(255,255,255,0.82);
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    .form-card {
+      background: var(--white);
+      border-radius: var(--radius-card);
+      padding: 40px 36px;
+      max-width: 560px;
+      margin-inline: auto;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+    }
+
+    @media (max-width: 640px) {
+      .form-card { padding: 28px 20px; }
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .form-input,
+    .form-select,
+    .form-textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #ddd;
+      border-radius: 10px;
+      font-family: 'Heebo', sans-serif;
+      font-size: 1rem;
+      color: var(--text);
+      background: var(--white);
+      transition: border-color 0.2s;
+      direction: rtl;
+    }
+
+    .form-input:focus,
+    .form-select:focus,
+    .form-textarea:focus {
+      outline: none;
+      border-color: var(--blue);
+    }
+
+    .form-textarea { resize: vertical; min-height: 80px; }
+
+    .form-submit {
+      width: 100%;
+      padding: 16px;
+      border-radius: var(--radius-btn);
+      background: var(--green);
+      color: var(--white);
+      font-family: 'Heebo', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      border: none;
+      cursor: pointer;
+      transition: filter 0.2s, transform 0.15s;
+      margin-top: 8px;
+    }
+
+    .form-submit:hover:not(:disabled) {
+      filter: brightness(1.07);
+      transform: translateY(-1px);
+    }
+
+    .form-submit:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .form-error {
+      margin-top: 10px;
+      color: #c0392b;
+      font-size: 0.9rem;
+      text-align: center;
+    }
+
+    /* Success state */
+    .form-success {
+      text-align: center;
+      padding: 24px 0 8px;
+    }
+
+    .success-icon {
+      font-size: 3.5rem;
+      margin-bottom: 16px;
+    }
+
+    .success-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 10px;
+    }
+
+    .success-note {
+      font-size: 0.93rem;
+      color: var(--muted);
+    }
+
+    /* ══════════════════════════════════════════════════════ */
+    /* FOOTER                                                 */
+    /* ══════════════════════════════════════════════════════ */
+    footer {
+      background: #1a1a1a;
+      color: var(--white);
+      text-align: center;
+      padding: 36px 24px;
+    }
+
+    .footer-brand {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .footer-contact {
+      font-size: 0.93rem;
+      color: rgba(255,255,255,0.7);
+      margin-bottom: 8px;
+    }
+
+    .footer-copy {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.4);
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 1 — HERO
+  ══════════════════════════════════════════════ -->
+  <section id="hero">
+    <div class="container">
+      <p class="hero-logo fade-in">נתא</p>
+      <p class="hero-clinic fade-in">קליניקת • תזונה</p>
+
+      <h1 class="hero-headline fade-in">
+        תזונה שמתאימה לחיים שלך —<br>
+        לא לחיים שאחרים ממציאים לך
+      </h1>
+
+      <p class="hero-sub fade-in">
+        בלי הבטחות שווא, בלי קיצוניות.<br>
+        רק תהליך שפוי, מבוסס מחקר, שאפשר להחזיק לאורך זמן.
+      </p>
+
+      <a href="#contact" class="btn btn-green fade-in">רוצה לשמוע עוד ↓</a>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 2 — BELIEFS
+  ══════════════════════════════════════════════ -->
+  <section id="beliefs">
+    <div class="container">
+      <h2 class="section-title fade-in">האני מאמין שלי</h2>
+
+      <div class="beliefs-grid">
+        <div class="belief-card fade-in">
+          <span class="belief-icon">🔬</span>
+          <p class="belief-title">מבוסס מחקר — לא טרנדים</p>
+          <p class="belief-desc">כל המלצה שאתן לך נשענת על קונצנזוס מדעי עדכני, לא על אינסטגרם.</p>
+        </div>
+
+        <div class="belief-card fade-in">
+          <span class="belief-icon">⚖️</span>
+          <p class="belief-title">אין שחור ולבן בתזונה</p>
+          <p class="belief-desc">התחום מורכב, החיים מורכבים — והפתרון צריך להיות גמיש כמוהם.</p>
+        </div>
+
+        <div class="belief-card fade-in">
+          <span class="belief-icon">🎯</span>
+          <p class="belief-title">תהליך, לא קסם</p>
+          <p class="belief-desc">אני לא מבטיח תוצאות מהירות. אני מבטיח תהליך שאפשר לחיות איתו.</p>
+        </div>
+
+        <div class="belief-card fade-in">
+          <span class="belief-icon">🤝</span>
+          <p class="belief-title">מותאם לחיים שלך</p>
+          <p class="belief-desc">לו״ז, עבודה, משפחה — הכל נלקח בחשבון. לא תבנית אחת לכולם.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 3 — BENEFITS
+  ══════════════════════════════════════════════ -->
+  <section id="benefits">
+    <div class="container">
+      <h2 class="section-title fade-in">מה תקבל בתהליך</h2>
+
+      <div class="benefits-grid">
+        <div class="benefit-card fade-in">
+          <p class="benefit-num">01</p>
+          <p class="benefit-title">ליווי אמיתי ביומיום</p>
+          <p class="benefit-desc">
+            תמיכה בוואטסאפ, מעקב שקילות פעמיים בשבוע.<br>
+            אני איתך בין הפגישות, לא רק בהן.
+          </p>
+        </div>
+
+        <div class="benefit-card fade-in">
+          <p class="benefit-num">02</p>
+          <p class="benefit-title">תפריט שחי ונושם</p>
+          <p class="benefit-desc">
+            לא מסמך PDF שמעלה אבק.<br>
+            תפריט שמשתנה איתך ועם השגרה המשתנה שלך.
+          </p>
+        </div>
+
+        <div class="benefit-card fade-in">
+          <p class="benefit-num">03</p>
+          <p class="benefit-title">כלים לכל החיים</p>
+          <p class="benefit-desc">
+            כל מפגש כולל למידה — כדי שתצא עם הבנה,<br>
+            לא רק עם הוראות שלא תזכור.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 4 — PROCESS
+  ══════════════════════════════════════════════ -->
+  <section id="process">
+    <div class="container">
+      <h2 class="section-title fade-in">איך זה עובד</h2>
+      <p class="section-sub fade-in">ליווי אינטנסיבי של 3 חודשים + המשך דרך לפי הצורך שלך</p>
+
+      <div class="timeline fade-in">
+        <div class="timeline-step">
+          <p class="step-num">שלב 1</p>
+          <p class="step-title">פגישת היכרות עמוקה</p>
+          <p class="step-desc">
+            מתחילים בלהכיר אותך — השגרה, המטרות, ההיסטוריה.
+            בונים את הבסיס לתהליך שיתאים לך בדיוק.
+          </p>
+        </div>
+
+        <div class="timeline-step">
+          <p class="step-num">שלב 2</p>
+          <p class="step-title">תפריט מותאם אישית</p>
+          <p class="step-desc">
+            תוך יומיים מהפגישה הראשונה — תפריט דינמי שמתחשב
+            בלו״ז, בהעדפות ובמטרה שלך.
+          </p>
+        </div>
+
+        <div class="timeline-step">
+          <p class="step-num">שלב 3</p>
+          <p class="step-title">6 מפגשים + מעקב צמוד</p>
+          <p class="step-desc">
+            כל שבועיים פגישה (פרונטלית או זום) + ווצאפ יומיומי.
+            מעקב שקילות, התאמות שוטפות, למידה בכל מפגש.
+          </p>
+        </div>
+
+        <div class="timeline-step">
+          <p class="step-num">שלב 4</p>
+          <p class="step-title">המשך הדרך</p>
+          <p class="step-desc">
+            בסיום 3 החודשים — מחליטים יחד על המשך.
+            ליווי חודשי מופחת או פגישות נקודתיות לפי הצורך.
+          </p>
+        </div>
+      </div>
+
+      <div class="price-box fade-in">
+        <p class="price-label">עלות הליווי המלא (3 חודשים)</p>
+        <p class="price-amount">2,400 ₪</p>
+        <p class="price-includes">כולל 6 מפגשים, תפריט מותאם, ותמיכה יומיומית</p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 5 — TESTIMONIALS
+  ══════════════════════════════════════════════ -->
+  <section id="testimonials">
+    <div class="container">
+      <h2 class="section-title fade-in">מה אומרים עליי</h2>
+
+      <div class="testimonials-grid fade-in">
+        <div class="testimonial-card">
+          <p class="testimonial-quote">
+            נכנסתי לתהליך אחרי שנכוויתי כמה פעמים.
+            נתנאל היה הראשון שהסביר לי למה כל הדיאטות הקודמות נשברו.
+            בלי דרמה, בלי קיצוניות — סוף סוף משהו שמחזיק.
+          </p>
+          <p class="testimonial-meta">
+            <strong>מיכל, 34</strong>
+            מטרה: ירידה במשקל
+          </p>
+        </div>
+
+        <div class="testimonial-card">
+          <p class="testimonial-quote">
+            ציפיתי לתפריט ולמנות. קיבלתי הרבה יותר מזה —
+            הבנה של הגוף שלי ושל הדפוסים שלי.
+            3 חודשים שינו את הדרך שאני מסתכל על אוכל.
+          </p>
+          <p class="testimonial-meta">
+            <strong>יואב, 28</strong>
+            מטרה: חיטוב ובניית מסה
+          </p>
+        </div>
+
+        <div class="testimonial-card">
+          <p class="testimonial-quote">
+            הדבר שהכי עזר לי הוא שנתנאל לא ייחס לי אשמה.
+            הוא פשוט עזר לי להבין מה לא עבד ולמה.
+            ממליצה לכל מי שעייפה מניסוי וטעייה.
+          </p>
+          <p class="testimonial-meta">
+            <strong>שירה, 41</strong>
+            מטרה: סדר תזונתי ובריאות
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════
+       SECTION 6 — LEAD FORM
+  ══════════════════════════════════════════════ -->
+  <section id="contact">
+    <div class="container">
+      <div class="contact-header fade-in">
+        <h2 class="contact-title">מתעניינ/ת?</h2>
+        <p class="contact-sub">
+          השאירו פרטים ואחזור אליכם לשיחת היכרות קצרה —<br>
+          בלי התחייבות, בלי לחץ.
+        </p>
+      </div>
+
+      <div class="form-card fade-in" id="form-wrapper">
+        <form id="lead-form" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="full_name">שם מלא *</label>
+            <input
+              class="form-input"
+              type="text"
+              id="full_name"
+              name="full_name"
+              placeholder="השם שלך"
+              required
+              autocomplete="name"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="phone">טלפון *</label>
+            <input
+              class="form-input"
+              type="tel"
+              id="phone"
+              name="phone"
+              placeholder="050-0000000"
+              required
+              autocomplete="tel"
+              dir="ltr"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="goal">המטרה שלי *</label>
+            <select class="form-select" id="goal" name="goal" required>
+              <option value="" disabled selected>בחר/י מטרה</option>
+              <option value="חיטוב">חיטוב</option>
+              <option value="עלייה במסת שריר">עלייה במסת שריר</option>
+              <option value="ירידה במשקל">ירידה במשקל</option>
+              <option value="סדר תזונתי">סדר תזונתי</option>
+              <option value="מסיבה בריאותית">מסיבה בריאותית</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="notes">הערות</label>
+            <textarea
+              class="form-textarea"
+              id="notes"
+              name="notes"
+              rows="3"
+              placeholder="משהו שחשוב לך שאדע מראש (לא חובה)"
+            ></textarea>
+          </div>
+
+          <button type="submit" class="form-submit" id="submit-btn">
+            שלחו פרטים ואחזור אליכם 💪
+          </button>
+
+          <p class="form-error" id="form-error" style="display:none;"></p>
+        </form>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ══════════════════════════════════════════════
+       FOOTER
+  ══════════════════════════════════════════════ -->
+  <footer>
+    <p class="footer-brand">נתא | קליניקת • תזונה</p>
+    <p class="footer-contact">
+      נתנאל מלכה &nbsp;|&nbsp;
+      <a href="mailto:nm.nutritionist@gmail.com" style="color:rgba(255,255,255,0.7);">nm.nutritionist@gmail.com</a>
+      &nbsp;|&nbsp;
+      <a href="tel:0524013226" style="color:rgba(255,255,255,0.7);">0524013226</a>
+    </p>
+    <p class="footer-copy">© 2026 כל הזכויות שמורות</p>
+  </footer>
+
+
+  <script>
+    // ── Fade-in on scroll (IntersectionObserver) ───────────
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+
+    document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
+
+    // ── Lead form submission ───────────────────────────────
+    const form       = document.getElementById('lead-form');
+    const submitBtn  = document.getElementById('submit-btn');
+    const errorEl    = document.getElementById('form-error');
+    const wrapper    = document.getElementById('form-wrapper');
+
+    // Detect whether we're served from Express or opened as a file
+    const API_BASE = window.location.protocol === 'file:'
+      ? 'http://localhost:3001'
+      : '';
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+    }
+
+    function hideError() {
+      errorEl.style.display = 'none';
+    }
+
+    function showSuccess() {
+      wrapper.innerHTML = `
+        <div class="form-success">
+          <div class="success-icon">✅</div>
+          <p class="success-title">קיבלתי! אחזור אליך בהקדם 🙌</p>
+          <p class="success-note">
+            בינתיים, תרגיש/י חופשי/ה לשלוח הודעה ישירות:<br>
+            <a href="tel:0524013226" style="color:var(--blue);font-weight:700;">0524013226</a>
+          </p>
+        </div>
+      `;
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      hideError();
+
+      const full_name = form.full_name.value.trim();
+      const phone     = form.phone.value.trim();
+      const goal      = form.goal.value;
+      const notes     = form.notes.value.trim();
+
+      if (!full_name) { showError('נא להזין שם מלא.'); return; }
+      if (!phone)     { showError('נא להזין מספר טלפון.'); return; }
+      if (!goal)      { showError('נא לבחור מטרה.'); return; }
+
+      submitBtn.disabled    = true;
+      submitBtn.textContent = 'שולח...';
+
+      try {
+        const res = await fetch(`${API_BASE}/api/leads/public`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ full_name, phone, goal, notes }),
+        });
+
+        const data = await res.json();
+
+        if (res.status === 429) {
+          showError('שלחת יותר מידי בקשות. נסה שוב מאוחר יותר.');
+          submitBtn.disabled    = false;
+          submitBtn.textContent = 'שלחו פרטים ואחזור אליכם 💪';
+          return;
+        }
+
+        if (!data.success) {
+          showError(data.error || 'משהו השתבש. אפשר לפנות ישירות: 0524013226');
+          submitBtn.disabled    = false;
+          submitBtn.textContent = 'שלחו פרטים ואחזור אליכם 💪';
+          return;
+        }
+
+        showSuccess();
+      } catch {
+        showError('משהו השתבש. אפשר לפנות ישירות: 0524013226');
+        submitBtn.disabled    = false;
+        submitBtn.textContent = 'שלחו פרטים ואחזור אליכם 💪';
+      }
+    });
+  </script>
+
+</body>
+</html>

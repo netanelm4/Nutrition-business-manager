@@ -17,6 +17,7 @@ const dashboardRouter = require('./routes/dashboard.routes');
 const whatsappRouter = require('./routes/whatsapp.routes');
 const paymentsRouter = require('./routes/payments.routes');
 const protocolsRouter = require('./routes/protocols.routes');
+const publicRouter = require('./routes/public.routes');
 
 // ─── Seed default data ────────────────────────────────────────────────────────
 runSeed(db);
@@ -28,8 +29,14 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ─── API routes (all protected by password auth) ──────────────────────────────
+// ─── Public API routes (no auth) ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.use('/api', publicRouter);
+
+// ─── Landing page static files ────────────────────────────────────────────────
+app.use('/landing', express.static(path.join(__dirname, 'landing')));
+
+// ─── Protected API routes ─────────────────────────────────────────────────────
 app.use('/api', requireAuth);
 
 app.use('/api/dashboard',        dashboardRouter);
