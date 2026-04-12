@@ -8,6 +8,7 @@ import Leads from './pages/Leads';
 import LeadDetail from './pages/LeadDetail';
 import Templates from './pages/Templates';
 import Protocols from './pages/Protocols';
+import CalendlySettings from './pages/CalendlySettings';
 import Login from './pages/Login';
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="leads/:id" element={<LeadDetail />} />
           <Route path="templates" element={<Templates />} />
           <Route path="protocols" element={<Protocols />} />
+          <Route path="calendly" element={<CalendlySettings />} />
         </Route>
       </Routes>
     </BrowserRouter>

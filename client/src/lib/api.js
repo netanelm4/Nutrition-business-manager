@@ -96,6 +96,11 @@ export const fetchPayments = (clientId) => request('GET', `/clients/${clientId}/
 export const createPayment = (clientId, data) => request('POST', `/clients/${clientId}/payments`, data);
 export const deletePayment = (paymentId) => request('DELETE', `/payments/${paymentId}`);
 
+// ── Calendly ──────────────────────────────────────────────────────────────────
+export const fetchCalendlyConfig    = () => request('GET',  '/calendly/config');
+export const fetchCalendlyUpcoming  = () => request('GET',  '/calendly/upcoming');
+export const checkCalendlyReminders = () => request('POST', '/calendly/check-reminders');
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const checkHealth = (password) =>
   fetch('/api/health', {

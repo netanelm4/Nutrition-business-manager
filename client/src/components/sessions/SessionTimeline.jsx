@@ -6,6 +6,16 @@ import AlertBadge from '../ui/AlertBadge';
 import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
 
+// Calendly follow-up link for sending scheduling invites
+const FOLLOWUP_CALENDLY_URL = 'https://calendly.com/nm-nutritionist1/30-minute-meeting-clone';
+
+function normaliseForWA(phone) {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (digits.startsWith('972')) return digits;
+  if (digits.startsWith('0')) return '972' + digits.slice(1);
+  return digits;
+}
+
 const inputClass =
   'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent';
 
@@ -69,7 +79,7 @@ function OverrideForm({ window, clientId, onClose }) {
 /**
  * Single slot in the timeline.
  */
-function TimelineSlot({ window, session, clientId }) {
+function TimelineSlot({ window, session, clientId, clientName, clientPhone }) {
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
 
@@ -109,13 +119,27 @@ function TimelineSlot({ window, session, clientId }) {
             )}
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setSessionModalOpen(true)}
-            className="text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors text-center"
-          >
-            קביעת פגישה
-          </button>
+          <div className="flex flex-col gap-1.5">
+            <button
+              type="button"
+              onClick={() => setSessionModalOpen(true)}
+              className="text-xs px-2 py-1 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors text-center"
+            >
+              קביעת פגישה
+            </button>
+            {(window.alert_state === 'yellow' || window.alert_state === 'red') && clientPhone && (
+              <a
+                href={`https://wa.me/${normaliseForWA(clientPhone)}?text=${encodeURIComponent(
+                  `היי ${clientName}, הגיע הזמן לפגישה הבאה שלנו 💪\nניתן לבחור שעה נוחה בקישור:\n${FOLLOWUP_CALENDLY_URL}`
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs px-2 py-1 rounded-lg bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors text-center"
+              >
+                שלח קישור לקביעה 💬
+              </a>
+            )}
+          </div>
         )}
 
         {/* Override button */}
@@ -197,6 +221,8 @@ export default function SessionTimeline({ client, sessions }) {
           window={w}
           session={sessionByNumber[w.session_number] ?? null}
           clientId={client.id}
+          clientName={client.full_name}
+          clientPhone={client.phone}
         />
       ))}
     </div>

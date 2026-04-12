@@ -18,6 +18,8 @@ const whatsappRouter = require('./routes/whatsapp.routes');
 const paymentsRouter = require('./routes/payments.routes');
 const protocolsRouter = require('./routes/protocols.routes');
 const publicRouter = require('./routes/public.routes');
+const { webhookRouter, calendlyRouter } = require('./routes/calendly.routes');
+const { checkUpcomingReminders } = require('./services/reminders.service');
 
 // ─── Seed default data ────────────────────────────────────────────────────────
 runSeed(db);
@@ -32,6 +34,7 @@ app.use(express.json());
 // ─── Public API routes (no auth) ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api', publicRouter);
+app.use('/api/calendly', webhookRouter);
 
 // ─── Landing page static files ────────────────────────────────────────────────
 app.use('/landing', express.static(path.join(__dirname, 'landing')));
@@ -48,6 +51,7 @@ app.use('/api/templates',        templatesRouter);
 app.use('/api/whatsapp',         whatsappRouter);
 app.use('/api',                  paymentsRouter);
 app.use('/api/protocols',        protocolsRouter);
+app.use('/api/calendly',         calendlyRouter);
 
 // Session sub-routes are mounted on the clients router (/:id/sessions, /:id/windows)
 // Direct session access (/api/sessions/:id) is mounted here for GET/PUT/POST insights
@@ -65,4 +69,9 @@ if (process.env.NODE_ENV === 'production') {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`[server] Nutrition CRM running on http://localhost:${PORT}`);
+
+  // ── Reminder service: check for upcoming sessions every 30 minutes ──────────
+  // Initial run after 10 s so the server is fully ready before any DB queries
+  setTimeout(checkUpcomingReminders, 10_000);
+  setInterval(checkUpcomingReminders, 30 * 60 * 1000);
 });

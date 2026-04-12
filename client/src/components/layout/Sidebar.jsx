@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: '/leads',      icon: '📋', label: 'לידים'       },
   { to: '/protocols',  icon: '📂', label: 'פרוטוקולים'  },
   { to: '/templates',  icon: '💬', label: 'תבניות'      },
+  { to: '/calendly',   icon: '📅', label: 'קביעת פגישות'},
 ];
 
 function NavItem({ to, icon, label }) {

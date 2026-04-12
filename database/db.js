@@ -118,4 +118,72 @@ try {
   // Table already exists — safe to ignore
 }
 
+// Migrate existing databases: update whatsapp_templates CHECK constraint to allow session_confirmation + calendly_link
+try {
+  const testRow = db
+    .prepare(`INSERT INTO whatsapp_templates (name, trigger_event, body_template, is_active, is_custom) VALUES ('__test__', 'session_confirmation', '__test__', 0, 1)`)
+    .run();
+  db.prepare('DELETE FROM whatsapp_templates WHERE id = ?').run(testRow.lastInsertRowid);
+} catch {
+  // CHECK constraint blocks session_confirmation — recreate table with updated constraint
+  db.pragma('foreign_keys = OFF');
+  db.transaction(() => {
+    db.exec(`
+      CREATE TABLE whatsapp_templates_v3 (
+        id             INTEGER PRIMARY KEY AUTOINCREMENT,
+        name           TEXT    NOT NULL,
+        trigger_event  TEXT    NOT NULL
+                               CHECK (trigger_event IN ('session_reminder','welcome','weekly_checkin','menu_sent','process_ending','payment_reminder','session_confirmation','calendly_link','custom')),
+        body_template  TEXT    NOT NULL,
+        is_active      INTEGER NOT NULL DEFAULT 1,
+        created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        is_custom      INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    db.exec('INSERT INTO whatsapp_templates_v3 SELECT * FROM whatsapp_templates');
+    db.exec('DROP TABLE whatsapp_templates');
+    db.exec('ALTER TABLE whatsapp_templates_v3 RENAME TO whatsapp_templates');
+  })();
+  db.pragma('foreign_keys = ON');
+  console.log('[db] Migrated whatsapp_templates: added session_confirmation, calendly_link to CHECK constraint.');
+}
+
+// Migrate existing databases: create calendly_events table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS calendly_events (
+      id                 TEXT     PRIMARY KEY,
+      client_id          INTEGER  REFERENCES clients(id) ON DELETE SET NULL,
+      lead_id            INTEGER  REFERENCES leads(id)   ON DELETE SET NULL,
+      event_type         TEXT,
+      invitee_name       TEXT,
+      invitee_phone      TEXT,
+      invitee_email      TEXT,
+      start_time         DATETIME,
+      end_time           DATETIME,
+      status             TEXT     NOT NULL DEFAULT 'active',
+      confirmation_sent  INTEGER  NOT NULL DEFAULT 0,
+      confirmation_link  TEXT,
+      calendly_event_uri TEXT,
+      created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch {
+  // Table already exists — safe to ignore
+}
+
+// Migrate existing databases: add confirmation_link to calendly_events (for tables created before this column)
+try {
+  db.exec('ALTER TABLE calendly_events ADD COLUMN confirmation_link TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
+// Migrate existing databases: add calendly_link to clients
+try {
+  db.exec('ALTER TABLE clients ADD COLUMN calendly_link TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
 module.exports = db;

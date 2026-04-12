@@ -39,7 +39,19 @@ const REQUIRED_TEMPLATES = [
     name: 'תזכורת תשלום',
     trigger_event: TRIGGER_EVENT.PAYMENT_REMINDER,
     body_template:
-      'היי {{client_name}}, רציתי להזכיר שיש יתרה פתוחה לתשלום עבור התהליך שלנו. אשמח שתסדיר 🙏',
+      'היי {{client_name}}, רציתי להזכיר שיש יתרה פתוחה לתשלום עבור התהליך שלנו. אשמח שנסדיר את זה 🙏',
+  },
+  {
+    name: 'אישור הגעה לפגישה',
+    trigger_event: TRIGGER_EVENT.SESSION_CONFIRMATION,
+    body_template:
+      'היי {{client_name}} 👋\nרציתי לאשר את הפגישה שלנו מחר {{date}} בשעה {{time}}.\nאשמח לאישור הגעה 🙏\nאם צריך לשנות — נדבר!',
+  },
+  {
+    name: 'קישור לקביעת פגישה',
+    trigger_event: TRIGGER_EVENT.CALENDLY_LINK,
+    body_template:
+      'היי {{client_name}} 😊\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{calendly_link}}\nניתן לבחור שעה נוחה — אני אהיה שם!',
   },
 ];
 

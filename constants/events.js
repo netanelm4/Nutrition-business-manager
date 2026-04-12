@@ -1,11 +1,13 @@
 const TRIGGER_EVENT = Object.freeze({
-  SESSION_REMINDER: 'session_reminder',
-  WELCOME: 'welcome',
-  WEEKLY_CHECKIN: 'weekly_checkin',
-  MENU_SENT: 'menu_sent',
-  PROCESS_ENDING: 'process_ending',
-  PAYMENT_REMINDER: 'payment_reminder',
-  CUSTOM: 'custom',
+  SESSION_REMINDER:    'session_reminder',
+  WELCOME:             'welcome',
+  WEEKLY_CHECKIN:      'weekly_checkin',
+  MENU_SENT:           'menu_sent',
+  PROCESS_ENDING:      'process_ending',
+  PAYMENT_REMINDER:    'payment_reminder',
+  SESSION_CONFIRMATION:'session_confirmation',
+  CALENDLY_LINK:       'calendly_link',
+  CUSTOM:              'custom',
 });
 
 // Number of sessions in a client process
