@@ -24,11 +24,13 @@ async function registerCalendlyWebhook() {
     return;
   }
   const { resource } = await meRes.json();
-  const userUri = resource.uri;
+  const userUri         = resource.uri;
+  const organizationUri = resource.current_organization;
 
   // 2. Check existing webhooks
   const listUrl = new URL('https://api.calendly.com/webhook_subscriptions');
-  listUrl.searchParams.set('organization', userUri);
+  listUrl.searchParams.set('organization', organizationUri);
+  listUrl.searchParams.set('user', userUri);
   listUrl.searchParams.set('scope', 'user');
 
   const listRes = await fetch(listUrl.toString(), { headers: authHeaders() });
@@ -51,7 +53,8 @@ async function registerCalendlyWebhook() {
     body: JSON.stringify({
       url: WEBHOOK_URL,
       events: WEBHOOK_EVENTS,
-      organization: userUri,
+      organization: organizationUri,
+      user: userUri,
       scope: 'user',
     }),
   });
