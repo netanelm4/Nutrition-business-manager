@@ -23,27 +23,31 @@ function normalizePhoneForDB(phone) {
 // ── invitee.created handler ───────────────────────────────────────────────────
 
 function handleCreated(payload) {
-  const eventUri       = payload.event?.uri || '';
-  const event_uuid     = eventUri.split('/').pop();
-  const invitee_name   = payload.invitee?.name  || '';
-  const invitee_email  = payload.invitee?.email || '';
-  const start_time     = payload.event?.start_time || '';
-  const end_time       = payload.event?.end_time   || '';
-  const event_type_uri = payload.event_type?.uri   || '';
+  // Correct field paths based on actual Calendly webhook payload structure
+  const scheduledEvent  = payload.scheduled_event || {};
+  const eventUri        = scheduledEvent.uri || '';
+  const event_uuid      = payload.uri?.split('/').pop() || eventUri.split('/').pop();
+  const invitee_name    = payload.name  || '';
+  const invitee_email   = payload.email || '';
+  const start_time      = scheduledEvent.start_time || '';
+  const end_time        = scheduledEvent.end_time   || '';
+  const event_type_uri  = scheduledEvent.event_type || '';
+  const event_name      = scheduledEvent.name       || '';
 
-  // Extract phone — try both locations Calendly may use
-  const qas =
-    (payload.invitee?.questions_and_answers?.length
-      ? payload.invitee.questions_and_answers
-      : null) ||
-    payload.questions_and_answers ||
-    [];
+  // Extract phone from questions_and_answers (root of payload)
+  const qas = payload.questions_and_answers || [];
   const phoneQA = qas.find((qa) => /טלפון|phone/i.test(qa.question || ''));
   const invitee_phone = phoneQA?.answer?.trim() || null;
 
-  // Determine event type
+  // Determine event type from event name (most reliable) then URI
   let event_type = 'first_meeting';
-  if (event_type_uri.includes('30-minute-meeting-clone')) event_type = 'follow_up';
+  if (/מעקב/.test(event_name)) {
+    event_type = 'follow_up';
+  } else if (/ראשונ/.test(event_name)) {
+    event_type = 'first_meeting';
+  } else if (event_type_uri.includes('30-minute-meeting-clone')) {
+    event_type = 'follow_up';
+  }
 
   // Normalize phone for DB matching
   const normPhone = normalizePhoneForDB(invitee_phone || '');
@@ -97,13 +101,13 @@ function handleCreated(payload) {
     }
   }
 
-  console.log(`[calendly] Booked: ${invitee_name} (${event_type}) — ${start_time}`);
+  console.log(`[calendly] Booked: ${invitee_name} (${event_type}) — ${invitee_phone || 'no phone'} — ${start_time}`);
 }
 
 // ── invitee.canceled handler ──────────────────────────────────────────────────
 
 function handleCanceled(payload) {
-  const event_uuid = payload.event?.uri?.split('/').pop();
+  const event_uuid = payload.uri?.split('/').pop();
   if (!event_uuid) return;
 
   const event = db.prepare('SELECT * FROM calendly_events WHERE id = ?').get(event_uuid);
@@ -129,9 +133,6 @@ function handleCanceled(payload) {
 webhookRouter.post('/webhook', (req, res) => {
   // Respond immediately so Calendly doesn't retry on slow processing
   res.json({ received: true });
-
-  // Log full raw payload so we can inspect exact structure
-  console.log('[calendly] Raw payload:', JSON.stringify(req.body, null, 2));
 
   const eventName = req.body?.event;
   const payload   = req.body?.payload;
