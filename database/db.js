@@ -186,4 +186,52 @@ try {
   // Column already exists — safe to ignore
 }
 
+// Migrate existing databases: clean emojis and dashes from all template bodies
+try {
+  const CLEAN_TEMPLATES = [
+    {
+      trigger_event: 'session_reminder',
+      body_template: 'היי {{client_name}}, רציתי להזכיר שיש לנו פגישה ב-{{date}} בשעה {{time}}. מחכה לך.',
+    },
+    {
+      trigger_event: 'welcome',
+      body_template: 'היי {{client_name}}, ברוך הבא לתהליך. שמח לצאת איתך לדרך. התפריט שלך יהיה אצלך תוך יומיים מהפגישה שלנו.',
+    },
+    {
+      trigger_event: 'menu_sent',
+      body_template: 'היי {{client_name}}, התפריט שלך מוכן ונשלח אליך. קרא אותו בנחת ואם יש שאלות, אני כאן.',
+    },
+    {
+      trigger_event: 'weekly_checkin',
+      body_template: 'היי {{client_name}}, שבוע טוב. רציתי לבדוק איך עובר השבוע מבחינת התזונה? מה מרגיש טוב ומה קצת מאתגר?',
+    },
+    {
+      trigger_event: 'process_ending',
+      body_template: 'היי {{client_name}}, כבר 3 חודשים ביחד, כל הכבוד על ההתמדה. בוא נדבר על המשך הדרך ומה הצעד הבא בשבילך.',
+    },
+    {
+      trigger_event: 'payment_reminder',
+      body_template: 'היי {{client_name}}, רציתי להזכיר שיש יתרה פתוחה לתשלום עבור התהליך שלנו. אשמח שנסדיר את זה.',
+    },
+    {
+      trigger_event: 'session_confirmation',
+      body_template: 'היי {{client_name}},\nרציתי לאשר את הפגישה שלנו מחר {{date}} בשעה {{time}}.\nאשמח לאישור הגעה.\nאם צריך לשנות, נדבר.',
+    },
+    {
+      trigger_event: 'calendly_link',
+      body_template: 'היי {{client_name}},\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{calendly_link}}\nניתן לבחור שעה נוחה, אני אהיה שם.',
+    },
+  ];
+
+  const updateTmpl = db.prepare(
+    'UPDATE whatsapp_templates SET body_template = ? WHERE trigger_event = ? AND is_custom = 0'
+  );
+  const updateAll = db.transaction((templates) => {
+    for (const t of templates) updateTmpl.run(t.body_template, t.trigger_event);
+  });
+  updateAll(CLEAN_TEMPLATES);
+} catch {
+  // Non-fatal — seed will set correct values for fresh installs
+}
+
 module.exports = db;

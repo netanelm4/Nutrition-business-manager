@@ -5,31 +5,31 @@ const TEMPLATES = [
     name: 'תזכורת פגישה',
     trigger_event: TRIGGER_EVENT.SESSION_REMINDER,
     body_template:
-      'היי {{client_name}}, רציתי להזכיר לך שיש לנו פגישה ב-{{date}} בשעה {{time}}. מחכה לך! 😊',
+      'היי {{client_name}}, רציתי להזכיר שיש לנו פגישה ב-{{date}} בשעה {{time}}. מחכה לך.',
   },
   {
     name: 'ברוך הבא לתהליך',
     trigger_event: TRIGGER_EVENT.WELCOME,
     body_template:
-      'היי {{client_name}}! ברוך הבא לתהליך 🙌 שמח לצאת איתך לדרך. התפריט שלך יהיה אצלך תוך יומיים מהפגישה שלנו.',
+      'היי {{client_name}}, ברוך הבא לתהליך. שמח לצאת איתך לדרך. התפריט שלך יהיה אצלך תוך יומיים מהפגישה שלנו.',
   },
   {
     name: 'תפריט נשלח',
     trigger_event: TRIGGER_EVENT.MENU_SENT,
     body_template:
-      'היי {{client_name}}, התפריט שלך מוכן ונשלח אליך 🥗 קרא אותו בנחת ואם יש שאלות — אני כאן.',
+      'היי {{client_name}}, התפריט שלך מוכן ונשלח אליך. קרא אותו בנחת ואם יש שאלות, אני כאן.',
   },
   {
     name: 'צ׳ק-אין שבועי',
     trigger_event: TRIGGER_EVENT.WEEKLY_CHECKIN,
     body_template:
-      'היי {{client_name}}, שבוע טוב! רציתי לבדוק איך עובר השבוע מבחינת התזונה? מה מרגיש טוב ומה קצת מאתגר? 💪',
+      'היי {{client_name}}, שבוע טוב. רציתי לבדוק איך עובר השבוע מבחינת התזונה? מה מרגיש טוב ומה קצת מאתגר?',
   },
   {
     name: 'סיום תהליך',
     trigger_event: TRIGGER_EVENT.PROCESS_ENDING,
     body_template:
-      'היי {{client_name}}, כבר 3 חודשים ביחד — כל הכבוד על ההתמדה! 🎉 בוא נדבר על המשך הדרך ומה הצעד הבא בשבילך.',
+      'היי {{client_name}}, כבר 3 חודשים ביחד, כל הכבוד על ההתמדה. בוא נדבר על המשך הדרך ומה הצעד הבא בשבילך.',
   },
 ];
 
@@ -39,19 +39,19 @@ const REQUIRED_TEMPLATES = [
     name: 'תזכורת תשלום',
     trigger_event: TRIGGER_EVENT.PAYMENT_REMINDER,
     body_template:
-      'היי {{client_name}}, רציתי להזכיר שיש יתרה פתוחה לתשלום עבור התהליך שלנו. אשמח שנסדיר את זה 🙏',
+      'היי {{client_name}}, רציתי להזכיר שיש יתרה פתוחה לתשלום עבור התהליך שלנו. אשמח שנסדיר את זה.',
   },
   {
     name: 'אישור הגעה לפגישה',
     trigger_event: TRIGGER_EVENT.SESSION_CONFIRMATION,
     body_template:
-      'היי {{client_name}} 👋\nרציתי לאשר את הפגישה שלנו מחר {{date}} בשעה {{time}}.\nאשמח לאישור הגעה 🙏\nאם צריך לשנות — נדבר!',
+      'היי {{client_name}},\nרציתי לאשר את הפגישה שלנו מחר {{date}} בשעה {{time}}.\nאשמח לאישור הגעה.\nאם צריך לשנות, נדבר.',
   },
   {
     name: 'קישור לקביעת פגישה',
     trigger_event: TRIGGER_EVENT.CALENDLY_LINK,
     body_template:
-      'היי {{client_name}} 😊\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{calendly_link}}\nניתן לבחור שעה נוחה — אני אהיה שם!',
+      'היי {{client_name}},\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{calendly_link}}\nניתן לבחור שעה נוחה, אני אהיה שם.',
   },
 ];
 
