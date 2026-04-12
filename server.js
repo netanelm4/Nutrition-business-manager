@@ -20,6 +20,7 @@ const protocolsRouter = require('./routes/protocols.routes');
 const publicRouter = require('./routes/public.routes');
 const { webhookRouter, calendlyRouter } = require('./routes/calendly.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
+const { registerCalendlyWebhook } = require('./services/calendly.service');
 
 // ─── Seed default data ────────────────────────────────────────────────────────
 runSeed(db);
@@ -67,11 +68,18 @@ if (process.env.NODE_ENV === 'production') {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   console.log(`[server] Nutrition CRM running on http://localhost:${PORT}`);
 
   // ── Reminder service: check for upcoming sessions every 30 minutes ──────────
   // Initial run after 10 s so the server is fully ready before any DB queries
   setTimeout(checkUpcomingReminders, 10_000);
   setInterval(checkUpcomingReminders, 30 * 60 * 1000);
+
+  // ── Calendly webhook registration ─────────────────────────────────────────
+  try {
+    await registerCalendlyWebhook();
+  } catch (err) {
+    console.error('[calendly] Webhook registration error:', err.message);
+  }
 });
