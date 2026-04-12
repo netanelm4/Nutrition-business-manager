@@ -31,8 +31,13 @@ function handleCreated(payload) {
   const end_time       = payload.event?.end_time   || '';
   const event_type_uri = payload.event_type?.uri   || '';
 
-  // Extract phone from custom questions
-  const qas = payload.invitee?.questions_and_answers || [];
+  // Extract phone — try both locations Calendly may use
+  const qas =
+    (payload.invitee?.questions_and_answers?.length
+      ? payload.invitee.questions_and_answers
+      : null) ||
+    payload.questions_and_answers ||
+    [];
   const phoneQA = qas.find((qa) => /טלפון|phone/i.test(qa.question || ''));
   const invitee_phone = phoneQA?.answer?.trim() || null;
 
@@ -124,6 +129,9 @@ function handleCanceled(payload) {
 webhookRouter.post('/webhook', (req, res) => {
   // Respond immediately so Calendly doesn't retry on slow processing
   res.json({ received: true });
+
+  // Log full raw payload so we can inspect exact structure
+  console.log('[calendly] Raw payload:', JSON.stringify(req.body, null, 2));
 
   const eventName = req.body?.event;
   const payload   = req.body?.payload;
