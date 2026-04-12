@@ -2,33 +2,19 @@
 
 ## Project Overview
 A full-stack CRM web app for a clinical nutritionist (נתנאל מלכה).
-Stack: React + Tailwind (frontend), Node.js + Express (backend), 
+Stack: React + Tailwind (frontend), Node.js + Express (backend),
 SQLite with better-sqlite3, Anthropic Claude API for AI insights.
 Deployed on Railway at: https://web-production-790f4.up.railway.app
+Landing page: https://web-production-790f4.up.railway.app/landing/
+Local dev server runs on: http://localhost:3001
 
 ## Language Rules
 - All UI text must be in Hebrew
 - RTL layout throughout (dir="rtl")
-- NEVER use gender slash-forms (אשר/י, בחר/י etc.)
-- Use gender-neutral Hebrew phrasing only
+- NEVER use gender slash-forms (אשר/י, בחר/י, לחץ/י etc.)
+- Always use gender-neutral Hebrew phrasing only
 - No emojis in WhatsApp templates
 - No dash characters (—) in WhatsApp templates
-
-## Visual Research with Playwright MCP
-When asked to look at websites, landing pages, or UI examples:
-1. Use playwright-mcp to open the URL in a real browser
-2. Take a screenshot and analyze the visual layout
-3. Note: colors, typography, section structure, CTA placement,
-   mobile responsiveness, Hebrew/RTL handling if relevant
-4. Extract specific design patterns worth applying
-
-Common use cases:
-- "תסתכל על דף הנחיתה הזה" → open + screenshot + analyze
-- "מה דומה/שונה מהדף שלנו" → compare visually
-- "איך הם עשו את ה-X" → inspect specific UI pattern
-
-Always summarize findings in Hebrew before suggesting 
-any code changes based on visual research.
 
 ## Code Rules
 - Never hardcode strings — use constants files
@@ -36,14 +22,17 @@ any code changes based on visual research.
 - All WhatsApp logic goes through services/whatsapp.service.js only
 - All fetch calls go through client/src/lib/api.js only
 - Every API route must have try/catch and return consistent JSON
-- Every DB migration must be wrapped in try/catch (ignore duplicate)
+- Every DB migration must be wrapped in try/catch (ignore duplicate column errors)
 - Mobile first — every screen must work at 390px width
+- Before every task: read relevant skill files from available skills
 
 ## Architecture
 - Public routes (no auth): mounted BEFORE requireAuth in server.js
 - Auth: single password via Authorization: Bearer header
 - DB: SQLite at DB_PATH env variable (default: data/nutrition.db)
 - AI insights: claude-sonnet-4-20250514, Hebrew responses only
+- WhatsApp: WHATSAPP_MODE=deeplink (wa.me links, manual send)
+- Calendly: webhook at /api/calendly/webhook (mounted before auth)
 
 ## Key Files
 - server.js — entry point, route mounting order matters
@@ -51,16 +40,45 @@ any code changes based on visual research.
 - database/seed.js — idempotent seeds (check before insert)
 - services/whatsapp.service.js — ALL WhatsApp logic here
 - services/ai.service.js — ALL Claude API calls here
-- services/reminders.service.js — Calendly reminder checks
+- services/reminders.service.js — Calendly reminder checks (runs every 30min)
+- routes/public.routes.js — public endpoints (no auth)
+- routes/calendly.routes.js — Calendly webhook + upcoming sessions
 
 ## Environment Variables
 PORT, NODE_ENV, AUTH_PASSWORD, ANTHROPIC_API_KEY,
 WHATSAPP_MODE, DB_PATH, CALENDLY_TOKEN,
 CALENDLY_FOLLOWUP_LINK, CALENDLY_FIRST_LINK
 
-## Before Every Change
-1. Read relevant skill files from /mnt/skills
-2. Plan before coding
+## Brand (for landing page and UI)
+Colors: #fcf4f9 (bg), #F5DBEA (pink), #567DBF (blue), #31B996 (green)
+Font: Heebo (Hebrew-first)
+Logo files: landing/assets/logo-color.png, logo-dark.png, logo-light.png
+
+## Visual Development with Playwright
+
+IMMEDIATELY after implementing any front-end change:
+1. Use mcp__playwright__browser_navigate to visit each changed view
+2. Take a full page screenshot at desktop (1440px)
+3. Take a screenshot at mobile (390px)
+4. Run mcp__playwright__browser_console_messages to check for errors
+5. Verify RTL is correct and Hebrew text is readable
+
+For comprehensive design review use: /design-review
+Full design principles checklist: /.claude/context/design-principles.md
+
+Trigger phrases for visual review:
+- "תסתכל על..."
+- "השווה את..."
+- "בדוק את הדיזיין..."
+- "review the..."
+- "look at this page..."
+
+Skip visual testing for: backend changes, DB migrations, config files.
+
+## Before Every Task
+1. Read ALL available skill files relevant to the task
+2. Plan the full approach before writing any code
 3. Build one file at a time
 4. Self-review after each file
 5. Never batch multiple files without confirmation
+6. After any frontend change: run the Quick Visual Check above
