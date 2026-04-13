@@ -101,6 +101,10 @@ export const fetchCalendlyConfig    = () => request('GET',  '/calendly/config');
 export const fetchCalendlyUpcoming  = () => request('GET',  '/calendly/upcoming');
 export const checkCalendlyReminders = () => request('POST', '/calendly/check-reminders');
 
+// ── Lead meetings ─────────────────────────────────────────────────────────────
+export const scheduleMeeting  = (leadId, data) => request('POST', `/leads/${leadId}/meeting`, data);
+export const fetchLeadMeeting = (leadId)       => request('GET',  `/leads/${leadId}/meeting`);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const checkHealth = (password) =>
   fetch('/api/health', {

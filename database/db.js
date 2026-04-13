@@ -186,6 +186,20 @@ try {
   // Column already exists — safe to ignore
 }
 
+// Migrate existing databases: add source column to calendly_events
+try {
+  db.exec("ALTER TABLE calendly_events ADD COLUMN source TEXT NOT NULL DEFAULT 'calendly'");
+} catch {
+  // Column already exists — safe to ignore
+}
+
+// Migrate existing databases: add notes column to calendly_events
+try {
+  db.exec('ALTER TABLE calendly_events ADD COLUMN notes TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
 // Migrate existing databases: clean emojis and dashes from all template bodies
 try {
   const CLEAN_TEMPLATES = [

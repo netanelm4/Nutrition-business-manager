@@ -5,6 +5,7 @@ import { LEAD_STATUS, LEAD_STATUS_LABEL } from '../constants/statuses';
 import KanbanBoard from '../components/leads/KanbanBoard';
 import LeadCard from '../components/leads/LeadCard';
 import LeadForm from '../components/leads/LeadForm';
+import MeetingScheduleModal from '../components/leads/MeetingScheduleModal';
 import Modal from '../components/ui/Modal';
 import EmptyState from '../components/ui/EmptyState';
 
@@ -20,6 +21,8 @@ export default function Leads() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [statusError, setStatusError] = useState(null);
+  // Meeting modal state: { lead, newStatus } when intercepted
+  const [meetingModal, setMeetingModal] = useState(null);
 
   const { data: leads = [], isLoading, isError } = useQuery({
     queryKey: ['leads'],
@@ -36,6 +39,15 @@ export default function Leads() {
   });
 
   function handleStatusChange(leadId, newStatus) {
+    if (newStatus === LEAD_STATUS.MEETING_SCHEDULED) {
+      const lead = leads.find((l) => l.id === leadId);
+      if (lead) {
+        // Update status immediately, then show meeting modal
+        statusMutation.mutate({ leadId, newStatus });
+        setMeetingModal({ lead, newStatus });
+        return;
+      }
+    }
     statusMutation.mutate({ leadId, newStatus });
   }
 
@@ -162,6 +174,19 @@ export default function Leads() {
         <Modal title="עריכת ליד" onClose={() => setEditLead(null)}>
           <LeadForm lead={editLead} onSuccess={() => setEditLead(null)} />
         </Modal>
+      )}
+
+      {/* Meeting schedule modal */}
+      {meetingModal && (
+        <MeetingScheduleModal
+          lead={meetingModal.lead}
+          onSave={() => {
+            setMeetingModal(null);
+            queryClient.invalidateQueries({ queryKey: ['leads'] });
+          }}
+          onSkip={() => setMeetingModal(null)}
+          onClose={() => setMeetingModal(null)}
+        />
       )}
     </>
   );

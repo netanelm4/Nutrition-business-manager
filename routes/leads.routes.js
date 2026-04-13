@@ -150,6 +150,70 @@ router.post('/:id/convert', (req, res) => {
   }
 });
 
+// ─── POST /api/leads/:id/meeting ─────────────────────────────────────────────
+
+router.post('/:id/meeting', (req, res) => {
+  try {
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
+    if (!lead) return fail(res, 404, 'Lead not found.');
+
+    const { date, time, event_type, notes } = req.body;
+    if (!date || !time || !event_type) {
+      return fail(res, 400, 'date, time, and event_type are required.');
+    }
+
+    const startTime = new Date(`${date}T${time}:00`).toISOString();
+    const endTime = new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString();
+
+    // Generate a unique ID for manual events
+    const eventId = `manual_${Date.now()}_${lead.id}`;
+
+    db.prepare(`
+      INSERT INTO calendly_events
+        (id, client_id, lead_id, event_type, invitee_name, invitee_phone,
+         start_time, end_time, status, source, notes)
+      VALUES
+        (@id, NULL, @lead_id, @event_type, @invitee_name, @invitee_phone,
+         @start_time, @end_time, 'active', 'manual', @notes)
+    `).run({
+      id: eventId,
+      lead_id: lead.id,
+      event_type,
+      invitee_name: lead.full_name,
+      invitee_phone: lead.phone || null,
+      start_time: startTime,
+      end_time: endTime,
+      notes: notes || null,
+    });
+
+    return ok(res, { event_id: eventId });
+  } catch (err) {
+    console.error('[POST /leads/:id/meeting]', err);
+    return fail(res, 500, 'Failed to schedule meeting.');
+  }
+});
+
+// ─── GET /api/leads/:id/meeting ──────────────────────────────────────────────
+
+router.get('/:id/meeting', (req, res) => {
+  try {
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
+    if (!lead) return fail(res, 404, 'Lead not found.');
+
+    const event = db.prepare(`
+      SELECT * FROM calendly_events
+      WHERE lead_id = ? AND status = 'active'
+      ORDER BY start_time DESC
+      LIMIT 1
+    `).get(req.params.id);
+
+    return ok(res, event || null);
+  } catch (err) {
+    console.error('[GET /leads/:id/meeting]', err);
+    return fail(res, 500, 'Failed to fetch meeting.');
+  }
+});
+
 // ─── DELETE /api/leads/:id ────────────────────────────────────────────────────
 
 router.delete('/:id', (req, res) => {

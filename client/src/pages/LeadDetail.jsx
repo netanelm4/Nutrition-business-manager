@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchLead, updateLead, convertLead, deleteLead, fetchClientByLeadId } from '../lib/api';
-import { LEAD_STATUS_LABEL, LEAD_SOURCE_LABEL } from '../constants/statuses';
+import { fetchLead, updateLead, convertLead, deleteLead, fetchClientByLeadId, fetchLeadMeeting } from '../lib/api';
+import { LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_SOURCE_LABEL } from '../constants/statuses';
 import { formatDateHebrew } from '../lib/dates';
 import WhatsAppDropdown from '../components/whatsapp/WhatsAppDropdown';
+import MeetingScheduleModal from '../components/leads/MeetingScheduleModal';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -182,6 +183,7 @@ export default function LeadDetail() {
   const [saveError, setSaveError] = useState(null);
   const [convertError, setConvertError] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [meetingModalOpen, setMeetingModalOpen] = useState(false);
 
   // ── Data fetching ────────────────────────────────────────────────────────────
 
@@ -199,6 +201,12 @@ export default function LeadDetail() {
     queryKey: ['client-by-lead', id],
     queryFn: () => fetchClientByLeadId(id),
     enabled: lead?.status === 'became_client',
+  });
+
+  const meetingQuery = useQuery({
+    queryKey: ['lead-meeting', id],
+    queryFn: () => fetchLeadMeeting(id),
+    enabled: lead?.status === LEAD_STATUS.MEETING_SCHEDULED,
   });
 
   // ── Save mutation ────────────────────────────────────────────────────────────
@@ -220,6 +228,11 @@ export default function LeadDetail() {
   // ── Step click ───────────────────────────────────────────────────────────────
 
   function handleStepClick(status) {
+    if (status === LEAD_STATUS.MEETING_SCHEDULED) {
+      save({ status });
+      setMeetingModalOpen(true);
+      return;
+    }
     save({ status });
   }
 
@@ -333,6 +346,52 @@ export default function LeadDetail() {
           />
         )}
       </div>
+
+      {/* ── Section 2b: Meeting details (when status = meeting_scheduled) ── */}
+      {lead.status === LEAD_STATUS.MEETING_SCHEDULED && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-600">פרטי הפגישה</h2>
+            <button
+              type="button"
+              onClick={() => setMeetingModalOpen(true)}
+              className="text-xs text-indigo-600 hover:text-indigo-800"
+            >
+              {meetingQuery.data ? 'עדכן' : 'הוסף פרטים'}
+            </button>
+          </div>
+
+          {meetingQuery.isLoading ? (
+            <div className="h-10 animate-pulse bg-gray-100 rounded-lg" />
+          ) : meetingQuery.data ? (
+            <div className="text-sm text-gray-700 space-y-1">
+              <p>
+                <span className="text-gray-500 ml-1">תאריך:</span>
+                {new Date(meetingQuery.data.start_time).toLocaleDateString('he-IL', {
+                  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                })}
+              </p>
+              <p>
+                <span className="text-gray-500 ml-1">שעה:</span>
+                {new Date(meetingQuery.data.start_time).toLocaleTimeString('he-IL', {
+                  hour: '2-digit', minute: '2-digit',
+                })}
+              </p>
+              {meetingQuery.data.event_type && (
+                <p>
+                  <span className="text-gray-500 ml-1">סוג:</span>
+                  {{ first_meeting: 'פגישה ראשונה', follow_up: 'מעקב', consultation: 'ייעוץ' }[meetingQuery.data.event_type] || meetingQuery.data.event_type}
+                </p>
+              )}
+              {meetingQuery.data.notes && (
+                <p className="text-gray-500">{meetingQuery.data.notes}</p>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-400">לא הוזנו פרטי פגישה עדיין.</p>
+          )}
+        </div>
+      )}
 
       {/* ── Section 3: Inline editable fields ── */}
       <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
@@ -464,6 +523,18 @@ export default function LeadDetail() {
           </div>
         )}
       </div>
+      {/* ── Meeting schedule modal ── */}
+      {meetingModalOpen && lead && (
+        <MeetingScheduleModal
+          lead={lead}
+          onSave={() => {
+            setMeetingModalOpen(false);
+            queryClient.invalidateQueries({ queryKey: ['lead-meeting', id] });
+          }}
+          onSkip={() => setMeetingModalOpen(false)}
+          onClose={() => setMeetingModalOpen(false)}
+        />
+      )}
     </div>
   );
 }
