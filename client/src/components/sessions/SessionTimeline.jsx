@@ -7,7 +7,7 @@ import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
 
 // Calendly follow-up link for sending scheduling invites
-const FOLLOWUP_CALENDLY_URL = 'https://calendly.com/nm-nutritionist1/30-minute-meeting-clone';
+const FOLLOWUP_CALENDLY_URL = 'https://calendly.com/nm-nutritionist1/follow_up_meetings';
 
 function normaliseForWA(phone) {
   const digits = (phone || '').replace(/\D/g, '');

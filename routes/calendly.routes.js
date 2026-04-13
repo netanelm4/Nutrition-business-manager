@@ -45,8 +45,10 @@ function handleCreated(payload) {
     event_type = 'follow_up';
   } else if (/ראשונ/.test(event_name)) {
     event_type = 'first_meeting';
-  } else if (event_type_uri.includes('30-minute-meeting-clone')) {
+  } else if (event_type_uri.includes('follow_up_meetings')) {
     event_type = 'follow_up';
+  } else if (event_type_uri.includes('first_meeting')) {
+    event_type = 'first_meeting';
   }
 
   // Normalize phone for DB matching
