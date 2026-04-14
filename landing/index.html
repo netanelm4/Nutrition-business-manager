@@ -27,7 +27,7 @@
       --max-w: 1100px;
     }
 
-    html { scroll-behavior: smooth; }
+    html { scroll-behavior: auto; }
 
     body {
       font-family: 'Heebo', sans-serif;
@@ -1115,6 +1115,17 @@
 
 
   <script>
+    // ── Scroll-to-top on page load (prevent hash jump) ────
+    if (window.location.hash) {
+      history.replaceState(null, null, ' ');
+    }
+    window.scrollTo(0, 0);
+
+    // ── Enable smooth scrolling after page load ────────────
+    window.addEventListener('load', () => {
+      document.documentElement.style.scrollBehavior = 'smooth';
+    });
+
     // ── Fade-in on scroll (section titles) ────────────────
     const fadeObserver = new IntersectionObserver(
       (entries) => {
