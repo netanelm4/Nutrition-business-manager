@@ -8,7 +8,7 @@ import {
   fetchClients,
   fetchTemplates,
 } from '../lib/api';
-import { formatDateHebrew } from '../lib/dates';
+import { formatDateHebrew, formatTimeHebrew } from '../lib/dates';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -28,10 +28,6 @@ function renderMsg(template, vars) {
   return template.replace(/\{\{(\w+)\}\}/g, (_, k) => (k in vars ? vars[k] : `{{${k}}}`));
 }
 
-function formatTimeHebrew(isoStr) {
-  if (!isoStr) return '';
-  return new Date(isoStr).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-}
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
 

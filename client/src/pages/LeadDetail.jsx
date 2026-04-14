@@ -369,12 +369,13 @@ export default function LeadDetail() {
                 <span className="text-gray-500 ml-1">תאריך:</span>
                 {new Date(meetingQuery.data.start_time).toLocaleDateString('he-IL', {
                   weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                  timeZone: 'Asia/Jerusalem',
                 })}
               </p>
               <p>
                 <span className="text-gray-500 ml-1">שעה:</span>
                 {new Date(meetingQuery.data.start_time).toLocaleTimeString('he-IL', {
-                  hour: '2-digit', minute: '2-digit',
+                  hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
                 })}
               </p>
               {meetingQuery.data.event_type && (

@@ -162,8 +162,10 @@ router.post('/:id/meeting', (req, res) => {
       return fail(res, 400, 'date, time, and event_type are required.');
     }
 
-    const startTime = new Date(`${date}T${time}:00`).toISOString();
-    const endTime = new Date(new Date(startTime).getTime() + 60 * 60 * 1000).toISOString();
+    const start = new Date(`${date}T${time}:00`);
+    const end   = new Date(start.getTime() + 60 * 60 * 1000);
+    const startTime = start.toISOString();
+    const endTime   = end.toISOString();
 
     // Generate a unique ID for manual events
     const eventId = `manual_${Date.now()}_${lead.id}`;

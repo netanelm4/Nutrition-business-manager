@@ -41,6 +41,20 @@ export function daysUntil(value) {
 }
 
 /**
+ * Format a time from a stored ISO string using Israel timezone.
+ * Always pass timeZone explicitly so the output is correct both
+ * locally and on Railway (UTC servers).
+ */
+export function formatTimeHebrew(isoStr) {
+  if (!isoStr) return '';
+  return new Date(isoStr).toLocaleTimeString('he-IL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'Asia/Jerusalem',
+  });
+}
+
+/**
  * Human-readable relative label in Hebrew.
  * e.g. "היום", "מחר", "בעוד 3 ימים", "לפני 5 ימים"
  */
