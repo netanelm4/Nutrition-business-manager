@@ -60,6 +60,8 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose }) 
             <label className="block text-sm font-medium text-gray-700 mb-1">תאריך</label>
             <input
               type="date"
+              dir="ltr"
+              style={{ textAlign: 'left' }}
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -70,6 +72,8 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose }) 
             <label className="block text-sm font-medium text-gray-700 mb-1">שעה</label>
             <input
               type="time"
+              dir="ltr"
+              style={{ textAlign: 'left' }}
               value={time}
               onChange={(e) => setTime(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
