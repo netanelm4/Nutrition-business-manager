@@ -11,6 +11,7 @@ import {
   fetchGoogleAuthUrl,
   fetchGoogleStatus,
   disconnectGoogle,
+  syncGoogleCalendar,
 } from '../lib/api';
 import { formatDateHebrew, formatTimeHebrew } from '../lib/dates';
 
@@ -246,6 +247,15 @@ export default function CalendlySettings() {
     onError: () => showToast('שגיאה בניתוק'),
   });
 
+  const syncMutation = useMutation({
+    mutationFn: syncGoogleCalendar,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['calendlyUpcoming'] });
+      showToast(data.synced > 0 ? `סונכרן ${data.synced} פגישות` : 'הכל מסונכרן');
+    },
+    onError: () => showToast('שגיאה בסנכרון'),
+  });
+
   async function handleGoogleConnect() {
     setGoogleConnecting(true);
     try {
@@ -310,7 +320,7 @@ export default function CalendlySettings() {
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-gray-800">חיבור Google Calendar</h2>
         {googleConnected ? (
-          <div className="bg-white rounded-xl border border-green-200 p-4 flex items-center justify-between gap-4">
+          <div className="bg-white rounded-xl border border-green-200 p-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
               <span className="text-green-600 text-xl leading-none">✓</span>
               <div>
@@ -318,13 +328,22 @@ export default function CalendlySettings() {
                 <p className="text-xs text-gray-400">פגישות ידניות מתווספות אוטומטית ליומן</p>
               </div>
             </div>
-            <button
-              onClick={() => disconnectMutation.mutate()}
-              disabled={disconnectMutation.isPending}
-              className="text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
-            >
-              {disconnectMutation.isPending ? 'מנתק...' : 'נתק'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => syncMutation.mutate()}
+                disabled={syncMutation.isPending}
+                className="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100 transition-colors disabled:opacity-50"
+              >
+                {syncMutation.isPending ? 'מסנכרן...' : 'סנכרן עכשיו'}
+              </button>
+              <button
+                onClick={() => disconnectMutation.mutate()}
+                disabled={disconnectMutation.isPending}
+                className="text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+              >
+                {disconnectMutation.isPending ? 'מנתק...' : 'נתק'}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">

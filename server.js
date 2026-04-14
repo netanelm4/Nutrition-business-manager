@@ -23,7 +23,7 @@ const intakesRouter  = require('./routes/intakes.routes');
 const googleRouter   = require('./routes/google.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
-const { loadStoredToken } = require('./services/google-calendar.service');
+const { loadStoredToken, syncCanceledEvents } = require('./services/google-calendar.service');
 
 // ─── Seed default data ────────────────────────────────────────────────────────
 runSeed(db);
@@ -88,7 +88,7 @@ app.listen(PORT, async () => {
     console.error('[calendly] Webhook registration error:', err.message);
   }
 
-  // ── Google Calendar: load stored refresh token ─────────────────────────────
+  // ── Google Calendar: load stored refresh token + start sync ───────────────
   setTimeout(async () => {
     try {
       await loadStoredToken();
@@ -96,4 +96,7 @@ app.listen(PORT, async () => {
       console.log('[google] No stored token or load failed:', e.message);
     }
   }, 2000);
+
+  setTimeout(syncCanceledEvents, 15_000);
+  setInterval(syncCanceledEvents, 30 * 60 * 1000);
 });

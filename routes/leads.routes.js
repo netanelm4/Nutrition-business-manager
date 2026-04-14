@@ -163,10 +163,23 @@ router.post('/:id/meeting', async (req, res) => {
       return fail(res, 400, 'date, time, and event_type are required.');
     }
 
-    const start = new Date(`${date}T${time}:00`);
-    const end   = new Date(start.getTime() + 60 * 60 * 1000);
-    const startTime = start.toISOString();
-    const endTime   = end.toISOString();
+    // Build naive ISO strings (no Z suffix) so they are interpreted as
+    // Israel local time both by Google Calendar (with timeZone hint) and
+    // by the browser (which parses naive strings as local time).
+    const startISO = `${date}T${time}:00`;
+
+    // Add 1 hour via simple arithmetic on the time components (timezone-agnostic)
+    const [hh, mm] = time.split(':').map(Number);
+    const endH = hh + 1;
+    let endDate = date;
+    let endTimeStr = `${String(endH % 24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    if (endH >= 24) {
+      // Roll to next calendar day (edge case: meeting starting at 23:xx)
+      const d = new Date(`${date}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      endDate = d.toISOString().slice(0, 10);
+    }
+    const endISO = `${endDate}T${endTimeStr}:00`;
 
     // Generate a unique ID for manual events
     const eventId = `manual_${Date.now()}_${lead.id}`;
@@ -184,8 +197,8 @@ router.post('/:id/meeting', async (req, res) => {
       event_type,
       invitee_name: lead.full_name,
       invitee_phone: lead.phone || null,
-      start_time: startTime,
-      end_time: endTime,
+      start_time: startISO,
+      end_time:   endISO,
       notes: notes || null,
     });
 
@@ -193,8 +206,8 @@ router.post('/:id/meeting', async (req, res) => {
     try {
       const gcal = await createCalendarEvent({
         title:       `פגישה עם ${lead.full_name}`,
-        startTime:   startTime,
-        endTime:     endTime,
+        startTime:   startISO,
+        endTime:     endISO,
         description: notes || '',
         location:    '',
       });

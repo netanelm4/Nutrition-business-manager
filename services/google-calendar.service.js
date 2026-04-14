@@ -130,6 +130,61 @@ async function deleteCalendarEvent(eventId) {
   }
 }
 
+// ── syncCanceledEvents ────────────────────────────────────────────────────────
+// Polls Google Calendar for events that were deleted/canceled there,
+// and marks them as canceled in our DB. Runs every 30 minutes.
+
+async function syncCanceledEvents() {
+  if (!googleEnabled || !isConnected()) return 0;
+
+  try {
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    // Only check recent active events that have a Google event ID
+    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const events = db.prepare(`
+      SELECT id, google_event_id FROM calendly_events
+      WHERE status = 'active'
+        AND google_event_id IS NOT NULL
+        AND start_time > ?
+    `).all(cutoff);
+
+    let canceledCount = 0;
+
+    for (const ev of events) {
+      try {
+        const res = await calendar.events.get({
+          calendarId: 'primary',
+          eventId:    ev.google_event_id,
+        });
+
+        if (res.data.status === 'cancelled') {
+          db.prepare("UPDATE calendly_events SET status = 'canceled' WHERE id = ?").run(ev.id);
+          console.log(`[google] Event canceled in Google Calendar: ${ev.google_event_id}`);
+          canceledCount++;
+        }
+      } catch (err) {
+        // 404 = deleted from Google Calendar
+        if (err.code === 404 || err.status === 404) {
+          db.prepare("UPDATE calendly_events SET status = 'canceled' WHERE id = ?").run(ev.id);
+          console.log(`[google] Event deleted in Google Calendar: ${ev.google_event_id}`);
+          canceledCount++;
+        }
+        // Other errors (network, rate limit) — skip this event silently
+      }
+    }
+
+    if (canceledCount > 0) {
+      console.log(`[google] Sync complete — ${canceledCount} event(s) marked canceled`);
+    }
+
+    return canceledCount;
+  } catch (err) {
+    console.error('[google] syncCanceledEvents error:', err.message);
+    return 0;
+  }
+}
+
 module.exports = {
   getAuthUrl,
   exchangeCode,
@@ -137,4 +192,5 @@ module.exports = {
   isConnected,
   createCalendarEvent,
   deleteCalendarEvent,
+  syncCanceledEvents,
 };

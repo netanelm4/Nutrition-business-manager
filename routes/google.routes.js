@@ -4,6 +4,7 @@ const {
   getAuthUrl,
   exchangeCode,
   isConnected,
+  syncCanceledEvents,
 } = require('../services/google-calendar.service');
 const db = require('../database/db');
 
@@ -62,6 +63,18 @@ router.delete('/disconnect', requireAuth, (req, res) => {
   } catch (err) {
     console.error('[DELETE /google/disconnect]', err);
     return res.status(500).json({ success: false, error: 'Failed to disconnect.' });
+  }
+});
+
+// ── POST /api/google/sync (auth required) ─────────────────────────────────────
+
+router.post('/sync', requireAuth, async (req, res) => {
+  try {
+    const count = await syncCanceledEvents();
+    return res.json({ success: true, data: { synced: count } });
+  } catch (err) {
+    console.error('[POST /google/sync]', err);
+    return res.status(500).json({ success: false, error: 'Sync failed.' });
   }
 });
 
