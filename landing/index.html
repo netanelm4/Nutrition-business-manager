@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>נתא | קליניקת תזונה — נתנאל מלכה</title>
-  <meta name="description" content="תזונה קלינית שמתאימה לחיים שלך. ליווי אישי, מבוסס מחקר, בלי קיצוניות. נתנאל מלכה — קליניקת נתא." />
+  <title>נתא | קליניקת תזונה - נתנאל מלכה</title>
+  <meta name="description" content="תזונה קלינית שמתאימה לחיים שלך. ליווי אישי, מבוסס מחקר, בלי קיצוניות. נתנאל מלכה - קליניקת נתא." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;900&display=swap" rel="stylesheet" />
@@ -91,6 +91,21 @@
       transition: opacity 0.5s ease, transform 0.5s ease;
     }
 
+    /* ── Reveal animations (cards, steps, form) ──────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(32px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: 0.1s; }
+    .reveal-delay-2 { transition-delay: 0.2s; }
+    .reveal-delay-3 { transition-delay: 0.3s; }
+    .reveal-delay-4 { transition-delay: 0.4s; }
+
     /* ── Buttons ──────────────────────────────────────────── */
     .btn {
       display: inline-block;
@@ -118,14 +133,27 @@
     #hero {
       background: var(--bg);
       text-align: center;
-      padding-block: 96px var(--pad-desktop);
+      padding-block: 32px var(--pad-desktop);
+    }
+
+    @media (max-width: 640px) {
+      #hero { padding-block-start: 24px; }
     }
 
     .hero-logo {
       display: block;
       max-width: 180px;
       margin-inline: auto;
-      margin-bottom: 60px;
+      margin-bottom: 16px;
+    }
+
+    /* Gradient separator between logo and hero content */
+    .hero-separator {
+      width: 60px;
+      height: 2px;
+      background: linear-gradient(to left, #31B996, #567DBF);
+      margin: 24px auto;
+      border-radius: 2px;
     }
 
     .contact-logo {
@@ -143,7 +171,7 @@
     }
 
     @media (max-width: 640px) {
-      .hero-logo    { max-width: 140px; margin-bottom: 40px; }
+      .hero-logo    { max-width: 140px; margin-bottom: 16px; }
       .contact-logo { max-width: 140px; }
       .footer-logo  { max-width: 120px; }
     }
@@ -384,15 +412,20 @@
       margin-inline: auto;
     }
 
-    /* Vertical line on the right (RTL = right side is start) */
+    /* Vertical line — animates from height 0 to full */
     .timeline::before {
       content: '';
       position: absolute;
       top: 0;
-      bottom: 0;
       right: 18px;
       width: 2px;
+      height: 0;
       background: var(--pink);
+      transition: height 1.2s ease;
+    }
+
+    .timeline.line-visible::before {
+      height: 100%;
     }
 
     .timeline-step {
@@ -741,10 +774,12 @@
     <div class="container">
       <img src="assets/logo-color.png" class="hero-logo fade-in" alt="נתא | קליניקת תזונה" />
 
+      <div class="hero-separator"></div>
+
       <div class="hero-flex">
         <div class="hero-text">
           <h1 class="hero-headline fade-in">
-            תזונה שמתאימה לחיים שלך —<br>
+            תזונה שמתאימה לחיים שלך -<br>
             לא לחיים שאחרים ממציאים לך
           </h1>
 
@@ -760,7 +795,7 @@
           <img
             src="assets/netanel.JPG"
             class="hero-photo fade-in-on-scroll"
-            alt="נתנאל מלכה — תזונאי קליני"
+            alt="נתנאל מלכה - תזונאי קליני"
           />
           <span class="hero-badge fade-in-on-scroll">תזונאי קליני מורשה</span>
         </div>
@@ -800,28 +835,28 @@
       <h2 class="section-title fade-in">האני מאמין שלי</h2>
 
       <div class="beliefs-grid">
-        <div class="belief-card fade-in">
+        <div class="belief-card reveal">
           <span class="belief-icon">🔬</span>
-          <p class="belief-title">מבוסס מחקר — לא טרנדים</p>
+          <p class="belief-title">מבוסס מחקר - לא טרנדים</p>
           <p class="belief-desc">כל המלצה שאתן לך נשענת על קונצנזוס מדעי עדכני, לא על אינסטגרם.</p>
         </div>
 
-        <div class="belief-card fade-in">
+        <div class="belief-card reveal reveal-delay-1">
           <span class="belief-icon">⚖️</span>
           <p class="belief-title">אין שחור ולבן בתזונה</p>
-          <p class="belief-desc">התחום מורכב, החיים מורכבים — והפתרון צריך להיות גמיש כמוהם.</p>
+          <p class="belief-desc">התחום מורכב, החיים מורכבים - והפתרון צריך להיות גמיש כמוהם.</p>
         </div>
 
-        <div class="belief-card fade-in">
+        <div class="belief-card reveal reveal-delay-2">
           <span class="belief-icon">🎯</span>
           <p class="belief-title">תהליך, לא קסם</p>
           <p class="belief-desc">אני לא מבטיח תוצאות מהירות. אני מבטיח תהליך שאפשר לחיות איתו.</p>
         </div>
 
-        <div class="belief-card fade-in">
+        <div class="belief-card reveal reveal-delay-3">
           <span class="belief-icon">🤝</span>
           <p class="belief-title">מותאם לחיים שלך</p>
-          <p class="belief-desc">לו״ז, עבודה, משפחה — הכל נלקח בחשבון. לא תבנית אחת לכולם.</p>
+          <p class="belief-desc">לו״ז, עבודה, משפחה - הכל נלקח בחשבון. לא תבנית אחת לכולם.</p>
         </div>
       </div>
     </div>
@@ -836,7 +871,7 @@
       <h2 class="section-title fade-in">מה תקבל בתהליך</h2>
 
       <div class="benefits-grid">
-        <div class="benefit-card fade-in">
+        <div class="benefit-card reveal">
           <p class="benefit-num">01</p>
           <p class="benefit-title">ליווי אמיתי ביומיום</p>
           <p class="benefit-desc">
@@ -845,7 +880,7 @@
           </p>
         </div>
 
-        <div class="benefit-card fade-in">
+        <div class="benefit-card reveal reveal-delay-1">
           <p class="benefit-num">02</p>
           <p class="benefit-title">תפריט שחי ונושם</p>
           <p class="benefit-desc">
@@ -854,11 +889,11 @@
           </p>
         </div>
 
-        <div class="benefit-card fade-in">
+        <div class="benefit-card reveal reveal-delay-2">
           <p class="benefit-num">03</p>
           <p class="benefit-title">כלים לכל החיים</p>
           <p class="benefit-desc">
-            כל מפגש כולל למידה — כדי שתצא עם הבנה,<br>
+            כל מפגש כולל למידה - כדי שתצא עם הבנה,<br>
             לא רק עם הוראות שלא תזכור.
           </p>
         </div>
@@ -875,26 +910,26 @@
       <h2 class="section-title fade-in">איך זה עובד</h2>
       <p class="section-sub fade-in">ליווי אינטנסיבי של 3 חודשים + המשך דרך לפי הצורך שלך</p>
 
-      <div class="timeline fade-in">
-        <div class="timeline-step">
+      <div class="timeline" id="timeline">
+        <div class="timeline-step reveal reveal-delay-1">
           <p class="step-num">שלב 1</p>
           <p class="step-title">פגישת היכרות עמוקה</p>
           <p class="step-desc">
-            מתחילים בלהכיר אותך — השגרה, המטרות, ההיסטוריה.
+            מתחילים בלהכיר אותך - השגרה, המטרות, ההיסטוריה.
             בונים את הבסיס לתהליך שיתאים לך בדיוק.
           </p>
         </div>
 
-        <div class="timeline-step">
+        <div class="timeline-step reveal reveal-delay-2">
           <p class="step-num">שלב 2</p>
           <p class="step-title">תפריט מותאם אישית</p>
           <p class="step-desc">
-            תוך יומיים מהפגישה הראשונה — תפריט דינמי שמתחשב
+            תוך יומיים מהפגישה הראשונה - תפריט דינמי שמתחשב
             בלו״ז, בהעדפות ובמטרה שלך.
           </p>
         </div>
 
-        <div class="timeline-step">
+        <div class="timeline-step reveal reveal-delay-3">
           <p class="step-num">שלב 3</p>
           <p class="step-title">6 מפגשים + מעקב צמוד</p>
           <p class="step-desc">
@@ -903,17 +938,17 @@
           </p>
         </div>
 
-        <div class="timeline-step">
+        <div class="timeline-step reveal reveal-delay-4">
           <p class="step-num">שלב 4</p>
           <p class="step-title">המשך הדרך</p>
           <p class="step-desc">
-            בסיום 3 החודשים — מחליטים יחד על המשך.
+            בסיום 3 החודשים - מחליטים יחד על המשך.
             ליווי חודשי מופחת או פגישות נקודתיות לפי הצורך.
           </p>
         </div>
       </div>
 
-      <div class="price-box fade-in">
+      <div class="price-box reveal">
         <p class="price-label">עלות הליווי המלא (3 חודשים)</p>
         <p class="price-amount">2,400 ₪</p>
         <p class="price-includes">כולל 6 מפגשים, תפריט מותאם, ותמיכה יומיומית</p>
@@ -929,12 +964,12 @@
     <div class="container">
       <h2 class="section-title fade-in">מה אומרים עליי</h2>
 
-      <div class="testimonials-grid fade-in">
-        <div class="testimonial-card">
+      <div class="testimonials-grid">
+        <div class="testimonial-card reveal">
           <p class="testimonial-quote">
             נכנסתי לתהליך אחרי שנכוויתי כמה פעמים.
             נתנאל היה הראשון שהסביר לי למה כל הדיאטות הקודמות נשברו.
-            בלי דרמה, בלי קיצוניות — סוף סוף משהו שמחזיק.
+            בלי דרמה, בלי קיצוניות - סוף סוף משהו שמחזיק.
           </p>
           <p class="testimonial-meta">
             <strong>מיכל, 34</strong>
@@ -942,9 +977,9 @@
           </p>
         </div>
 
-        <div class="testimonial-card">
+        <div class="testimonial-card reveal reveal-delay-1">
           <p class="testimonial-quote">
-            ציפיתי לתפריט ולמנות. קיבלתי הרבה יותר מזה —
+            ציפיתי לתפריט ולמנות. קיבלתי הרבה יותר מזה -
             הבנה של הגוף שלי ושל הדפוסים שלי.
             3 חודשים שינו את הדרך שאני מסתכל על אוכל.
           </p>
@@ -954,7 +989,7 @@
           </p>
         </div>
 
-        <div class="testimonial-card">
+        <div class="testimonial-card reveal reveal-delay-2">
           <p class="testimonial-quote">
             הדבר שהכי עזר לי הוא שנתנאל לא ייחס לי אשמה.
             הוא פשוט עזר לי להבין מה לא עבד ולמה.
@@ -975,16 +1010,22 @@
   ══════════════════════════════════════════════ -->
   <section id="contact">
     <div class="container">
-      <div class="contact-header fade-in">
+      <div class="contact-header reveal">
         <img src="assets/logo-light.png" class="contact-logo" alt="נתא" />
-        <h2 class="contact-title">מתעניינ/ת?</h2>
+        <h2 class="contact-title">מתעניינים?</h2>
         <p class="contact-sub">
-          השאירו פרטים ואחזור אליכם לשיחת היכרות קצרה —<br>
-          בלי התחייבות, בלי לחץ.
+          השאירו פרטים לשיחת היכרות קצרה - ללא עלות וללא התחייבות.
         </p>
       </div>
 
-      <div class="form-card fade-in" id="form-wrapper">
+      <p style="text-align:center; color:rgba(255,255,255,0.85); margin-bottom:16px; font-size:15px;">
+        או התקשרו ישירות:
+        <a href="tel:0524013226" style="color:white; font-weight:500; text-decoration:underline;">
+          052-4013226
+        </a>
+      </p>
+
+      <div class="form-card reveal" id="form-wrapper">
         <form id="lead-form" novalidate>
           <div class="form-group">
             <label class="form-label" for="full_name">שם מלא *</label>
@@ -1074,20 +1115,19 @@
 
 
   <script>
-    // ── Fade-in on scroll (IntersectionObserver) ───────────
-    const observer = new IntersectionObserver(
+    // ── Fade-in on scroll (section titles) ────────────────
+    const fadeObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add('visible');
-            observer.unobserve(entry.target);
+            fadeObserver.unobserve(entry.target);
           }
         });
       },
       { threshold: 0.12 }
     );
-
-    document.querySelectorAll('.fade-in').forEach((el) => observer.observe(el));
+    document.querySelectorAll('.fade-in').forEach((el) => fadeObserver.observe(el));
 
     // ── Scroll-triggered fade-in (photo, badge, stat cards) ─
     const scrollFadeObserver = new IntersectionObserver(
@@ -1101,9 +1141,7 @@
       },
       { threshold: 0.15, rootMargin: '0px 0px -50px 0px' }
     );
-
     document.querySelectorAll('.fade-in-on-scroll').forEach((el) => {
-      // Stagger stat cards: 0ms, 150ms, 300ms
       if (el.classList.contains('stat-card')) {
         const idx = [...document.querySelectorAll('.stat-card')].indexOf(el);
         el.style.transitionDelay = `${idx * 150}ms`;
@@ -1111,10 +1149,38 @@
       scrollFadeObserver.observe(el);
     });
 
+    // ── Reveal animations (cards, steps, form) ────────────
+    const revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
+    );
+    document.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el));
+
+    // ── Timeline vertical line animation ──────────────────
+    const timeline = document.getElementById('timeline');
+    const lineObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            timeline.classList.add('line-visible');
+            lineObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+    if (timeline) lineObserver.observe(timeline);
+
     // ── Sticky CTA — hide when contact form is visible ─────
     const stickyBar      = document.getElementById('sticky-cta');
     const contactSection = document.getElementById('contact');
-
     const ctaObserver = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -1130,12 +1196,11 @@
     ctaObserver.observe(contactSection);
 
     // ── Lead form submission ───────────────────────────────
-    const form       = document.getElementById('lead-form');
-    const submitBtn  = document.getElementById('submit-btn');
-    const errorEl    = document.getElementById('form-error');
-    const wrapper    = document.getElementById('form-wrapper');
+    const form      = document.getElementById('lead-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const errorEl   = document.getElementById('form-error');
+    const wrapper   = document.getElementById('form-wrapper');
 
-    // Detect whether we're served from Express or opened as a file
     const API_BASE = window.location.protocol === 'file:'
       ? 'http://localhost:3001'
       : '';
