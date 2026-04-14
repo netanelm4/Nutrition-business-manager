@@ -3,17 +3,31 @@ const db = require('../database/db');
 
 const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 
+// ── Guard: skip all Google functionality if credentials not configured ─────────
+
+const googleEnabled = !!(
+  process.env.GOOGLE_CLIENT_ID &&
+  process.env.GOOGLE_CLIENT_SECRET
+);
+
+if (!googleEnabled) {
+  console.log('[google] Google Calendar not configured — skipping');
+}
+
 // ── OAuth2 client (singleton) ─────────────────────────────────────────────────
 
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI,
-);
+const oauth2Client = googleEnabled
+  ? new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI,
+    )
+  : null;
 
 // ── getAuthUrl ────────────────────────────────────────────────────────────────
 
 function getAuthUrl() {
+  if (!googleEnabled) return null;
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
@@ -24,6 +38,7 @@ function getAuthUrl() {
 // ── exchangeCode ──────────────────────────────────────────────────────────────
 
 async function exchangeCode(code) {
+  if (!googleEnabled) return { success: false, error: 'not_configured' };
   const { tokens } = await oauth2Client.getToken(code);
   oauth2Client.setCredentials(tokens);
 
@@ -44,6 +59,7 @@ async function exchangeCode(code) {
 // ── loadStoredToken ───────────────────────────────────────────────────────────
 
 async function loadStoredToken() {
+  if (!googleEnabled) return;
   const row = db.prepare('SELECT google_refresh_token FROM settings WHERE id = 1').get();
   if (!row?.google_refresh_token) return;
 
@@ -65,6 +81,7 @@ function isConnected() {
 // ── createCalendarEvent ───────────────────────────────────────────────────────
 
 async function createCalendarEvent({ title, startTime, endTime, description = '', location = '' }) {
+  if (!googleEnabled) return { success: false, error: 'not_configured' };
   if (!isConnected()) {
     return { success: false, error: 'not_connected' };
   }
@@ -99,7 +116,7 @@ async function createCalendarEvent({ title, startTime, endTime, description = ''
 // ── deleteCalendarEvent ───────────────────────────────────────────────────────
 
 async function deleteCalendarEvent(eventId) {
-  if (!eventId) return { success: true };
+  if (!googleEnabled || !eventId) return { success: true };
 
   try {
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });

@@ -153,7 +153,7 @@ router.post('/:id/convert', (req, res) => {
 
 // ─── POST /api/leads/:id/meeting ─────────────────────────────────────────────
 
-router.post('/:id/meeting', (req, res) => {
+router.post('/:id/meeting', async (req, res) => {
   try {
     const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
     if (!lead) return fail(res, 404, 'Lead not found.');
