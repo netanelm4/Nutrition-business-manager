@@ -19,6 +19,7 @@ const paymentsRouter = require('./routes/payments.routes');
 const protocolsRouter = require('./routes/protocols.routes');
 const publicRouter = require('./routes/public.routes');
 const { webhookRouter, calendlyRouter } = require('./routes/calendly.routes');
+const intakesRouter  = require('./routes/intakes.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
 
@@ -53,6 +54,7 @@ app.use('/api/whatsapp',         whatsappRouter);
 app.use('/api',                  paymentsRouter);
 app.use('/api/protocols',        protocolsRouter);
 app.use('/api/calendly',         calendlyRouter);
+app.use('/api',                  intakesRouter);
 
 // Session sub-routes are mounted on the clients router (/:id/sessions, /:id/windows)
 // Direct session access (/api/sessions/:id) is mounted here for GET/PUT/POST insights

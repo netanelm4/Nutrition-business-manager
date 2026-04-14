@@ -105,6 +105,27 @@ export const checkCalendlyReminders = () => request('POST', '/calendly/check-rem
 export const scheduleMeeting  = (leadId, data) => request('POST', `/leads/${leadId}/meeting`, data);
 export const fetchLeadMeeting = (leadId)       => request('GET',  `/leads/${leadId}/meeting`);
 
+// ── Calendly event actions ────────────────────────────────────────────────────
+export const cancelCalendlyEvent = (eventId) => request('PUT', `/calendly/events/${eventId}/cancel`);
+
+// ── Session intakes ───────────────────────────────────────────────────────────
+export const fetchIntake   = (sessionId)       => request('GET',  `/sessions/${sessionId}/intake`);
+export const createIntake  = (sessionId, data) => request('POST', `/sessions/${sessionId}/intake`, data);
+export const updateIntake  = (sessionId, data) => request('PUT',  `/sessions/${sessionId}/intake`, data);
+
+export function uploadLabPdf(sessionId, file) {
+  const formData = new FormData();
+  formData.append('pdf', file);
+  return fetch(`/api/sessions/${sessionId}/intake/lab-pdf`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${localStorage.getItem('auth_password') || ''}` },
+    body: formData,
+  }).then((r) => r.json()).then((json) => {
+    if (!json.success) throw new Error(json.error || 'Upload failed');
+    return json.data;
+  });
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const checkHealth = (password) =>
   fetch('/api/health', {

@@ -7,6 +7,7 @@ import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
 import AIInsightsPanel from './AIInsightsPanel';
 import { ReadonlyTaskList } from './TaskList';
+import SessionIntakeForm from './SessionIntakeForm';
 
 /**
  * Compute the session alert state by comparing session_date to expected window.
@@ -111,6 +112,14 @@ function SessionItem({ session, client, windowAlerts }) {
               </p>
               <ReadonlyTaskList tasks={session.tasks} />
             </div>
+
+            {/* First session intake form */}
+            {session.session_number === 1 && (
+              <SessionIntakeForm
+                sessionId={session.id}
+                clientId={client.id}
+              />
+            )}
 
             {/* Edit button */}
             <button

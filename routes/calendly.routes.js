@@ -180,6 +180,21 @@ calendlyRouter.get('/upcoming', (req, res) => {
   res.json({ success: true, data: rows });
 });
 
+// ── PUT /api/calendly/events/:id/cancel ──────────────────────────────────────
+
+calendlyRouter.put('/events/:id/cancel', (req, res) => {
+  try {
+    const event = db.prepare('SELECT * FROM calendly_events WHERE id = ?').get(req.params.id);
+    if (!event) return res.status(404).json({ success: false, error: 'Event not found.' });
+
+    db.prepare("UPDATE calendly_events SET status = 'canceled' WHERE id = ?").run(req.params.id);
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[PUT /calendly/events/:id/cancel]', err);
+    return res.status(500).json({ success: false, error: 'Failed to cancel event.' });
+  }
+});
+
 // ── POST /api/calendly/check-reminders ───────────────────────────────────────
 
 calendlyRouter.post('/check-reminders', (req, res) => {

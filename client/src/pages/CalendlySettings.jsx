@@ -4,6 +4,7 @@ import {
   fetchCalendlyConfig,
   fetchCalendlyUpcoming,
   checkCalendlyReminders,
+  cancelCalendlyEvent,
   fetchClients,
   fetchTemplates,
 } from '../lib/api';
@@ -175,8 +176,9 @@ const EVENT_TYPE_META = {
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function CalendlySettings() {
-  const [toast, setToast]   = useState('');
-  const [picker, setPicker] = useState(null); // { type: 'first' | 'followup' }
+  const [toast, setToast]       = useState('');
+  const [picker, setPicker]     = useState(null); // { type: 'first' | 'followup' }
+  const [cancelConfirm, setCancelConfirm] = useState(null); // row to confirm
 
   const showToast = (msg) => {
     setToast(msg);
@@ -201,6 +203,16 @@ export default function CalendlySettings() {
   });
 
   const queryClient = useQueryClient();
+
+  const cancelMutation = useMutation({
+    mutationFn: (eventId) => cancelCalendlyEvent(eventId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendlyUpcoming'] });
+      setCancelConfirm(null);
+      showToast('הפגישה בוטלה');
+    },
+    onError: () => showToast('שגיאה בביטול הפגישה'),
+  });
 
   const reminderMutation = useMutation({
     mutationFn: checkCalendlyReminders,
@@ -287,34 +299,67 @@ export default function CalendlySettings() {
                   label: row.event_type,
                   color: 'bg-gray-100 text-gray-600',
                 };
+                const isConfirming = cancelConfirm?.id === row.id;
                 return (
-                  <li key={row.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
-                        {row.matched_name}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        {formatDateHebrew(row.start_time)} · {formatTimeHebrew(row.start_time)}
-                      </p>
+                  <li key={row.id} className="px-4 py-3 space-y-2">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {row.matched_name}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {formatDateHebrew(row.start_time)} · {formatTimeHebrew(row.start_time)}
+                        </p>
+                      </div>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${et.color}`}>
+                        {et.label}
+                      </span>
+                      {row.confirmation_sent ? (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                          אישור נשלח ✓
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                          טרם נשלח
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleSendNow(row)}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-colors whitespace-nowrap"
+                      >
+                        שלח אישור עכשיו
+                      </button>
+                      <button
+                        onClick={() => setCancelConfirm(isConfirming ? null : row)}
+                        className="text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-600 border border-red-200 font-medium hover:bg-red-100 transition-colors whitespace-nowrap"
+                      >
+                        בטל פגישה
+                      </button>
                     </div>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${et.color}`}>
-                      {et.label}
-                    </span>
-                    {row.confirmation_sent ? (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-                        אישור נשלח ✓
-                      </span>
-                    ) : (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
-                        טרם נשלח
-                      </span>
+
+                    {/* Inline cancel confirmation */}
+                    {isConfirming && (
+                      <div className="flex flex-wrap items-center gap-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5">
+                        <p className="text-sm text-red-700 flex-1">
+                          האם לבטל את הפגישה עם <span className="font-semibold">{row.matched_name}</span> ב-{formatDateHebrew(row.start_time)}?
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => cancelMutation.mutate(row.id)}
+                            disabled={cancelMutation.isPending}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                          >
+                            {cancelMutation.isPending ? 'מבטל...' : 'כן, בטל'}
+                          </button>
+                          <button
+                            onClick={() => setCancelConfirm(null)}
+                            className="text-xs px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                          >
+                            לא
+                          </button>
+                        </div>
+                      </div>
                     )}
-                    <button
-                      onClick={() => handleSendNow(row)}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-green-600 text-white font-medium hover:bg-green-700 transition-colors whitespace-nowrap"
-                    >
-                      שלח אישור עכשיו
-                    </button>
                   </li>
                 );
               })}
