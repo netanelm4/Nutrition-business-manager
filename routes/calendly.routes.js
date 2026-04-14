@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 const { generateLink } = require('../services/whatsapp.service');
+const { deleteCalendarEvent } = require('../services/google-calendar.service');
 
 // Two routers:
 //   webhookRouter  — mounted BEFORE requireAuth (no auth)
@@ -182,12 +183,23 @@ calendlyRouter.get('/upcoming', (req, res) => {
 
 // ── PUT /api/calendly/events/:id/cancel ──────────────────────────────────────
 
-calendlyRouter.put('/events/:id/cancel', (req, res) => {
+calendlyRouter.put('/events/:id/cancel', async (req, res) => {
   try {
     const event = db.prepare('SELECT * FROM calendly_events WHERE id = ?').get(req.params.id);
     if (!event) return res.status(404).json({ success: false, error: 'Event not found.' });
 
     db.prepare("UPDATE calendly_events SET status = 'canceled' WHERE id = ?").run(req.params.id);
+
+    // Delete from Google Calendar if linked
+    if (event.google_event_id) {
+      try {
+        await deleteCalendarEvent(event.google_event_id);
+        console.log(`[google] Deleted calendar event: ${event.google_event_id}`);
+      } catch (err) {
+        console.error('[google] Failed to delete calendar event:', err.message);
+      }
+    }
+
     return res.json({ success: true });
   } catch (err) {
     console.error('[PUT /calendly/events/:id/cancel]', err);

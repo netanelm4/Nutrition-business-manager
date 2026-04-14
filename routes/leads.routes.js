@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 const { LEAD_STATUS } = require('../constants/statuses');
+const { createCalendarEvent } = require('../services/google-calendar.service');
 
 const router = express.Router();
 
@@ -187,6 +188,27 @@ router.post('/:id/meeting', (req, res) => {
       end_time: endTime,
       notes: notes || null,
     });
+
+    // Try to add to Google Calendar — silently skip if not connected
+    try {
+      const gcal = await createCalendarEvent({
+        title:       `פגישה עם ${lead.full_name}`,
+        startTime:   startTime,
+        endTime:     endTime,
+        description: notes || '',
+        location:    '',
+      });
+
+      if (gcal.success && gcal.eventId) {
+        db.prepare('UPDATE calendly_events SET google_event_id = ? WHERE id = ?')
+          .run(gcal.eventId, eventId);
+        console.log(`[google] Calendar event created: ${gcal.eventId}`);
+      } else if (gcal.error !== 'not_connected') {
+        console.error('[google] createCalendarEvent failed:', gcal.error);
+      }
+    } catch (err) {
+      console.error('[google] Unexpected error creating calendar event:', err.message);
+    }
 
     return ok(res, { event_id: eventId });
   } catch (err) {

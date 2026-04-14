@@ -248,6 +248,34 @@ try {
   // Non-fatal — seed will set correct values for fresh installs
 }
 
+// Migrate existing databases: create settings table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      id                   INTEGER PRIMARY KEY DEFAULT 1,
+      google_refresh_token TEXT,
+      google_connected     INTEGER DEFAULT 0,
+      created_at           DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch {
+  // Table already exists — safe to ignore
+}
+
+// Ensure exactly one settings row exists
+try {
+  db.prepare('INSERT OR IGNORE INTO settings (id) VALUES (1)').run();
+} catch {
+  // Row already exists — safe to ignore
+}
+
+// Migrate existing databases: add google_event_id to calendly_events
+try {
+  db.exec('ALTER TABLE calendly_events ADD COLUMN google_event_id TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
 // Migrate existing databases: create session_intakes table
 try {
   db.exec(`

@@ -126,6 +126,11 @@ export function uploadLabPdf(sessionId, file) {
   });
 }
 
+// ── Google Calendar ───────────────────────────────────────────────────────────
+export const fetchGoogleAuthUrl = () => request('GET', '/google/auth-url').then((d) => d.url);
+export const fetchGoogleStatus  = () => request('GET', '/google/status');
+export const disconnectGoogle   = () => request('DELETE', '/google/disconnect');
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const checkHealth = (password) =>
   fetch('/api/health', {

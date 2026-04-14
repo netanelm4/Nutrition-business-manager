@@ -20,8 +20,10 @@ const protocolsRouter = require('./routes/protocols.routes');
 const publicRouter = require('./routes/public.routes');
 const { webhookRouter, calendlyRouter } = require('./routes/calendly.routes');
 const intakesRouter  = require('./routes/intakes.routes');
+const googleRouter   = require('./routes/google.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
+const { loadStoredToken } = require('./services/google-calendar.service');
 
 // ─── Seed default data ────────────────────────────────────────────────────────
 runSeed(db);
@@ -37,6 +39,7 @@ app.use(express.json());
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api', publicRouter);
 app.use('/api/calendly', webhookRouter);
+app.use('/api/google',   googleRouter);   // callback must be public (no auth)
 
 // ─── Landing page static files ────────────────────────────────────────────────
 app.use('/landing', express.static(path.join(__dirname, 'landing')));
@@ -84,4 +87,13 @@ app.listen(PORT, async () => {
   } catch (err) {
     console.error('[calendly] Webhook registration error:', err.message);
   }
+
+  // ── Google Calendar: load stored refresh token ─────────────────────────────
+  setTimeout(async () => {
+    try {
+      await loadStoredToken();
+    } catch (e) {
+      console.log('[google] No stored token or load failed:', e.message);
+    }
+  }, 2000);
 });

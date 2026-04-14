@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import {
   fetchCalendlyConfig,
   fetchCalendlyUpcoming,
@@ -7,6 +8,9 @@ import {
   cancelCalendlyEvent,
   fetchClients,
   fetchTemplates,
+  fetchGoogleAuthUrl,
+  fetchGoogleStatus,
+  disconnectGoogle,
 } from '../lib/api';
 import { formatDateHebrew, formatTimeHebrew } from '../lib/dates';
 
@@ -175,11 +179,27 @@ export default function CalendlySettings() {
   const [toast, setToast]       = useState('');
   const [picker, setPicker]     = useState(null); // { type: 'first' | 'followup' }
   const [cancelConfirm, setCancelConfirm] = useState(null); // row to confirm
+  const [googleConnecting, setGoogleConnecting] = useState(false);
 
   const showToast = (msg) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+    setTimeout(() => setToast(''), 4000);
   };
+
+  // Show toast based on ?google= URL param after OAuth redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const g = params.get('google');
+    if (g === 'connected') showToast('Google Calendar חובר בהצלחה');
+    if (g === 'error')     showToast('שגיאה בחיבור Google Calendar');
+    if (g) {
+      // Remove the param without reloading
+      const url = new URL(window.location.href);
+      url.searchParams.delete('google');
+      window.history.replaceState({}, '', url.toString());
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { data: config } = useQuery({
     queryKey: ['calendlyConfig'],
@@ -209,6 +229,33 @@ export default function CalendlySettings() {
     },
     onError: () => showToast('שגיאה בביטול הפגישה'),
   });
+
+  const { data: googleStatus, refetch: refetchGoogle } = useQuery({
+    queryKey: ['googleStatus'],
+    queryFn: fetchGoogleStatus,
+    staleTime: 30_000,
+  });
+  const googleConnected = !!googleStatus?.connected;
+
+  const disconnectMutation = useMutation({
+    mutationFn: disconnectGoogle,
+    onSuccess: () => {
+      refetchGoogle();
+      showToast('Google Calendar נותק');
+    },
+    onError: () => showToast('שגיאה בניתוק'),
+  });
+
+  async function handleGoogleConnect() {
+    setGoogleConnecting(true);
+    try {
+      const url = await fetchGoogleAuthUrl();
+      window.location.href = url;
+    } catch {
+      showToast('שגיאה בקבלת קישור התחברות');
+      setGoogleConnecting(false);
+    }
+  }
 
   const reminderMutation = useMutation({
     mutationFn: checkCalendlyReminders,
@@ -258,6 +305,42 @@ export default function CalendlySettings() {
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-8">
       <h1 className="text-xl font-bold text-gray-900">קביעת פגישות</h1>
+
+      {/* ── Section 0 — Google Calendar connection ─────────────────────────── */}
+      <section className="space-y-3">
+        <h2 className="text-base font-semibold text-gray-800">חיבור Google Calendar</h2>
+        {googleConnected ? (
+          <div className="bg-white rounded-xl border border-green-200 p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-green-600 text-xl leading-none">✓</span>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Google Calendar מחובר</p>
+                <p className="text-xs text-gray-400">פגישות ידניות מתווספות אוטומטית ליומן</p>
+              </div>
+            </div>
+            <button
+              onClick={() => disconnectMutation.mutate()}
+              disabled={disconnectMutation.isPending}
+              className="text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+            >
+              {disconnectMutation.isPending ? 'מנתק...' : 'נתק'}
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-3">
+            <p className="text-sm text-gray-600 leading-relaxed">
+              פגישות שתקבע ידנית יתווספו אוטומטית ליומן Google שלך.
+            </p>
+            <button
+              onClick={handleGoogleConnect}
+              disabled={googleConnecting}
+              className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+            >
+              {googleConnecting ? 'מתחבר...' : 'התחבר עם Google'}
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* ── Section 1 — Calendly links ─────────────────────────────────────── */}
       <section className="space-y-3">
