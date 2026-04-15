@@ -40,15 +40,15 @@ export default function ClientForm({ client, onSuccess, convertedFromLeadId, def
   const isEdit = !!client?.id;
 
   const [form, setForm] = useState(() => ({
-    full_name: client?.full_name ?? defaultValues?.full_name ?? '',
-    phone: client?.phone ?? defaultValues?.phone ?? '',
-    age: client?.age ?? '',
-    gender: client?.gender ?? '',
-    start_date: client?.start_date ?? '',
-    goal: client?.goal ?? '',
-    medical_notes: client?.medical_notes ?? '',
-    initial_weight: client?.initial_weight ?? '',
-    package_price: client?.package_price ?? '',
+    full_name:      client?.full_name      ?? defaultValues?.full_name      ?? '',
+    phone:          client?.phone          ?? defaultValues?.phone           ?? '',
+    age:            client?.age            ?? defaultValues?.age             ?? '',
+    gender:         client?.gender         ?? defaultValues?.gender          ?? '',
+    start_date:     client?.start_date     ?? '',
+    goal:           client?.goal           ?? defaultValues?.goal            ?? '',
+    medical_notes:  client?.medical_notes  ?? defaultValues?.medical_notes   ?? '',
+    initial_weight: client?.initial_weight ?? defaultValues?.initial_weight  ?? '',
+    package_price:  client?.package_price  ?? '',
   }));
 
   const [errors, setErrors] = useState({});
@@ -104,6 +104,11 @@ export default function ClientForm({ client, onSuccess, convertedFromLeadId, def
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      {!isEdit && convertedFromLeadId && (
+        <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5 text-sm text-blue-700">
+          ממיר ליד: <strong>{defaultValues?.full_name}</strong> — הפרטים הועברו אוטומטית מטופס ההיכרות
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="שם מלא *" error={errors.full_name}>
           <input
