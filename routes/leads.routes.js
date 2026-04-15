@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../database/db');
-const { LEAD_STATUS } = require('../constants/statuses');
+const { LEAD_STATUS, CLIENT_STATUS } = require('../constants/statuses');
 const { createCalendarEvent } = require('../services/google-calendar.service');
 
 const router = express.Router();
@@ -120,31 +120,71 @@ router.put('/:id', (req, res) => {
 });
 
 // ─── POST /api/leads/:id/convert ──────────────────────────────────────────────
-// Returns pre-fill data for the new client form. Does NOT create the client.
-// The UI submits the form to POST /api/clients to complete the conversion.
+// One-click conversion: marks lead as became_client AND creates the client row.
+// Returns { client_id } so the UI can navigate directly to the client page.
 
 router.post('/:id/convert', (req, res) => {
   try {
     const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
     if (!lead) return fail(res, 404, 'Lead not found.');
 
+    console.log(`[convert] Starting conversion: lead id=${lead.id} name="${lead.full_name}" current_status=${lead.status}`);
+
+    // Idempotent: if already converted, return the existing client
     if (lead.status === LEAD_STATUS.BECAME_CLIENT) {
-      return fail(res, 409, 'This lead has already been converted to a client.');
+      const existing = db.prepare('SELECT id FROM clients WHERE converted_from_lead_id = ?').get(lead.id);
+      if (existing) {
+        console.log(`[convert] Already converted — returning existing client id=${existing.id}`);
+        return ok(res, { client_id: existing.id });
+      }
+      return fail(res, 409, 'Lead already converted but no matching client found.');
     }
+
+    // Fetch intake data to copy clinical fields to the client record
+    const intake = db.prepare('SELECT * FROM lead_intakes WHERE lead_id = ?').get(lead.id);
+    console.log(`[convert] Intake data found: ${intake ? 'yes' : 'no'}`);
 
     // Mark lead as converted
     db.prepare('UPDATE leads SET status = ?, status_updated_at = ? WHERE id = ?').run(
       LEAD_STATUS.BECAME_CLIENT,
       new Date().toISOString(),
-      req.params.id
+      lead.id
     );
+    console.log(`[convert] Lead ${lead.id} marked as became_client`);
 
-    // Return the pre-fill data — caller uses this to populate the client creation form
-    return ok(res, {
-      full_name: lead.full_name,
-      phone: lead.phone || '',
+    // Create the client row automatically
+    console.log(`[convert] Inserting client row for lead ${lead.id}...`);
+    const result = db.prepare(`
+      INSERT INTO clients
+        (full_name, phone, age, gender, initial_weight, status, converted_from_lead_id)
+      VALUES
+        (@full_name, @phone, @age, @gender, @initial_weight, @status, @converted_from_lead_id)
+    `).run({
+      full_name:             lead.full_name,
+      phone:                 lead.phone    || null,
+      age:                   intake?.age   || null,
+      gender:                intake?.gender || null,
+      initial_weight:        intake?.weight || null,
+      status:                CLIENT_STATUS.ACTIVE,
       converted_from_lead_id: lead.id,
     });
+
+    const clientId = result.lastInsertRowid;
+    console.log(`[convert] Created client id=${clientId} status=active`);
+
+    // Copy full intake data as pending (for session 1 pre-fill)
+    if (intake) {
+      try {
+        db.prepare('UPDATE clients SET pending_intake_data = ? WHERE id = ?').run(
+          JSON.stringify(intake), clientId
+        );
+        console.log(`[convert] Copied intake data to pending_intake_data on client ${clientId}`);
+      } catch (err) {
+        console.error('[convert] Failed to copy intake data:', err.message);
+      }
+    }
+
+    return ok(res, { client_id: clientId });
   } catch (err) {
     console.error('[POST /leads/:id/convert]', err);
     return fail(res, 500, 'Failed to convert lead.');

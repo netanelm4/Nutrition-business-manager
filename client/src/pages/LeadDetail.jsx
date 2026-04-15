@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchLead, updateLead, convertLead, deleteLead, fetchClientByLeadId, fetchLeadMeeting, fetchLeadIntake } from '../lib/api';
+import { fetchLead, updateLead, convertLead, deleteLead, fetchClientByLeadId, fetchLeadMeeting } from '../lib/api';
 import { LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_SOURCE_LABEL } from '../constants/statuses';
 import { formatDateHebrew } from '../lib/dates';
 import WhatsAppDropdown from '../components/whatsapp/WhatsAppDropdown';
@@ -173,19 +173,6 @@ function StepIndicator({ currentStatus, onStepClick, disabled }) {
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function buildMedicalNotes(intake) {
-  if (!intake?.medical_conditions) return '';
-  const conditions = typeof intake.medical_conditions === 'string'
-    ? JSON.parse(intake.medical_conditions)
-    : intake.medical_conditions;
-  const active = Object.entries(conditions)
-    .filter(([, val]) => val?.active)
-    .map(([name, val]) => val?.since ? `${name} (אובחן: ${val.since})` : name);
-  return active.join(', ');
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function LeadDetail() {
@@ -268,28 +255,13 @@ export default function LeadDetail() {
     setConverting(true);
     setConvertError(null);
     try {
-      // Fetch lead intake for pre-fill — best-effort, don't fail conversion if absent
-      let intake = null;
-      try { intake = await fetchLeadIntake(id); } catch { /* no intake yet */ }
-
+      // Server creates the client row automatically and returns the new client_id
       const result = await convertLead(id);
       queryClient.invalidateQueries({ queryKey: ['lead', id] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
-
-      navigate('/clients', {
-        state: {
-          prefill: {
-            full_name:           result.full_name,
-            phone:               result.phone,
-            convertedFromLeadId: result.converted_from_lead_id,
-            age:                 intake?.age            ?? null,
-            gender:              intake?.gender          ?? null,
-            initial_weight:      intake?.weight          ?? null,
-            goal:                intake?.reason_for_treatment ?? null,
-            medical_notes:       buildMedicalNotes(intake),
-          },
-        },
-      });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      navigate(`/clients/${result.client_id}`);
     } catch (err) {
       setConvertError(err.message || 'אירעה שגיאה בהמרת הליד. נסה שוב.');
     } finally {

@@ -63,8 +63,7 @@ export default function ClientForm({ client, onSuccess, convertedFromLeadId, def
     const e = {};
     if (!form.full_name.trim()) e.full_name = 'שם מלא הוא שדה חובה';
     if (!form.phone.trim())     e.phone = 'טלפון הוא שדה חובה';
-    // start_date is optional when converting from lead — nutritionist fills it later
-    if (!form.start_date && !convertedFromLeadId) e.start_date = 'תאריך פגישה ראשונה הוא שדה חובה';
+    if (!form.start_date) e.start_date = 'תאריך פגישה ראשונה הוא שדה חובה';
     return e;
   }
 
@@ -154,7 +153,7 @@ export default function ClientForm({ client, onSuccess, convertedFromLeadId, def
             <option value="other">אחר</option>
           </select>
         </Field>
-        <Field label={convertedFromLeadId ? 'תאריך פגישה ראשונה' : 'תאריך פגישה ראשונה *'} error={errors.start_date}>
+        <Field label="תאריך פגישה ראשונה *" error={errors.start_date}>
           <input
             type="date"
             value={form.start_date}
