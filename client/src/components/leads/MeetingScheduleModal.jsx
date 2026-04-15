@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { scheduleMeeting } from '../../lib/api';
+import { scheduleMeeting, updateCalendlyEvent } from '../../lib/api';
 
 const EVENT_TYPES = [
   { value: 'first_meeting', label: 'פגישה ראשונה' },
@@ -7,14 +7,26 @@ const EVENT_TYPES = [
   { value: 'consultation',  label: 'ייעוץ' },
 ];
 
-export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose }) {
+// existingEvent: { id, start_time, event_type, notes } — when editing an existing event
+export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose, existingEvent }) {
   const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate]           = useState(today);
-  const [time, setTime]           = useState('10:00');
-  const [eventType, setEventType] = useState('first_meeting');
-  const [notes, setNotes]         = useState('');
+
+  // Pre-fill from existingEvent when editing
+  const initialDate = existingEvent?.start_time ? existingEvent.start_time.slice(0, 10) : today;
+  const initialTime = existingEvent?.start_time
+    ? new Date(existingEvent.start_time).toLocaleTimeString('he-IL', {
+        hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem',
+      })
+    : '10:00';
+
+  const [date, setDate]           = useState(initialDate);
+  const [time, setTime]           = useState(initialTime);
+  const [eventType, setEventType] = useState(existingEvent?.event_type || 'first_meeting');
+  const [notes, setNotes]         = useState(existingEvent?.notes || '');
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState('');
+
+  const isEdit = !!existingEvent?.id;
 
   async function handleSave() {
     if (!date || !time) {
@@ -24,7 +36,11 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose }) 
     setSaving(true);
     setError('');
     try {
-      await scheduleMeeting(lead.id, { date, time, event_type: eventType, notes });
+      if (isEdit) {
+        await updateCalendlyEvent(existingEvent.id, { date, time, event_type: eventType, notes });
+      } else {
+        await scheduleMeeting(lead.id, { date, time, event_type: eventType, notes });
+      }
       onSave();
     } catch (err) {
       setError(err.message || 'שגיאה בשמירת הפגישה.');
@@ -40,7 +56,9 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose }) 
     >
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-800">פרטי הפגישה</h2>
+          <h2 className="text-lg font-semibold text-gray-800">
+            {isEdit ? 'עדכון פגישה' : 'פרטי הפגישה'}
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
@@ -51,8 +69,9 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose }) 
         </div>
 
         <p className="text-sm text-gray-500">
-          נקבעה פגישה עם <span className="font-medium text-gray-700">{lead.full_name}</span>.
-          מלא את הפרטים כדי שתופיע בלוח הפגישות.
+          {isEdit ? 'עדכון פרטי הפגישה עם' : 'נקבעה פגישה עם'}{' '}
+          <span className="font-medium text-gray-700">{lead.full_name}</span>.
+          {!isEdit && ' מלא את הפרטים כדי שתופיע בלוח הפגישות.'}
         </p>
 
         <div className="space-y-4">
@@ -113,14 +132,24 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose }) 
             disabled={saving}
             className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium rounded-lg py-2 transition-colors"
           >
-            {saving ? 'שומר...' : 'שמור פגישה'}
+            {saving ? 'שומר...' : isEdit ? 'עדכן פגישה' : 'שמור פגישה'}
           </button>
-          <button
-            onClick={onSkip}
-            className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg py-2 transition-colors"
-          >
-            דלג
-          </button>
+          {!isEdit && (
+            <button
+              onClick={onSkip}
+              className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg py-2 transition-colors"
+            >
+              דלג
+            </button>
+          )}
+          {isEdit && (
+            <button
+              onClick={onClose}
+              className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg py-2 transition-colors"
+            >
+              ביטול
+            </button>
+          )}
         </div>
       </div>
     </div>

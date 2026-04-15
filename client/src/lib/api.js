@@ -106,6 +106,7 @@ export const scheduleMeeting  = (leadId, data) => request('POST', `/leads/${lead
 export const fetchLeadMeeting = (leadId)       => request('GET',  `/leads/${leadId}/meeting`);
 
 // ── Calendly event actions ────────────────────────────────────────────────────
+export const updateCalendlyEvent = (eventId, data) => request('PUT', `/calendly/events/${eventId}`, data);
 export const cancelCalendlyEvent = (eventId) => request('PUT', `/calendly/events/${eventId}/cancel`);
 
 // ── Session intakes ───────────────────────────────────────────────────────────

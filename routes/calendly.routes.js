@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 const { generateLink } = require('../services/whatsapp.service');
-const { deleteCalendarEvent } = require('../services/google-calendar.service');
+const { deleteCalendarEvent, updateCalendarEvent } = require('../services/google-calendar.service');
 
 // Two routers:
 //   webhookRouter  — mounted BEFORE requireAuth (no auth)
@@ -179,6 +179,65 @@ calendlyRouter.get('/upcoming', (req, res) => {
   `).all();
 
   res.json({ success: true, data: rows });
+});
+
+// ── PUT /api/calendly/events/:id ─────────────────────────────────────────────
+
+calendlyRouter.put('/events/:id', async (req, res) => {
+  try {
+    const { date, time, event_type, notes } = req.body;
+    if (!date || !time) {
+      return res.status(400).json({ success: false, error: 'date and time are required.' });
+    }
+
+    const event = db.prepare('SELECT * FROM calendly_events WHERE id = ?').get(req.params.id);
+    if (!event) return res.status(404).json({ success: false, error: 'Event not found.' });
+
+    // Build naive ISO strings (Asia/Jerusalem, no Z)
+    const startISO = `${date}T${time}:00`;
+    const [hh, mm] = time.split(':').map(Number);
+    const endH = hh + 1;
+    let endDate = date;
+    let endTimeStr = `${String(endH % 24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    if (endH >= 24) {
+      const d = new Date(`${date}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() + 1);
+      endDate = d.toISOString().slice(0, 10);
+    }
+    const endISO = `${endDate}T${endTimeStr}:00`;
+
+    db.prepare(`
+      UPDATE calendly_events
+      SET start_time = ?, end_time = ?, event_type = ?, notes = ?
+      WHERE id = ?
+    `).run(startISO, endISO, event_type, notes || null, req.params.id);
+
+    // Update Google Calendar event if linked
+    if (event.google_event_id) {
+      const EVENT_TYPE_LABEL = { first_meeting: 'פגישה ראשונה', follow_up: 'מעקב', consultation: 'ייעוץ' };
+      const typeLabel = EVENT_TYPE_LABEL[event_type] || event_type;
+      const lead   = event.lead_id   ? db.prepare('SELECT full_name FROM leads   WHERE id = ?').get(event.lead_id)   : null;
+      const client = event.client_id ? db.prepare('SELECT full_name FROM clients WHERE id = ?').get(event.client_id) : null;
+      const personName = lead?.full_name || client?.full_name || event.invitee_name || '';
+      const title = personName ? `${typeLabel} — ${personName}` : typeLabel;
+
+      try {
+        await updateCalendarEvent(event.google_event_id, {
+          title,
+          startTime: startISO,
+          endTime: endISO,
+          description: notes || '',
+        });
+      } catch (err) {
+        console.error('[google] Failed to update calendar event:', err.message);
+      }
+    }
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[PUT /calendly/events/:id]', err);
+    return res.status(500).json({ success: false, error: 'Failed to update event.' });
+  }
 });
 
 // ── PUT /api/calendly/events/:id/cancel ──────────────────────────────────────

@@ -528,9 +528,11 @@ export default function LeadDetail() {
       {meetingModalOpen && lead && (
         <MeetingScheduleModal
           lead={lead}
+          existingEvent={meetingQuery.data || null}
           onSave={() => {
             setMeetingModalOpen(false);
             queryClient.invalidateQueries({ queryKey: ['lead-meeting', id] });
+            queryClient.invalidateQueries({ queryKey: ['dashboard'] });
           }}
           onSkip={() => setMeetingModalOpen(false)}
           onClose={() => setMeetingModalOpen(false)}

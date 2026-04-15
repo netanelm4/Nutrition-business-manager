@@ -46,14 +46,25 @@ router.get('/', (req, res) => {
     }
 
     // ── 2. This week's sessions ────────────────────────────────────────────
-    // Clients whose expected window for any upcoming session overlaps with the current week.
-    // "This week" = today ± SESSION_TOLERANCE_DAYS.
+    // "This week" = Monday 00:00 → Sunday 23:59 in Asia/Jerusalem.
+
+    // Compute Monday of current week in Israel timezone
+    const nowInIsrael    = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
+    const israelDayOfWeek = nowInIsrael.getDay();                               // 0=Sun
+    const daysFromMonday  = israelDayOfWeek === 0 ? 6 : israelDayOfWeek - 1;   // Mon=0..Sun=6
+    const mondayISO = toISODate(addDays(nowInIsrael, -daysFromMonday));
+    const sundayISO = toISODate(addDays(nowInIsrael, 6 - daysFromMonday));
+
+    // Also keep the tolerance-based range for session_windows (existing logic)
     const weekStart = toISODate(addDays(parseDate(today), -SESSION_TOLERANCE_DAYS));
     const weekEnd   = toISODate(addDays(parseDate(today),  SESSION_TOLERANCE_DAYS));
 
     const weeklySessions = [];
+    const seenClientIds  = new Set();
+
+    // 2a. session_windows (existing clients with scheduled/expected sessions)
     for (const client of clients) {
-      const windows = windowsByClient[client.id] || [];
+      const windows  = windowsByClient[client.id] || [];
       const sessions = sessionsByClient[client.id] || [];
 
       const sessionByNumber = {};
@@ -71,13 +82,49 @@ router.get('/', (req, res) => {
             manually_overridden: w.manually_overridden === 1,
             session_scheduled: !!existingSession,
             session_date: existingSession ? existingSession.session_date : null,
+            source: 'session_window',
           });
+          seenClientIds.add(`${client.id}-${w.session_number}`);
         }
       }
     }
 
-    // Sort by expected_date ascending
-    weeklySessions.sort((a, b) => (a.expected_date > b.expected_date ? 1 : -1));
+    // 2b. calendly_events — manual or Calendly-booked meetings this week
+    // Compare by the date portion of start_time (works for both naive and UTC strings)
+    const calendlyThisWeek = db.prepare(`
+      SELECT ce.id, ce.invitee_name, ce.start_time, ce.event_type, ce.source,
+             ce.client_id, ce.lead_id,
+             COALESCE(c.full_name, l.full_name, ce.invitee_name) AS display_name,
+             COALESCE(c.phone,     l.phone,     ce.invitee_phone) AS display_phone
+      FROM   calendly_events ce
+      LEFT JOIN clients c ON ce.client_id = c.id
+      LEFT JOIN leads   l ON ce.lead_id   = l.id
+      WHERE  ce.status = 'active'
+        AND  substr(ce.start_time, 1, 10) >= ?
+        AND  substr(ce.start_time, 1, 10) <= ?
+      ORDER  BY ce.start_time ASC
+    `).all(mondayISO, sundayISO);
+
+    for (const ev of calendlyThisWeek) {
+      weeklySessions.push({
+        client_id:    ev.client_id || null,
+        lead_id:      ev.lead_id   || null,
+        client_name:  ev.display_name,
+        phone:        ev.display_phone,
+        event_id:     ev.id,
+        event_type:   ev.event_type,
+        start_time:   ev.start_time,
+        expected_date: ev.start_time.slice(0, 10),
+        source:       'calendly_event',
+      });
+    }
+
+    // Sort by expected_date / start_time ascending
+    weeklySessions.sort((a, b) => {
+      const da = a.start_time || a.expected_date || '';
+      const db_ = b.start_time || b.expected_date || '';
+      return da > db_ ? 1 : -1;
+    });
 
     // ── 3. All alerts ──────────────────────────────────────────────────────
     const alerts = [];

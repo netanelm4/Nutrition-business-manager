@@ -113,6 +113,35 @@ async function createCalendarEvent({ title, startTime, endTime, description = ''
   }
 }
 
+// ── updateCalendarEvent ───────────────────────────────────────────────────────
+
+async function updateCalendarEvent(eventId, { title, startTime, endTime, description = '' }) {
+  if (!googleEnabled || !eventId) return { success: false, error: 'not_configured' };
+  if (!isConnected()) return { success: false, error: 'not_connected' };
+
+  try {
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    const event = {
+      summary: title,
+      description,
+      start: { dateTime: startTime, timeZone: 'Asia/Jerusalem' },
+      end:   { dateTime: endTime,   timeZone: 'Asia/Jerusalem' },
+    };
+
+    const response = await calendar.events.update({
+      calendarId: 'primary',
+      eventId,
+      resource: event,
+    });
+
+    return { success: true, eventId: response.data.id };
+  } catch (err) {
+    console.error('[google] updateCalendarEvent error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
 // ── deleteCalendarEvent ───────────────────────────────────────────────────────
 
 async function deleteCalendarEvent(eventId) {
@@ -191,6 +220,7 @@ module.exports = {
   loadStoredToken,
   isConnected,
   createCalendarEvent,
+  updateCalendarEvent,
   deleteCalendarEvent,
   syncCanceledEvents,
 };
