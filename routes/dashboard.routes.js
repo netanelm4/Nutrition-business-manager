@@ -94,6 +94,7 @@ router.get('/', (req, res) => {
       JOIN   leads l ON ce.lead_id = l.id
       WHERE  ce.status = 'active'
         AND  ce.lead_id IS NOT NULL
+        AND  l.status != 'became_client'
         AND  substr(ce.start_time, 1, 10) >= ?
         AND  substr(ce.start_time, 1, 10) <= ?
       ORDER  BY ce.start_time ASC

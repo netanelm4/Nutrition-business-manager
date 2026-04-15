@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const { calculateSessionWindows } = require('../utils/dates');
 
 const DEFAULT_DB_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = process.env.DB_PATH || path.join(DEFAULT_DB_DIR, 'nutrition.db');
@@ -389,5 +390,102 @@ try { db.exec('ALTER TABLE lead_intakes ADD COLUMN bmr_harris REAL'); } catch {}
 try { db.exec('ALTER TABLE lead_intakes ADD COLUMN bmr_average REAL'); } catch {}
 try { db.exec('ALTER TABLE lead_intakes ADD COLUMN adjusted_weight REAL'); } catch {}
 try { db.exec('ALTER TABLE lead_intakes ADD COLUMN tdee REAL'); } catch {}
+
+// ── One-time repair: create session 1 for converted leads that have no sessions ─
+// Runs on every startup but only affects rows that need it (idempotent).
+
+function repairConvertedLeads(database) {
+  try {
+    const clientsToFix = database.prepare(`
+      SELECT c.id          AS client_id,
+             c.start_date,
+             ce.start_time AS meeting_time,
+             li.id         AS intake_id
+      FROM   clients c
+      LEFT JOIN sessions s         ON s.client_id  = c.id
+      LEFT JOIN calendly_events ce ON ce.client_id = c.id
+      LEFT JOIN leads l            ON l.id          = c.converted_from_lead_id
+      LEFT JOIN lead_intakes li    ON li.lead_id    = l.id
+      WHERE  c.converted_from_lead_id IS NOT NULL
+        AND  s.id              IS NULL
+        AND  ce.start_time     IS NOT NULL
+    `).all();
+
+    if (clientsToFix.length === 0) return;
+    console.log(`[repair] Found ${clientsToFix.length} converted client(s) with no sessions — repairing...`);
+
+    for (const row of clientsToFix) {
+      const meetingDate = row.meeting_time.slice(0, 10);
+
+      // Create session 1
+      const sessionResult = database.prepare(`
+        INSERT INTO sessions (client_id, session_number, session_date, highlights, tasks)
+        VALUES (?, 1, ?, '', '[]')
+      `).run(row.client_id, meetingDate);
+      const sessionId = sessionResult.lastInsertRowid;
+
+      // Set start_date if not already set
+      if (!row.start_date) {
+        database.prepare('UPDATE clients SET start_date = ? WHERE id = ?')
+          .run(meetingDate, row.client_id);
+      }
+
+      // Copy lead intake to session 1 intakes if available
+      if (row.intake_id) {
+        const intake = database.prepare('SELECT * FROM lead_intakes WHERE id = ?').get(row.intake_id);
+        if (intake) {
+          try {
+            database.prepare(`
+              INSERT OR IGNORE INTO session_intakes
+                (session_id, client_id, age, gender, weight, height,
+                 goal, activity_factor, bmr_mifflin, bmr_harris,
+                 bmr_average, adjusted_weight, tdee, medical_conditions,
+                 medications, prev_treatment, prev_treatment_goal,
+                 prev_success, prev_challenges, reason_for_treatment,
+                 diet_type, eating_patterns, water_intake, coffee_per_day,
+                 alcohol_per_week, sleep_hours, sleep_quality,
+                 physical_activity, activity_type, activity_frequency,
+                 favorite_snacks, favorite_foods, lab_results_pdf_path)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            `).run(
+              sessionId, row.client_id,
+              intake.age, intake.gender, intake.weight, intake.height,
+              intake.goal, intake.activity_factor, intake.bmr_mifflin,
+              intake.bmr_harris, intake.bmr_average, intake.adjusted_weight,
+              intake.tdee, intake.medical_conditions, intake.medications,
+              intake.prev_treatment, intake.prev_treatment_goal,
+              intake.prev_success, intake.prev_challenges,
+              intake.reason_for_treatment, intake.diet_type,
+              intake.eating_patterns, intake.water_intake,
+              intake.coffee_per_day, intake.alcohol_per_week,
+              intake.sleep_hours, intake.sleep_quality,
+              intake.physical_activity, intake.activity_type,
+              intake.activity_frequency, intake.favorite_snacks,
+              intake.favorite_foods, intake.lab_results_pdf_path
+            );
+          } catch (err) {
+            console.error(`[repair] Failed to copy intake for client ${row.client_id}:`, err.message);
+          }
+        }
+      }
+
+      // Recreate session windows from meeting date
+      const windows = calculateSessionWindows(meetingDate);
+      database.prepare('DELETE FROM session_windows WHERE client_id = ?').run(row.client_id);
+      for (const w of windows) {
+        database.prepare(`
+          INSERT INTO session_windows (client_id, session_number, expected_date)
+          VALUES (?, ?, ?)
+        `).run(row.client_id, w.session_number, w.expected_date);
+      }
+
+      console.log(`[repair] Fixed client ${row.client_id} — session 1 + ${windows.length} windows from ${meetingDate}`);
+    }
+  } catch (err) {
+    console.error('[repair] repairConvertedLeads failed:', err.message);
+  }
+}
+
+repairConvertedLeads(db);
 
 module.exports = db;
