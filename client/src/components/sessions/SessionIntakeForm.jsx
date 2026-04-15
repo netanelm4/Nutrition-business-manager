@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { fetchIntake, createIntake, updateIntake, uploadLabPdf, fetchClient } from '../../lib/api';
 import {
   MEDICAL_CONDITIONS,
@@ -524,15 +524,15 @@ const EMPTY_FORM = {
 };
 
 export default function SessionIntakeForm({ sessionId, clientId }) {
-  const queryClient = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [form, setForm] = useState(EMPTY_FORM);
   const [calc, setCalc] = useState(null);
   const [saving, setSaving] = useState(false);
-  const [savedAt, setSavedAt] = useState('');
+  const [showSaved, setShowSaved] = useState(false);
   const [saveError, setSaveError] = useState('');
   const debounceRef = useRef(null);
   const calcRef = useRef(null);
+  const intakeExistsRef = useRef(false);
   const prefillDone = useRef(false);
 
   // Fetch existing intake
@@ -548,14 +548,12 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
     enabled: !!clientId,
   });
 
-  // Populate form when intake data arrives
+  // Populate form when intake data arrives (never touch open state)
   useEffect(() => {
     if (intake === undefined) return; // still loading
     if (intake) {
       setForm({ ...EMPTY_FORM, ...intake });
-      setOpen(false);
-    } else {
-      setOpen(true);
+      if (!intake._pending) intakeExistsRef.current = true;
     }
   }, [intake]);
 
@@ -615,18 +613,19 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
     calcRef.current = result;
   }, [form.age, form.gender, form.height, form.weight, form.activity_factor]);
 
-  // Whether an intake record already exists in the DB
-  const intakeExists = !!(intake && !intake._pending);
+  // For display badge only — does not drive save logic
+  const intakeIsSaved = !!(intake && !intake._pending);
 
   const set = useCallback((field, value) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
       clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => doSave(next, intakeExists), 1000);
+      // Use ref so closure is never stale
+      debounceRef.current = setTimeout(() => doSave(next, intakeExistsRef.current), 1000);
       return next;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [intakeExists]);
+  }, []);
 
   async function doSave(data, exists) {
     setSaveError('');
@@ -647,9 +646,10 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
       } else {
         await createIntake(sessionId, { ...payload, client_id: clientId });
       }
-      queryClient.invalidateQueries({ queryKey: ['intake', sessionId] });
-      const now = new Date();
-      setSavedAt(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+      // Mark as existing so next auto-save uses PUT — do NOT invalidate parent queries
+      intakeExistsRef.current = true;
+      setShowSaved(true);
+      setTimeout(() => setShowSaved(false), 1000);
     } catch (err) {
       setSaveError(err.message || 'שגיאה בשמירה');
     } finally {
@@ -659,7 +659,7 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
 
   async function handleManualSave() {
     clearTimeout(debounceRef.current);
-    await doSave(form, intakeExists);
+    await doSave(form, intakeExistsRef.current);
   }
 
   if (isLoading) return null;
@@ -676,7 +676,7 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
           טופס פגישה ראשונה — אנמנזה
         </span>
         <div className="flex items-center gap-2">
-          {intakeExists && (
+          {intakeIsSaved && (
             <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">מולא</span>
           )}
           <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
@@ -704,8 +704,8 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
               >
                 {saving ? 'שומר...' : 'שמור'}
               </button>
-              {savedAt && !saving && !saveError && (
-                <span className="text-xs text-gray-400">נשמר לאחרונה: {savedAt}</span>
+              {showSaved && !saving && (
+                <span className="text-xs text-green-600">נשמר</span>
               )}
               {saveError && <span className="text-xs text-red-500">{saveError}</span>}
             </div>
