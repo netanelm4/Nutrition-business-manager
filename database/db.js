@@ -395,48 +395,108 @@ try { db.exec('ALTER TABLE lead_intakes ADD COLUMN bmr_average REAL'); } catch {
 try { db.exec('ALTER TABLE lead_intakes ADD COLUMN adjusted_weight REAL'); } catch {}
 try { db.exec('ALTER TABLE lead_intakes ADD COLUMN tdee REAL'); } catch {}
 
-// ── One-time repair: create session 1 for converted leads that have no sessions ─
-// Runs on every startup but only affects rows that need it (idempotent).
+// ─────────────────────────────────────────────────────────────────────────────
+// REPAIR POLICY: Every bug fix that affects existing data
+// must have a corresponding repair function here that
+// runs on every server startup (idempotent).
+// Never assume future data only — always fix past data too.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Repair 1: Fix payment_status = 'partial' records that are actually paid ──
+
+function repairPaymentStatus(database) {
+  try {
+    const clientsToFix = database.prepare(`
+      SELECT c.id, c.package_price,
+             ROUND(COALESCE(SUM(p.amount), 0), 2) as total_paid
+      FROM clients c
+      LEFT JOIN payments p ON p.client_id = c.id
+      WHERE c.payment_status = 'partial'
+      GROUP BY c.id
+    `).all();
+
+    for (const client of clientsToFix) {
+      const packagePrice = Number((client.package_price || 0).toFixed(2));
+      const totalPaid    = Number((client.total_paid    || 0).toFixed(2));
+
+      let newStatus;
+      if (packagePrice === 0 && totalPaid > 0) {
+        newStatus = 'paid';
+      } else if (packagePrice > 0 && totalPaid >= packagePrice) {
+        newStatus = 'paid';
+      } else {
+        continue; // correctly partial — skip
+      }
+
+      database.prepare('UPDATE clients SET payment_status = ? WHERE id = ?')
+        .run(newStatus, client.id);
+      console.log(`[repair] Fixed payment status for client ${client.id}: partial → ${newStatus}`);
+    }
+  } catch (err) {
+    console.error('[repair] repairPaymentStatus failed:', err.message);
+  }
+}
+
+// ── Repair 2: Create session 1 for converted clients that have none ───────────
 
 function repairConvertedLeads(database) {
   try {
     const clientsToFix = database.prepare(`
-      SELECT c.id          AS client_id,
-             c.start_date,
-             ce.start_time AS meeting_time,
-             li.id         AS intake_id
-      FROM   clients c
-      LEFT JOIN sessions s         ON s.client_id  = c.id
-      LEFT JOIN calendly_events ce ON ce.client_id = c.id
-      LEFT JOIN leads l            ON l.id          = c.converted_from_lead_id
-      LEFT JOIN lead_intakes li    ON li.lead_id    = l.id
-      WHERE  c.converted_from_lead_id IS NOT NULL
-        AND  s.id              IS NULL
-        AND  ce.start_time     IS NOT NULL
+      SELECT
+        c.id                        AS client_id,
+        c.start_date,
+        c.converted_from_lead_id,
+        ce.start_time               AS meeting_time,
+        l.id                        AS lead_id
+      FROM clients c
+      LEFT JOIN sessions s           ON s.client_id = c.id AND s.session_number = 1
+      LEFT JOIN leads l              ON l.id = c.converted_from_lead_id
+      LEFT JOIN calendly_events ce   ON ce.client_id = c.id
+                                     OR (ce.lead_id = l.id AND ce.status = 'active')
+      WHERE c.converted_from_lead_id IS NOT NULL
+        AND s.id IS NULL
+      GROUP BY c.id
     `).all();
 
     if (clientsToFix.length === 0) return;
-    console.log(`[repair] Found ${clientsToFix.length} converted client(s) with no sessions — repairing...`);
+    console.log(`[repair] Found ${clientsToFix.length} converted client(s) with no session 1 — repairing...`);
 
     for (const row of clientsToFix) {
-      const meetingDate = row.meeting_time.slice(0, 10);
+      const meetingDate = row.meeting_time
+        ? row.meeting_time.slice(0, 10)
+        : (row.start_date || new Date().toISOString().slice(0, 10));
 
-      // Create session 1
+      // Create session 1 (INSERT OR IGNORE is idempotent)
       const sessionResult = database.prepare(`
-        INSERT INTO sessions (client_id, session_number, session_date, highlights, tasks)
+        INSERT OR IGNORE INTO sessions (client_id, session_number, session_date, highlights, tasks)
         VALUES (?, 1, ?, '', '[]')
       `).run(row.client_id, meetingDate);
-      const sessionId = sessionResult.lastInsertRowid;
 
-      // Set start_date if not already set
+      const sessionId = sessionResult.lastInsertRowid;
+      if (!sessionId) {
+        console.log(`[repair] Session 1 already exists for client ${row.client_id} — skipping`);
+        continue;
+      }
+
+      // Set start_date if missing
       if (!row.start_date) {
         database.prepare('UPDATE clients SET start_date = ? WHERE id = ?')
           .run(meetingDate, row.client_id);
       }
 
-      // Copy lead intake to session 1 intakes if available
-      if (row.intake_id) {
-        const intake = database.prepare('SELECT * FROM lead_intakes WHERE id = ?').get(row.intake_id);
+      // Recreate session windows
+      database.prepare('DELETE FROM session_windows WHERE client_id = ?').run(row.client_id);
+      const windows = calculateSessionWindows(meetingDate);
+      for (const w of windows) {
+        database.prepare(`
+          INSERT INTO session_windows (client_id, session_number, expected_date)
+          VALUES (?, ?, ?)
+        `).run(row.client_id, w.session_number, w.expected_date);
+      }
+
+      // Copy lead intake if available
+      if (row.lead_id) {
+        const intake = database.prepare('SELECT * FROM lead_intakes WHERE lead_id = ?').get(row.lead_id);
         if (intake) {
           try {
             database.prepare(`
@@ -449,8 +509,9 @@ function repairConvertedLeads(database) {
                  diet_type, eating_patterns, water_intake, coffee_per_day,
                  alcohol_per_week, sleep_hours, sleep_quality,
                  physical_activity, activity_type, activity_frequency,
-                 favorite_snacks, favorite_foods, lab_results_pdf_path)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                 favorite_snacks, favorite_foods, lab_results_pdf_path,
+                 nutrition_anamnesis)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             `).run(
               sessionId, row.client_id,
               intake.age, intake.gender, intake.weight, intake.height,
@@ -465,22 +526,23 @@ function repairConvertedLeads(database) {
               intake.sleep_hours, intake.sleep_quality,
               intake.physical_activity, intake.activity_type,
               intake.activity_frequency, intake.favorite_snacks,
-              intake.favorite_foods, intake.lab_results_pdf_path
+              intake.favorite_foods, intake.lab_results_pdf_path,
+              intake.nutrition_anamnesis
             );
+            console.log(`[repair] Copied intake data to session 1 for client ${row.client_id}`);
           } catch (err) {
             console.error(`[repair] Failed to copy intake for client ${row.client_id}:`, err.message);
           }
         }
       }
 
-      // Recreate session windows from meeting date
-      const windows = calculateSessionWindows(meetingDate);
-      database.prepare('DELETE FROM session_windows WHERE client_id = ?').run(row.client_id);
-      for (const w of windows) {
+      // Link calendly_event to client if not already linked
+      if (row.meeting_time && row.lead_id) {
         database.prepare(`
-          INSERT INTO session_windows (client_id, session_number, expected_date)
-          VALUES (?, ?, ?)
-        `).run(row.client_id, w.session_number, w.expected_date);
+          UPDATE calendly_events
+          SET client_id = ?
+          WHERE lead_id = ? AND status = 'active' AND client_id IS NULL
+        `).run(row.client_id, row.lead_id);
       }
 
       console.log(`[repair] Fixed client ${row.client_id} — session 1 + ${windows.length} windows from ${meetingDate}`);
@@ -490,6 +552,7 @@ function repairConvertedLeads(database) {
   }
 }
 
+repairPaymentStatus(db);
 repairConvertedLeads(db);
 
 module.exports = db;
