@@ -1,11 +1,19 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchLeadIntake, createLeadIntake, updateLeadIntake, uploadLeadLabPdf } from '../../lib/api';
 import {
   MEDICAL_CONDITIONS,
   EATING_PATTERNS,
   FREQUENCY_OPTIONS,
+  ACTIVITY_FACTORS,
+  GOAL_OPTIONS,
 } from '../../constants/statuses';
+import {
+  calculateBMR,
+  calculateAdjustedWeight,
+  calculateBMI,
+  calculateTDEE,
+} from '../../lib/calculations';
 
 // ── Shared input styles ───────────────────────────────────────────────────────
 
@@ -39,6 +47,29 @@ function Toggle({ value, onChange }) {
   );
 }
 
+// ── Radio group (horizontal) ──────────────────────────────────────────────────
+
+function RadioGroup({ options, value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+            value === opt.value
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Section accordion ─────────────────────────────────────────────────────────
 
 function Section({ title, children, defaultOpen = false }) {
@@ -60,20 +91,60 @@ function Section({ title, children, defaultOpen = false }) {
 
 // ── Section 1: פרטים אישיים ───────────────────────────────────────────────────
 
+const GENDER_OPTIONS = [
+  { value: 'male',   label: 'זכר' },
+  { value: 'female', label: 'נקבה' },
+];
+
 function PersonalSection({ form, set }) {
   return (
     <Section title="פרטים אישיים" defaultOpen>
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>גובה (ס״מ)</label>
+          <label className={labelCls}>גיל</label>
           <input
             type="number"
             className={inputCls}
-            value={form.height ?? ''}
-            onChange={(e) => set('height', e.target.value ? Number(e.target.value) : null)}
-            min={100} max={250} dir="ltr"
+            value={form.age ?? ''}
+            onChange={(e) => set('age', e.target.value !== '' ? Number(e.target.value) : null)}
+            min={1} max={120} dir="ltr"
           />
         </div>
+        <div>
+          <label className={labelCls}>משקל (ק"ג)</label>
+          <input
+            type="number"
+            className={inputCls}
+            value={form.weight ?? ''}
+            onChange={(e) => set('weight', e.target.value !== '' ? Number(e.target.value) : null)}
+            min={20} max={300} step={0.1} dir="ltr"
+            placeholder="משקל נוכחי בעת הפגישה"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>מגדר</label>
+        <RadioGroup options={GENDER_OPTIONS} value={form.gender} onChange={(v) => set('gender', v)} />
+      </div>
+
+      <div>
+        <label className={labelCls}>גובה (ס"מ)</label>
+        <input
+          type="number"
+          className={inputCls}
+          value={form.height ?? ''}
+          onChange={(e) => set('height', e.target.value ? Number(e.target.value) : null)}
+          min={100} max={250} dir="ltr"
+        />
+      </div>
+
+      <div>
+        <label className={labelCls}>מטרה</label>
+        <RadioGroup options={GOAL_OPTIONS} value={form.goal} onChange={(v) => set('goal', v)} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelCls}>מצב משפחתי</label>
           <select className={inputCls} value={form.marital_status ?? ''} onChange={(e) => set('marital_status', e.target.value || null)}>
@@ -113,6 +184,88 @@ function PersonalSection({ form, set }) {
         </select>
       </div>
     </Section>
+  );
+}
+
+// ── Calculated section ────────────────────────────────────────────────────────
+
+function bmiBadge(bmi) {
+  if (bmi < 18.5) return { label: 'תת משקל',       cls: 'bg-blue-100 text-blue-700' };
+  if (bmi < 25)   return { label: 'תקין',           cls: 'bg-green-100 text-green-700' };
+  if (bmi < 30)   return { label: 'עודף משקל',      cls: 'bg-yellow-100 text-yellow-700' };
+  if (bmi < 35)   return { label: 'השמנה דרגה 1',   cls: 'bg-orange-100 text-orange-700' };
+  if (bmi < 40)   return { label: 'השמנה דרגה 2',   cls: 'bg-orange-200 text-orange-800' };
+  return           { label: 'השמנה דרגה 3',         cls: 'bg-red-100 text-red-700' };
+}
+
+function CalculatedSection({ form, set, calc }) {
+  const dash = '—';
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+        <span className="text-sm font-semibold text-gray-800">נתונים קליניים מחושבים</span>
+        <span className="mr-2 text-xs text-gray-400">(מתעדכן אוטומטית)</span>
+      </div>
+      <div className="p-4 space-y-4 bg-gray-50/50">
+
+        {/* Row 1 — BMI */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-gray-600 w-36 flex-shrink-0">BMI</span>
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-sm font-semibold text-gray-800">
+              {calc?.bmi != null ? calc.bmi.toFixed(1) : dash}
+            </span>
+            {calc?.bmi != null && (() => {
+              const { label, cls } = bmiBadge(calc.bmi);
+              return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{label}</span>;
+            })()}
+          </div>
+        </div>
+
+        {/* Row 2 — Adjusted weight (only when needed) */}
+        {calc?.needsAdjustment && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-0.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-amber-800">משקל מתוקנן לחישוב</span>
+              <span className="text-sm font-semibold text-amber-900">{calc.adjustedWeight.toFixed(1)} ק"ג</span>
+            </div>
+            <p className="text-xs text-amber-700">BMI מעל 31.25 — משקל מתוקנן לפי פרוטוקול קליני</p>
+            <p className="text-xs text-amber-600">משקל אידיאלי (BMI 25): {calc.idealWeight.toFixed(1)} ק"ג</p>
+          </div>
+        )}
+
+        {/* Row 3 — Activity factor (editable) */}
+        <div className="flex items-start gap-3">
+          <label className="text-sm font-medium text-gray-600 w-36 flex-shrink-0 mt-2">רמת פעילות גופנית</label>
+          <select
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+            value={form.activity_factor ?? ''}
+            onChange={(e) => set('activity_factor', e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">בחירה...</option>
+            {ACTIVITY_FACTORS.map((af) => (
+              <option key={af.value} value={af.value}>{af.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Row 4 — TDEE */}
+        <div className="rounded-lg bg-white border border-gray-200 p-3 space-y-1">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">הוצאה קלורית יומית מחושבת</p>
+          <p className="text-2xl font-bold" style={{ color: '#567DBF' }}>
+            {calc?.tdee != null ? `${Math.round(calc.tdee).toLocaleString()} קק"ל` : dash}
+          </p>
+          <p className="text-xs text-gray-400">
+            {`BMR ממוצע: ${calc?.bmrAverage != null ? Math.round(calc.bmrAverage) : dash} קק"ל`}
+            {' | '}
+            {`מיפלין: ${calc?.bmrMifflin != null ? Math.round(calc.bmrMifflin) : dash}`}
+            {' | '}
+            {`האריס: ${calc?.bmrHarris != null ? Math.round(calc.bmrHarris) : dash}`}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -348,6 +501,7 @@ function LifestyleSection({ form, set }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
+  age: null, gender: null, weight: null, goal: null, activity_factor: null,
   height: null, marital_status: null, num_children: null, occupation: null,
   work_hours: null, work_type: null, eating_at_work: null,
   medical_conditions: {}, medications: [],
@@ -365,23 +519,72 @@ export default function LeadIntakeForm({ leadId }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [calc, setCalc] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState('');
   const [saveError, setSaveError] = useState('');
   const debounceRef = useRef(null);
+  const calcRef = useRef(null);
 
   const { data: intake, isLoading } = useQuery({
     queryKey: ['lead-intake', leadId],
     queryFn: () => fetchLeadIntake(leadId),
-    onSuccess: (data) => {
-      if (data) {
-        setForm({ ...EMPTY_FORM, ...data });
-        setOpen(false);
-      } else {
-        setOpen(true);
-      }
-    },
   });
+
+  // Populate form when intake data arrives
+  useEffect(() => {
+    if (intake === undefined) return;
+    if (intake) {
+      setForm({ ...EMPTY_FORM, ...intake });
+      setOpen(false);
+    } else {
+      setOpen(true);
+    }
+  }, [intake]);
+
+  // Real-time clinical calculations
+  useEffect(() => {
+    const { age, gender, height, weight, activity_factor } = form;
+
+    if (!weight || !height) {
+      setCalc(null);
+      calcRef.current = null;
+      return;
+    }
+
+    const bmi = calculateBMI(weight, height);
+    const { needsAdjustment, adjustedWeight, idealWeight } = calculateAdjustedWeight(weight, height);
+    const weightForCalc = needsAdjustment ? adjustedWeight : weight;
+
+    let bmrMifflin = null;
+    let bmrHarris  = null;
+    let bmrAverage = null;
+
+    if (age && gender) {
+      const bmr = calculateBMR(gender, weightForCalc, height, age);
+      bmrMifflin = bmr.mifflin;
+      bmrHarris  = bmr.harris;
+      bmrAverage = bmr.average;
+    }
+
+    const tdee = bmrAverage != null && activity_factor
+      ? calculateTDEE(bmrAverage, activity_factor)
+      : null;
+
+    const result = {
+      bmi,
+      needsAdjustment,
+      adjustedWeight: needsAdjustment ? adjustedWeight : null,
+      idealWeight,
+      bmrMifflin,
+      bmrHarris,
+      bmrAverage,
+      tdee,
+    };
+
+    setCalc(result);
+    calcRef.current = result;
+  }, [form.age, form.gender, form.height, form.weight, form.activity_factor]);
 
   const intakeExists = !!intake;
 
@@ -398,11 +601,20 @@ export default function LeadIntakeForm({ leadId }) {
   async function doSave(data, exists) {
     setSaveError('');
     setSaving(true);
+    const c = calcRef.current;
+    const payload = {
+      ...data,
+      bmr_mifflin:     c?.bmrMifflin     ?? null,
+      bmr_harris:      c?.bmrHarris      ?? null,
+      bmr_average:     c?.bmrAverage     ?? null,
+      adjusted_weight: c?.adjustedWeight ?? null,
+      tdee:            c?.tdee           ?? null,
+    };
     try {
       if (exists) {
-        await updateLeadIntake(leadId, data);
+        await updateLeadIntake(leadId, payload);
       } else {
-        await createLeadIntake(leadId, data);
+        await createLeadIntake(leadId, payload);
       }
       queryClient.invalidateQueries({ queryKey: ['lead-intake', leadId] });
       const now = new Date();
@@ -442,6 +654,7 @@ export default function LeadIntakeForm({ leadId }) {
       {open && (
         <div className="space-y-3 mt-3" dir="rtl">
           <PersonalSection          form={form} set={set} />
+          <CalculatedSection        form={form} set={set} calc={calc} />
           <MedicalSection           form={form} set={set} />
           <LabSection               leadId={leadId} form={form} set={set} />
           <NutritionHistorySection  form={form} set={set} />

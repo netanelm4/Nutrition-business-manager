@@ -1,11 +1,19 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchIntake, createIntake, updateIntake, uploadLabPdf } from '../../lib/api';
+import { fetchIntake, createIntake, updateIntake, uploadLabPdf, fetchClient } from '../../lib/api';
 import {
   MEDICAL_CONDITIONS,
   EATING_PATTERNS,
   FREQUENCY_OPTIONS,
+  ACTIVITY_FACTORS,
+  GOAL_OPTIONS,
 } from '../../constants/statuses';
+import {
+  calculateBMR,
+  calculateAdjustedWeight,
+  calculateBMI,
+  calculateTDEE,
+} from '../../lib/calculations';
 
 // ── Shared input styles ───────────────────────────────────────────────────────
 
@@ -39,6 +47,29 @@ function Toggle({ value, onChange }) {
   );
 }
 
+// ── Radio group (horizontal) ──────────────────────────────────────────────────
+
+function RadioGroup({ options, value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+            value === opt.value
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ── Section accordion ─────────────────────────────────────────────────────────
 
 function Section({ title, children, defaultOpen = false }) {
@@ -60,73 +91,84 @@ function Section({ title, children, defaultOpen = false }) {
 
 // ── Section 1: פרטים אישיים ───────────────────────────────────────────────────
 
+const GENDER_OPTIONS = [
+  { value: 'male',   label: 'זכר' },
+  { value: 'female', label: 'נקבה' },
+];
+
 function PersonalSection({ form, set }) {
   return (
     <Section title="פרטים אישיים" defaultOpen>
+      {/* Clinical basics */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className={labelCls}>גובה (ס״מ)</label>
+          <label className={labelCls}>גיל</label>
           <input
             type="number"
             className={inputCls}
-            value={form.height ?? ''}
-            onChange={(e) => set('height', e.target.value ? Number(e.target.value) : null)}
-            min={100}
-            max={250}
-            dir="ltr"
+            value={form.age ?? ''}
+            onChange={(e) => set('age', e.target.value !== '' ? Number(e.target.value) : null)}
+            min={1} max={120} dir="ltr"
           />
         </div>
         <div>
-          <label className={labelCls}>מצב משפחתי</label>
-          <select
+          <label className={labelCls}>משקל (ק"ג)</label>
+          <input
+            type="number"
             className={inputCls}
-            value={form.marital_status ?? ''}
-            onChange={(e) => set('marital_status', e.target.value || null)}
-          >
+            value={form.weight ?? ''}
+            onChange={(e) => set('weight', e.target.value !== '' ? Number(e.target.value) : null)}
+            min={20} max={300} step={0.1} dir="ltr"
+            placeholder="משקל נוכחי בעת הפגישה"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>מגדר</label>
+        <RadioGroup options={GENDER_OPTIONS} value={form.gender} onChange={(v) => set('gender', v)} />
+      </div>
+
+      <div>
+        <label className={labelCls}>גובה (ס"מ)</label>
+        <input
+          type="number"
+          className={inputCls}
+          value={form.height ?? ''}
+          onChange={(e) => set('height', e.target.value ? Number(e.target.value) : null)}
+          min={100} max={250} dir="ltr"
+        />
+      </div>
+
+      <div>
+        <label className={labelCls}>מטרה</label>
+        <RadioGroup options={GOAL_OPTIONS} value={form.goal} onChange={(v) => set('goal', v)} />
+      </div>
+
+      {/* Existing personal fields */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>מצב משפחתי</label>
+          <select className={inputCls} value={form.marital_status ?? ''} onChange={(e) => set('marital_status', e.target.value || null)}>
             <option value="">בחירה...</option>
-            {['רווק', 'נשוי', 'גרוש', 'אלמן'].map((v) => (
-              <option key={v} value={v}>{v}</option>
-            ))}
+            {['רווק', 'נשוי', 'גרוש', 'אלמן'].map((v) => <option key={v} value={v}>{v}</option>)}
           </select>
         </div>
         <div>
           <label className={labelCls}>מספר ילדים</label>
-          <input
-            type="number"
-            className={inputCls}
-            value={form.num_children ?? ''}
-            onChange={(e) => set('num_children', e.target.value !== '' ? Number(e.target.value) : null)}
-            min={0}
-            dir="ltr"
-          />
+          <input type="number" className={inputCls} value={form.num_children ?? ''} onChange={(e) => set('num_children', e.target.value !== '' ? Number(e.target.value) : null)} min={0} dir="ltr" />
         </div>
         <div>
           <label className={labelCls}>עיסוק</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={form.occupation ?? ''}
-            onChange={(e) => set('occupation', e.target.value || null)}
-          />
+          <input type="text" className={inputCls} value={form.occupation ?? ''} onChange={(e) => set('occupation', e.target.value || null)} />
         </div>
         <div>
           <label className={labelCls}>שעות עבודה</label>
-          <input
-            type="text"
-            placeholder="למשל: 9-18"
-            className={inputCls}
-            value={form.work_hours ?? ''}
-            onChange={(e) => set('work_hours', e.target.value || null)}
-            dir="ltr"
-          />
+          <input type="text" placeholder="למשל: 9-18" className={inputCls} value={form.work_hours ?? ''} onChange={(e) => set('work_hours', e.target.value || null)} dir="ltr" />
         </div>
         <div>
           <label className={labelCls}>סוג עבודה</label>
-          <select
-            className={inputCls}
-            value={form.work_type ?? ''}
-            onChange={(e) => set('work_type', e.target.value || null)}
-          >
+          <select className={inputCls} value={form.work_type ?? ''} onChange={(e) => set('work_type', e.target.value || null)}>
             <option value="">בחירה...</option>
             <option value="sitting">ישיבה</option>
             <option value="standing">עמידה</option>
@@ -136,11 +178,7 @@ function PersonalSection({ form, set }) {
       </div>
       <div>
         <label className={labelCls}>אכילה בעבודה</label>
-        <select
-          className={inputCls}
-          value={form.eating_at_work ?? ''}
-          onChange={(e) => set('eating_at_work', e.target.value || null)}
-        >
+        <select className={inputCls} value={form.eating_at_work ?? ''} onChange={(e) => set('eating_at_work', e.target.value || null)}>
           <option value="">בחירה...</option>
           <option value="yes">כן</option>
           <option value="no">לא</option>
@@ -151,30 +189,97 @@ function PersonalSection({ form, set }) {
   );
 }
 
+// ── Calculated section ────────────────────────────────────────────────────────
+
+function bmiBadge(bmi) {
+  if (bmi < 18.5) return { label: 'תת משקל',        cls: 'bg-blue-100 text-blue-700' };
+  if (bmi < 25)   return { label: 'תקין',            cls: 'bg-green-100 text-green-700' };
+  if (bmi < 30)   return { label: 'עודף משקל',       cls: 'bg-yellow-100 text-yellow-700' };
+  if (bmi < 35)   return { label: 'השמנה דרגה 1',    cls: 'bg-orange-100 text-orange-700' };
+  if (bmi < 40)   return { label: 'השמנה דרגה 2',    cls: 'bg-orange-200 text-orange-800' };
+  return           { label: 'השמנה דרגה 3',          cls: 'bg-red-100 text-red-700' };
+}
+
+function CalculatedSection({ form, set, calc }) {
+  const dash = '—';
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+        <span className="text-sm font-semibold text-gray-800">נתונים קליניים מחושבים</span>
+        <span className="mr-2 text-xs text-gray-400">(מתעדכן אוטומטית)</span>
+      </div>
+      <div className="p-4 space-y-4 bg-gray-50/50">
+
+        {/* Row 1 — BMI */}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-gray-600 w-36 flex-shrink-0">BMI</span>
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-sm font-semibold text-gray-800">
+              {calc?.bmi != null ? calc.bmi.toFixed(1) : dash}
+            </span>
+            {calc?.bmi != null && (() => {
+              const { label, cls } = bmiBadge(calc.bmi);
+              return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{label}</span>;
+            })()}
+          </div>
+        </div>
+
+        {/* Row 2 — Adjusted weight (only when needed) */}
+        {calc?.needsAdjustment && (
+          <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-0.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-amber-800">משקל מתוקנן לחישוב</span>
+              <span className="text-sm font-semibold text-amber-900">{calc.adjustedWeight.toFixed(1)} ק"ג</span>
+            </div>
+            <p className="text-xs text-amber-700">BMI מעל 31.25 — משקל מתוקנן לפי פרוטוקול קליני</p>
+            <p className="text-xs text-amber-600">משקל אידיאלי (BMI 25): {calc.idealWeight.toFixed(1)} ק"ג</p>
+          </div>
+        )}
+
+        {/* Row 3 — Activity factor (editable) */}
+        <div className="flex items-start gap-3">
+          <label className="text-sm font-medium text-gray-600 w-36 flex-shrink-0 mt-2">רמת פעילות גופנית</label>
+          <select
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+            value={form.activity_factor ?? ''}
+            onChange={(e) => set('activity_factor', e.target.value ? Number(e.target.value) : null)}
+          >
+            <option value="">בחירה...</option>
+            {ACTIVITY_FACTORS.map((af) => (
+              <option key={af.value} value={af.value}>{af.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Row 4 — TDEE */}
+        <div className="rounded-lg bg-white border border-gray-200 p-3 space-y-1">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">הוצאה קלורית יומית מחושבת</p>
+          <p className="text-2xl font-bold" style={{ color: '#567DBF' }}>
+            {calc?.tdee != null ? `${Math.round(calc.tdee).toLocaleString()} קק"ל` : dash}
+          </p>
+          <p className="text-xs text-gray-400">
+            {`BMR ממוצע: ${calc?.bmrAverage != null ? Math.round(calc.bmrAverage) : dash} קק"ל`}
+            {' | '}
+            {`מיפלין: ${calc?.bmrMifflin != null ? Math.round(calc.bmrMifflin) : dash}`}
+            {' | '}
+            {`האריס: ${calc?.bmrHarris != null ? Math.round(calc.bmrHarris) : dash}`}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Section 2: היסטוריה רפואית ────────────────────────────────────────────────
 
 function MedicalSection({ form, set }) {
   const conditions = form.medical_conditions ?? {};
-
-  function setCondition(name, value) {
-    set('medical_conditions', { ...conditions, [name]: value });
-  }
-
+  function setCondition(name, value) { set('medical_conditions', { ...conditions, [name]: value }); }
   const meds = form.medications ?? [];
-
-  function setMed(i, value) {
-    const next = [...meds];
-    next[i] = value;
-    set('medications', next);
-  }
-
-  function addMed() {
-    if (meds.length < 8) set('medications', [...meds, '']);
-  }
-
-  function removeMed(i) {
-    set('medications', meds.filter((_, idx) => idx !== i));
-  }
+  function setMed(i, value) { const next = [...meds]; next[i] = value; set('medications', next); }
+  function addMed() { if (meds.length < 8) set('medications', [...meds, '']); }
+  function removeMed(i) { set('medications', meds.filter((_, idx) => idx !== i)); }
 
   return (
     <Section title="היסטוריה רפואית">
@@ -185,53 +290,24 @@ function MedicalSection({ form, set }) {
           return (
             <div key={cond} className="flex flex-wrap items-center gap-3 py-1.5 border-b border-gray-100 last:border-0">
               <span className="text-sm text-gray-700 flex-1 min-w-[120px]">{cond}</span>
-              <Toggle
-                value={row.active}
-                onChange={(v) => setCondition(cond, { ...row, active: v })}
-              />
+              <Toggle value={row.active} onChange={(v) => setCondition(cond, { ...row, active: v })} />
               {row.active && (
-                <input
-                  type="text"
-                  placeholder="מתי אובחן?"
-                  className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 w-32"
-                  value={row.since ?? ''}
-                  onChange={(e) => setCondition(cond, { ...row, since: e.target.value })}
-                />
+                <input type="text" placeholder="מתי אובחן?" className="border border-gray-300 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400 w-32" value={row.since ?? ''} onChange={(e) => setCondition(cond, { ...row, since: e.target.value })} />
               )}
             </div>
           );
         })}
       </div>
-
       <div className="space-y-2">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">תרופות</p>
         {meds.map((med, i) => (
           <div key={i} className="flex gap-2">
-            <input
-              type="text"
-              className={inputCls}
-              value={med}
-              onChange={(e) => setMed(i, e.target.value)}
-              placeholder={`תרופה ${i + 1}`}
-            />
-            <button
-              type="button"
-              onClick={() => removeMed(i)}
-              className="px-2 py-1 text-red-400 hover:text-red-600 text-sm"
-              aria-label="הסר תרופה"
-            >
-              ✕
-            </button>
+            <input type="text" className={inputCls} value={med} onChange={(e) => setMed(i, e.target.value)} placeholder={`תרופה ${i + 1}`} />
+            <button type="button" onClick={() => removeMed(i)} className="px-2 py-1 text-red-400 hover:text-red-600 text-sm" aria-label="הסר תרופה">✕</button>
           </div>
         ))}
         {meds.length < 8 && (
-          <button
-            type="button"
-            onClick={addMed}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
-          >
-            + הוסף תרופה
-          </button>
+          <button type="button" onClick={addMed} className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">+ הוסף תרופה</button>
         )}
       </div>
     </Section>
@@ -269,35 +345,15 @@ function LabSection({ sessionId, form, set }) {
       {existingFile && (
         <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-lg">
           <span className="text-sm text-green-700 flex-1">קובץ קיים: {existingFile}</span>
-          <a
-            href={`/api/sessions/${sessionId}/intake/lab-pdf/view`}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-indigo-600 hover:underline"
-          >
-            הצג קובץ
-          </a>
+          <a href={`/api/sessions/${sessionId}/intake/lab-pdf/view`} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline">הצג קובץ</a>
         </div>
       )}
       <div>
-        <label className={labelCls}>
-          {existingFile ? 'החלף קובץ PDF' : 'העלאת PDF בדיקות דם'}
-        </label>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf"
-          onChange={handleFileChange}
-          disabled={uploading}
-          className="block text-sm text-gray-600 file:mr-0 file:ml-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer disabled:opacity-50"
-          dir="ltr"
-        />
+        <label className={labelCls}>{existingFile ? 'החלף קובץ PDF' : 'העלאת PDF בדיקות דם'}</label>
+        <input ref={fileRef} type="file" accept=".pdf" onChange={handleFileChange} disabled={uploading}
+          className="block text-sm text-gray-600 file:mr-0 file:ml-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer disabled:opacity-50" dir="ltr" />
         {uploading && <p className="text-xs text-gray-400 mt-1">מעלה...</p>}
-        {uploadMsg && (
-          <p className={`text-xs mt-1 ${uploadMsg.includes('שגיאה') ? 'text-red-500' : 'text-green-600'}`}>
-            {uploadMsg}
-          </p>
-        )}
+        {uploadMsg && <p className={`text-xs mt-1 ${uploadMsg.includes('שגיאה') ? 'text-red-500' : 'text-green-600'}`}>{uploadMsg}</p>}
         <p className="text-xs text-gray-400 mt-1">PDF בלבד, עד 10MB</p>
       </div>
     </Section>
@@ -317,41 +373,21 @@ function NutritionHistorySection({ form, set }) {
         <>
           <div>
             <label className={labelCls}>מטרת הטיפול הקודם</label>
-            <textarea
-              className={inputCls}
-              rows={2}
-              value={form.prev_treatment_goal ?? ''}
-              onChange={(e) => set('prev_treatment_goal', e.target.value || null)}
-            />
+            <textarea className={inputCls} rows={2} value={form.prev_treatment_goal ?? ''} onChange={(e) => set('prev_treatment_goal', e.target.value || null)} />
           </div>
           <div>
             <label className={labelCls}>מה הצליח?</label>
-            <textarea
-              className={inputCls}
-              rows={2}
-              value={form.prev_success ?? ''}
-              onChange={(e) => set('prev_success', e.target.value || null)}
-            />
+            <textarea className={inputCls} rows={2} value={form.prev_success ?? ''} onChange={(e) => set('prev_success', e.target.value || null)} />
           </div>
           <div>
             <label className={labelCls}>מה לא הצליח?</label>
-            <textarea
-              className={inputCls}
-              rows={2}
-              value={form.prev_challenges ?? ''}
-              onChange={(e) => set('prev_challenges', e.target.value || null)}
-            />
+            <textarea className={inputCls} rows={2} value={form.prev_challenges ?? ''} onChange={(e) => set('prev_challenges', e.target.value || null)} />
           </div>
         </>
       )}
       <div>
         <label className={labelCls}>מה הסיבה להגיע לטיפול?</label>
-        <textarea
-          className={inputCls}
-          rows={3}
-          value={form.reason_for_treatment ?? ''}
-          onChange={(e) => set('reason_for_treatment', e.target.value || null)}
-        />
+        <textarea className={inputCls} rows={3} value={form.reason_for_treatment ?? ''} onChange={(e) => set('reason_for_treatment', e.target.value || null)} />
       </div>
     </Section>
   );
@@ -360,20 +396,17 @@ function NutritionHistorySection({ form, set }) {
 // ── Section 5: הרגלי אכילה ───────────────────────────────────────────────────
 
 const DIET_TYPES = [
-  { value: 'omnivore',     label: 'אוכל הכל' },
-  { value: 'vegetarian',   label: 'צמחוני' },
-  { value: 'vegan',        label: 'טבעוני' },
-  { value: 'gluten_free',  label: 'ללא גלוטן' },
-  { value: 'keto',         label: 'קטוגני' },
-  { value: 'other',        label: 'אחר' },
+  { value: 'omnivore',    label: 'אוכל הכל' },
+  { value: 'vegetarian',  label: 'צמחוני' },
+  { value: 'vegan',       label: 'טבעוני' },
+  { value: 'gluten_free', label: 'ללא גלוטן' },
+  { value: 'keto',        label: 'קטוגני' },
+  { value: 'other',       label: 'אחר' },
 ];
 
 function EatingSection({ form, set }) {
   const patterns = form.eating_patterns ?? {};
-
-  function setPattern(name, freq) {
-    set('eating_patterns', { ...patterns, [name]: freq });
-  }
+  function setPattern(name, freq) { set('eating_patterns', { ...patterns, [name]: freq }); }
 
   return (
     <Section title="הרגלי אכילה">
@@ -381,31 +414,16 @@ function EatingSection({ form, set }) {
         <label className={labelCls}>סוג תזונה</label>
         <div className="flex flex-wrap gap-2">
           {DIET_TYPES.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => set('diet_type', value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
-                form.diet_type === value
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-              }`}
-            >
+            <button key={value} type="button" onClick={() => set('diet_type', value)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${form.diet_type === value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
               {label}
             </button>
           ))}
         </div>
         {form.diet_type === 'other' && (
-          <input
-            type="text"
-            className={`${inputCls} mt-2`}
-            placeholder="פירוט..."
-            value={form.diet_type_other ?? ''}
-            onChange={(e) => set('diet_type_other', e.target.value)}
-          />
+          <input type="text" className={`${inputCls} mt-2`} placeholder="פירוט..." value={form.diet_type_other ?? ''} onChange={(e) => set('diet_type_other', e.target.value)} />
         )}
       </div>
-
       <div>
         <p className={labelCls}>דפוסי אכילה</p>
         <div className="space-y-2">
@@ -414,16 +432,8 @@ function EatingSection({ form, set }) {
               <span className="text-sm text-gray-700 w-48 flex-shrink-0">{pattern}</span>
               <div className="flex gap-1 flex-wrap">
                 {FREQUENCY_OPTIONS.map((freq) => (
-                  <button
-                    key={freq}
-                    type="button"
-                    onClick={() => setPattern(pattern, freq)}
-                    className={`px-2 py-1 rounded-full text-xs border transition-colors ${
-                      patterns[pattern] === freq
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'
-                    }`}
-                  >
+                  <button key={freq} type="button" onClick={() => setPattern(pattern, freq)}
+                    className={`px-2 py-1 rounded-full text-xs border transition-colors ${patterns[pattern] === freq ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
                     {freq}
                   </button>
                 ))}
@@ -444,51 +454,23 @@ function LifestyleSection({ form, set }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={labelCls}>כמה מים ביום?</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={form.water_intake ?? ''}
-            onChange={(e) => set('water_intake', e.target.value || null)}
-            placeholder="למשל: 2 ליטר"
-          />
+          <input type="text" className={inputCls} value={form.water_intake ?? ''} onChange={(e) => set('water_intake', e.target.value || null)} placeholder="למשל: 2 ליטר" />
         </div>
         <div>
           <label className={labelCls}>כוסות קפה ביום</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={form.coffee_per_day ?? ''}
-            onChange={(e) => set('coffee_per_day', e.target.value || null)}
-            dir="ltr"
-          />
+          <input type="text" className={inputCls} value={form.coffee_per_day ?? ''} onChange={(e) => set('coffee_per_day', e.target.value || null)} dir="ltr" />
         </div>
         <div>
           <label className={labelCls}>אלכוהול בשבוע</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={form.alcohol_per_week ?? ''}
-            onChange={(e) => set('alcohol_per_week', e.target.value || null)}
-            dir="ltr"
-          />
+          <input type="text" className={inputCls} value={form.alcohol_per_week ?? ''} onChange={(e) => set('alcohol_per_week', e.target.value || null)} dir="ltr" />
         </div>
         <div>
           <label className={labelCls}>שעות שינה</label>
-          <input
-            type="text"
-            className={inputCls}
-            value={form.sleep_hours ?? ''}
-            onChange={(e) => set('sleep_hours', e.target.value || null)}
-            dir="ltr"
-          />
+          <input type="text" className={inputCls} value={form.sleep_hours ?? ''} onChange={(e) => set('sleep_hours', e.target.value || null)} dir="ltr" />
         </div>
         <div>
           <label className={labelCls}>איכות שינה</label>
-          <select
-            className={inputCls}
-            value={form.sleep_quality ?? ''}
-            onChange={(e) => set('sleep_quality', e.target.value || null)}
-          >
+          <select className={inputCls} value={form.sleep_quality ?? ''} onChange={(e) => set('sleep_quality', e.target.value || null)}>
             <option value="">בחירה...</option>
             <option value="good">טובה</option>
             <option value="average">בינונית</option>
@@ -496,53 +478,29 @@ function LifestyleSection({ form, set }) {
           </select>
         </div>
       </div>
-
       <div>
         <label className={labelCls}>פעילות גופנית</label>
         <Toggle value={form.physical_activity} onChange={(v) => set('physical_activity', v)} />
       </div>
-
       {form.physical_activity && (
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelCls}>סוג פעילות</label>
-            <input
-              type="text"
-              className={inputCls}
-              value={form.activity_type ?? ''}
-              onChange={(e) => set('activity_type', e.target.value || null)}
-            />
+            <input type="text" className={inputCls} value={form.activity_type ?? ''} onChange={(e) => set('activity_type', e.target.value || null)} />
           </div>
           <div>
             <label className={labelCls}>כמה פעמים בשבוע?</label>
-            <input
-              type="text"
-              className={inputCls}
-              value={form.activity_frequency ?? ''}
-              onChange={(e) => set('activity_frequency', e.target.value || null)}
-              dir="ltr"
-            />
+            <input type="text" className={inputCls} value={form.activity_frequency ?? ''} onChange={(e) => set('activity_frequency', e.target.value || null)} dir="ltr" />
           </div>
         </div>
       )}
-
       <div>
         <label className={labelCls}>חטיפים אהובים</label>
-        <textarea
-          className={inputCls}
-          rows={2}
-          value={form.favorite_snacks ?? ''}
-          onChange={(e) => set('favorite_snacks', e.target.value || null)}
-        />
+        <textarea className={inputCls} rows={2} value={form.favorite_snacks ?? ''} onChange={(e) => set('favorite_snacks', e.target.value || null)} />
       </div>
       <div>
         <label className={labelCls}>מאכלים אהובים</label>
-        <textarea
-          className={inputCls}
-          rows={2}
-          value={form.favorite_foods ?? ''}
-          onChange={(e) => set('favorite_foods', e.target.value || null)}
-        />
+        <textarea className={inputCls} rows={2} value={form.favorite_foods ?? ''} onChange={(e) => set('favorite_foods', e.target.value || null)} />
       </div>
     </Section>
   );
@@ -551,6 +509,7 @@ function LifestyleSection({ form, set }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
+  age: null, gender: null, weight: null, goal: null, activity_factor: null,
   height: null, marital_status: null, num_children: null, occupation: null,
   work_hours: null, work_type: null, eating_at_work: null,
   medical_conditions: {}, medications: [],
@@ -568,33 +527,100 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [calc, setCalc] = useState(null);
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState('');
   const [saveError, setSaveError] = useState('');
   const debounceRef = useRef(null);
+  const calcRef = useRef(null);
+  const prefillDone = useRef(false);
 
   // Fetch existing intake
   const { data: intake, isLoading } = useQuery({
     queryKey: ['intake', sessionId],
     queryFn: () => fetchIntake(sessionId),
-    onSuccess: (data) => {
-      if (data) {
-        setForm({ ...EMPTY_FORM, ...data });
-        setOpen(false); // collapse if already filled
-      } else {
-        setOpen(true); // expand if empty
-      }
-    },
   });
 
-  // Whether an intake record already exists in the DB
-  const intakeExists = !!intake;
+  // Fetch client for pre-fill (age, weight, gender)
+  const { data: client } = useQuery({
+    queryKey: ['client', clientId],
+    queryFn: () => fetchClient(clientId),
+    enabled: !!clientId,
+  });
 
-  // Update a single field and schedule auto-save
+  // Populate form when intake data arrives
+  useEffect(() => {
+    if (intake === undefined) return; // still loading
+    if (intake) {
+      setForm({ ...EMPTY_FORM, ...intake });
+      setOpen(false);
+    } else {
+      setOpen(true);
+    }
+  }, [intake]);
+
+  // Pre-fill from client data when no intake exists (runs once)
+  useEffect(() => {
+    if (intake || prefillDone.current || !client) return;
+    prefillDone.current = true;
+    setForm((prev) => ({
+      ...prev,
+      age:    client.age            ?? prev.age,
+      weight: client.initial_weight ?? prev.weight,
+      gender: client.gender         ?? prev.gender,
+    }));
+  }, [intake, client]);
+
+  // Real-time clinical calculations
+  useEffect(() => {
+    const { age, gender, height, weight, activity_factor } = form;
+
+    if (!weight || !height) {
+      setCalc(null);
+      calcRef.current = null;
+      return;
+    }
+
+    const bmi = calculateBMI(weight, height);
+    const { needsAdjustment, adjustedWeight, idealWeight } = calculateAdjustedWeight(weight, height);
+    const weightForCalc = needsAdjustment ? adjustedWeight : weight;
+
+    let bmrMifflin = null;
+    let bmrHarris  = null;
+    let bmrAverage = null;
+
+    if (age && gender) {
+      const bmr = calculateBMR(gender, weightForCalc, height, age);
+      bmrMifflin = bmr.mifflin;
+      bmrHarris  = bmr.harris;
+      bmrAverage = bmr.average;
+    }
+
+    const tdee = bmrAverage != null && activity_factor
+      ? calculateTDEE(bmrAverage, activity_factor)
+      : null;
+
+    const result = {
+      bmi,
+      needsAdjustment,
+      adjustedWeight: needsAdjustment ? adjustedWeight : null,
+      idealWeight,
+      bmrMifflin,
+      bmrHarris,
+      bmrAverage,
+      tdee,
+    };
+
+    setCalc(result);
+    calcRef.current = result;
+  }, [form.age, form.gender, form.height, form.weight, form.activity_factor]);
+
+  // Whether an intake record already exists in the DB
+  const intakeExists = !!(intake && !intake._pending);
+
   const set = useCallback((field, value) => {
     setForm((prev) => {
       const next = { ...prev, [field]: value };
-      // Debounced auto-save
       clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => doSave(next, intakeExists), 1000);
       return next;
@@ -605,11 +631,21 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
   async function doSave(data, exists) {
     setSaveError('');
     setSaving(true);
+    // Merge calculated values from ref (always current, not stale closure)
+    const c = calcRef.current;
+    const payload = {
+      ...data,
+      bmr_mifflin:    c?.bmrMifflin    ?? null,
+      bmr_harris:     c?.bmrHarris     ?? null,
+      bmr_average:    c?.bmrAverage    ?? null,
+      adjusted_weight: c?.adjustedWeight ?? null,
+      tdee:           c?.tdee          ?? null,
+    };
     try {
       if (exists) {
-        await updateIntake(sessionId, data);
+        await updateIntake(sessionId, payload);
       } else {
-        await createIntake(sessionId, { ...data, client_id: clientId });
+        await createIntake(sessionId, { ...payload, client_id: clientId });
       }
       queryClient.invalidateQueries({ queryKey: ['intake', sessionId] });
       const now = new Date();
@@ -641,9 +677,7 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
         </span>
         <div className="flex items-center gap-2">
           {intakeExists && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-              מולא
-            </span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">מולא</span>
           )}
           <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
         </div>
@@ -652,6 +686,7 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
       {open && (
         <div className="space-y-3 mt-3" dir="rtl">
           <PersonalSection          form={form} set={set} />
+          <CalculatedSection        form={form} set={set} calc={calc} />
           <MedicalSection           form={form} set={set} />
           <LabSection               sessionId={sessionId} form={form} set={set} />
           <NutritionHistorySection  form={form} set={set} />

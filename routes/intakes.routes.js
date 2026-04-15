@@ -78,14 +78,20 @@ router.post('/sessions/:id/intake', (req, res) => {
 
     const result = db.prepare(`
       INSERT INTO session_intakes
-        (session_id, client_id, height, marital_status, num_children, occupation,
+        (session_id, client_id,
+         age, gender, weight, goal, activity_factor,
+         bmr_mifflin, bmr_harris, bmr_average, adjusted_weight, tdee,
+         height, marital_status, num_children, occupation,
          work_hours, work_type, eating_at_work, medical_conditions, medications,
          lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
          prev_challenges, reason_for_treatment, diet_type, eating_patterns,
          water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
          physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods)
       VALUES
-        (@session_id, @client_id, @height, @marital_status, @num_children, @occupation,
+        (@session_id, @client_id,
+         @age, @gender, @weight, @goal, @activity_factor,
+         @bmr_mifflin, @bmr_harris, @bmr_average, @adjusted_weight, @tdee,
+         @height, @marital_status, @num_children, @occupation,
          @work_hours, @work_type, @eating_at_work, @medical_conditions, @medications,
          @lab_results_pdf_path, @prev_treatment, @prev_treatment_goal, @prev_success,
          @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
@@ -118,6 +124,10 @@ router.put('/sessions/:id/intake', (req, res) => {
 
     db.prepare(`
       UPDATE session_intakes SET
+        age = @age, gender = @gender, weight = @weight, goal = @goal,
+        activity_factor = @activity_factor, bmr_mifflin = @bmr_mifflin,
+        bmr_harris = @bmr_harris, bmr_average = @bmr_average,
+        adjusted_weight = @adjusted_weight, tdee = @tdee,
         height = @height, marital_status = @marital_status, num_children = @num_children,
         occupation = @occupation, work_hours = @work_hours, work_type = @work_type,
         eating_at_work = @eating_at_work, medical_conditions = @medical_conditions,
@@ -214,14 +224,20 @@ router.post('/leads/:id/intake', (req, res) => {
 
     const result = db.prepare(`
       INSERT INTO lead_intakes
-        (lead_id, height, marital_status, num_children, occupation,
+        (lead_id,
+         age, gender, weight, goal, activity_factor,
+         bmr_mifflin, bmr_harris, bmr_average, adjusted_weight, tdee,
+         height, marital_status, num_children, occupation,
          work_hours, work_type, eating_at_work, medical_conditions, medications,
          lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
          prev_challenges, reason_for_treatment, diet_type, eating_patterns,
          water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
          physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods)
       VALUES
-        (@lead_id, @height, @marital_status, @num_children, @occupation,
+        (@lead_id,
+         @age, @gender, @weight, @goal, @activity_factor,
+         @bmr_mifflin, @bmr_harris, @bmr_average, @adjusted_weight, @tdee,
+         @height, @marital_status, @num_children, @occupation,
          @work_hours, @work_type, @eating_at_work, @medical_conditions, @medications,
          @lab_results_pdf_path, @prev_treatment, @prev_treatment_goal, @prev_success,
          @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
@@ -249,6 +265,10 @@ router.put('/leads/:id/intake', (req, res) => {
 
     db.prepare(`
       UPDATE lead_intakes SET
+        age = @age, gender = @gender, weight = @weight, goal = @goal,
+        activity_factor = @activity_factor, bmr_mifflin = @bmr_mifflin,
+        bmr_harris = @bmr_harris, bmr_average = @bmr_average,
+        adjusted_weight = @adjusted_weight, tdee = @tdee,
         height = @height, marital_status = @marital_status, num_children = @num_children,
         occupation = @occupation, work_hours = @work_hours, work_type = @work_type,
         eating_at_work = @eating_at_work, medical_conditions = @medical_conditions,
@@ -307,6 +327,16 @@ router.post('/leads/:id/intake/lab-pdf', upload.single('pdf'), (req, res) => {
 
 function buildIntakeData(body) {
   return {
+    age:                  body.age                  != null ? Number(body.age)             : null,
+    gender:               body.gender               ?? null,
+    weight:               body.weight               != null ? Number(body.weight)           : null,
+    goal:                 body.goal                 ?? null,
+    activity_factor:      body.activity_factor      != null ? Number(body.activity_factor)  : null,
+    bmr_mifflin:          body.bmr_mifflin          != null ? Number(body.bmr_mifflin)      : null,
+    bmr_harris:           body.bmr_harris           != null ? Number(body.bmr_harris)       : null,
+    bmr_average:          body.bmr_average          != null ? Number(body.bmr_average)      : null,
+    adjusted_weight:      body.adjusted_weight      != null ? Number(body.adjusted_weight)  : null,
+    tdee:                 body.tdee                 != null ? Number(body.tdee)             : null,
     height:               body.height               ?? null,
     marital_status:       body.marital_status        ?? null,
     num_children:         body.num_children          ?? null,

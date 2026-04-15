@@ -94,6 +94,21 @@ export const EATING_PATTERNS = [
   'אכילה ללא צלחת',
 ];
 
+export const ACTIVITY_FACTORS = Object.freeze([
+  { value: 1.2,   label: 'ישיבה מלאה — אין פעילות גופנית' },
+  { value: 1.28,  label: 'מעט יושבנית — פעילות קלה מאוד' },
+  { value: 1.375, label: 'קלה — 1-3 פעמים בשבוע' },
+  { value: 1.55,  label: 'בינונית — 3-5 פעמים בשבוע' },
+  { value: 1.725, label: 'גבוהה — 6-7 פעמים בשבוע' },
+  { value: 1.9,   label: 'מאוד גבוהה — עבודה פיזית + אימונים' },
+]);
+
+export const GOAL_OPTIONS = Object.freeze([
+  { value: 'loss',     label: 'ירידה במשקל' },
+  { value: 'gain',     label: 'עלייה במסה' },
+  { value: 'maintain', label: 'שימור' },
+]);
+
 export const FREQUENCY_OPTIONS = [
   'אף פעם',
   'לעיתים רחוקות',

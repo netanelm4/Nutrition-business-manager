@@ -366,4 +366,28 @@ try {
   // Table already exists — safe to ignore
 }
 
+// ── Clinical fields: session_intakes ─────────────────────────────────────────
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN age INTEGER'); } catch {}
+try { db.exec("ALTER TABLE session_intakes ADD COLUMN gender TEXT"); } catch {}
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN weight REAL'); } catch {}
+try { db.exec("ALTER TABLE session_intakes ADD COLUMN goal TEXT"); } catch {}
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN activity_factor REAL'); } catch {}
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN bmr_mifflin REAL'); } catch {}
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN bmr_harris REAL'); } catch {}
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN bmr_average REAL'); } catch {}
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN adjusted_weight REAL'); } catch {}
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN tdee REAL'); } catch {}
+
+// ── Clinical fields: lead_intakes ─────────────────────────────────────────────
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN age INTEGER'); } catch {}
+try { db.exec("ALTER TABLE lead_intakes ADD COLUMN gender TEXT"); } catch {}
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN weight REAL'); } catch {}
+try { db.exec("ALTER TABLE lead_intakes ADD COLUMN goal TEXT"); } catch {}
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN activity_factor REAL'); } catch {}
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN bmr_mifflin REAL'); } catch {}
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN bmr_harris REAL'); } catch {}
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN bmr_average REAL'); } catch {}
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN adjusted_weight REAL'); } catch {}
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN tdee REAL'); } catch {}
+
 module.exports = db;
