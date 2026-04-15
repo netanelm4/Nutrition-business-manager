@@ -76,6 +76,16 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, async () => {
   console.log(`[server] Nutrition CRM running on http://localhost:${PORT}`);
 
+  // ── Debug: log recent clients on startup ──────────────────────────────────
+  try {
+    const recentClients = db.prepare(
+      'SELECT id, full_name, status, created_at FROM clients ORDER BY created_at DESC LIMIT 5'
+    ).all();
+    console.log(`[debug] Recent clients (${recentClients.length}):`, recentClients.length === 0 ? 'none' : recentClients);
+  } catch (err) {
+    console.error('[debug] Failed to query recent clients:', err.message);
+  }
+
   // ── Reminder service: check for upcoming sessions every 30 minutes ──────────
   // Initial run after 10 s so the server is fully ready before any DB queries
   setTimeout(checkUpcomingReminders, 10_000);

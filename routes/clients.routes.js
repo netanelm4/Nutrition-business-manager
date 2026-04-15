@@ -155,6 +155,7 @@ router.post('/', (req, res) => {
     });
 
     const clientId = result.lastInsertRowid;
+    console.log(`[POST /clients] Created client id=${clientId} name="${full_name}" status=${status || CLIENT_STATUS.ACTIVE} converted_from_lead=${converted_from_lead_id || null}`);
 
     // If converted from a lead that has intake data, store it as pending for session 1
     if (converted_from_lead_id) {
