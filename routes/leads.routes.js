@@ -283,7 +283,99 @@ router.post('/:id/convert', (req, res) => {
         }
       }
     } else {
-      console.log('[convert] No meeting found — start_date left empty, no session 1 created');
+      // No Calendly meeting — use today as the start date and create session 1
+      const todayDate = new Date().toISOString().slice(0, 10);
+      console.log(`[convert] No meeting found — using today ${todayDate} as session 1 date`);
+
+      db.prepare('UPDATE clients SET start_date = ? WHERE id = ?').run(todayDate, clientId);
+
+      const windows = calculateSessionWindows(todayDate);
+      const insertWindow = db.prepare(`
+        INSERT INTO session_windows (client_id, session_number, expected_date)
+        VALUES (@client_id, @session_number, @expected_date)
+      `);
+      db.transaction((wins) => {
+        for (const w of wins) insertWindow.run({ client_id: clientId, ...w });
+      })(windows);
+      console.log(`[convert] Generated ${windows.length} session windows from ${todayDate}`);
+
+      const sessionResult = db.prepare(`
+        INSERT INTO sessions (client_id, session_number, session_date, highlights, tasks)
+        VALUES (@client_id, 1, @session_date, '', '[]')
+      `).run({ client_id: clientId, session_date: todayDate });
+      const sessionId = sessionResult.lastInsertRowid;
+      console.log(`[convert] Created session 1 id=${sessionId} date=${todayDate}`);
+
+      if (intake) {
+        try {
+          db.prepare(`
+            INSERT INTO session_intakes
+              (session_id, client_id,
+               age, gender, weight, goal, activity_factor,
+               bmr_mifflin, bmr_harris, bmr_average, adjusted_weight, tdee,
+               height, marital_status, num_children, occupation,
+               work_hours, work_type, eating_at_work, medical_conditions, medications,
+               lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
+               prev_challenges, reason_for_treatment, diet_type, eating_patterns,
+               water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
+               physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods)
+            VALUES
+              (@session_id, @client_id,
+               @age, @gender, @weight, @goal, @activity_factor,
+               @bmr_mifflin, @bmr_harris, @bmr_average, @adjusted_weight, @tdee,
+               @height, @marital_status, @num_children, @occupation,
+               @work_hours, @work_type, @eating_at_work, @medical_conditions, @medications,
+               @lab_results_pdf_path, @prev_treatment, @prev_treatment_goal, @prev_success,
+               @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
+               @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
+               @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods)
+          `).run({
+            session_id:           sessionId,
+            client_id:            clientId,
+            age:                  intake.age,
+            gender:               intake.gender,
+            weight:               intake.weight,
+            goal:                 intake.goal,
+            activity_factor:      intake.activity_factor,
+            bmr_mifflin:          intake.bmr_mifflin,
+            bmr_harris:           intake.bmr_harris,
+            bmr_average:          intake.bmr_average,
+            adjusted_weight:      intake.adjusted_weight,
+            tdee:                 intake.tdee,
+            height:               intake.height,
+            marital_status:       intake.marital_status,
+            num_children:         intake.num_children,
+            occupation:           intake.occupation,
+            work_hours:           intake.work_hours,
+            work_type:            intake.work_type,
+            eating_at_work:       intake.eating_at_work,
+            medical_conditions:   intake.medical_conditions,
+            medications:          intake.medications,
+            lab_results_pdf_path: intake.lab_results_pdf_path,
+            prev_treatment:       intake.prev_treatment,
+            prev_treatment_goal:  intake.prev_treatment_goal,
+            prev_success:         intake.prev_success,
+            prev_challenges:      intake.prev_challenges,
+            reason_for_treatment: intake.reason_for_treatment,
+            diet_type:            intake.diet_type,
+            eating_patterns:      intake.eating_patterns,
+            water_intake:         intake.water_intake,
+            coffee_per_day:       intake.coffee_per_day,
+            alcohol_per_week:     intake.alcohol_per_week,
+            sleep_hours:          intake.sleep_hours,
+            sleep_quality:        intake.sleep_quality,
+            physical_activity:    intake.physical_activity,
+            activity_type:        intake.activity_type,
+            activity_frequency:   intake.activity_frequency,
+            favorite_snacks:      intake.favorite_snacks,
+            favorite_foods:       intake.favorite_foods,
+          });
+          db.prepare('UPDATE clients SET pending_intake_data = NULL WHERE id = ?').run(clientId);
+          console.log(`[convert] Copied lead intake to session_intakes for session ${sessionId}`);
+        } catch (err) {
+          console.error('[convert] Failed to copy intake to session_intakes:', err.message);
+        }
+      }
     }
 
     return ok(res, { client_id: clientId });

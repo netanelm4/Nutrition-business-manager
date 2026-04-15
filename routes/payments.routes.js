@@ -21,13 +21,15 @@ function syncPaymentStatus(clientId) {
     .prepare('SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE client_id = ?')
     .get(clientId);
 
-  const total = row.total;
-  const price = client.package_price || 0;
+  const totalPaid    = Number((row.total || 0).toFixed(2));
+  const packagePrice = Number((client.package_price || 0).toFixed(2));
 
   let status;
-  if (total <= 0) {
+  if (totalPaid <= 0) {
     status = 'unpaid';
-  } else if (price > 0 && total >= price) {
+  } else if (packagePrice === 0) {
+    status = 'paid';
+  } else if (totalPaid >= packagePrice) {
     status = 'paid';
   } else {
     status = 'partial';

@@ -388,6 +388,93 @@ function NutritionHistorySection({ form, set }) {
   );
 }
 
+// ── Nutrition Anamnesis Table ─────────────────────────────────────────────────
+
+const ANAMNESIS_MEALS = [
+  { key: 'morning',     label: 'בוקר' },
+  { key: 'mid_morning', label: 'ביניים' },
+  { key: 'lunch',       label: 'צהריים' },
+  { key: 'afternoon',   label: 'ביניים' },
+  { key: 'evening',     label: 'ערב' },
+  { key: 'night',       label: 'לילה' },
+];
+
+const ANAMNESIS_DAYS = [
+  { key: 'weekday',  label: 'יום רגיל' },
+  { key: 'friday',   label: 'שישי' },
+  { key: 'saturday', label: 'שבת' },
+];
+
+function NutritionAnamnesisTable({ form, set }) {
+  const anamnesis = form.nutrition_anamnesis ?? {};
+
+  function setCell(day, meal, value) {
+    set('nutrition_anamnesis', {
+      ...anamnesis,
+      [day]: { ...(anamnesis[day] ?? {}), [meal]: value || null },
+    });
+  }
+
+  return (
+    <div>
+      <p className={labelCls}>אנמנזה תזונתית</p>
+      {/* Desktop table */}
+      <div className="hidden sm:block overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead>
+            <tr>
+              <th className="text-right px-2 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 bg-gray-50 w-20">זמן ביום</th>
+              {ANAMNESIS_DAYS.map(({ key, label }) => (
+                <th key={key} className="text-center px-2 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 bg-gray-50">{label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ANAMNESIS_MEALS.map(({ key: mealKey, label: mealLabel }) => (
+              <tr key={mealKey}>
+                <td className="px-2 py-1 text-xs text-gray-600 font-medium border border-gray-200 bg-gray-50 align-middle">{mealLabel}</td>
+                {ANAMNESIS_DAYS.map(({ key: dayKey }) => (
+                  <td key={dayKey} className="border border-gray-200 p-1 align-top">
+                    <textarea
+                      rows={2}
+                      className="w-full text-xs border-0 focus:outline-none resize-none p-1 bg-transparent"
+                      value={anamnesis[dayKey]?.[mealKey] ?? ''}
+                      onChange={(e) => setCell(dayKey, mealKey, e.target.value)}
+                      placeholder="..."
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {/* Mobile: stacked cards per day */}
+      <div className="sm:hidden space-y-4">
+        {ANAMNESIS_DAYS.map(({ key: dayKey, label: dayLabel }) => (
+          <div key={dayKey} className="border border-gray-200 rounded-lg overflow-hidden">
+            <div className="bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 border-b border-gray-200">{dayLabel}</div>
+            <div className="divide-y divide-gray-100">
+              {ANAMNESIS_MEALS.map(({ key: mealKey, label: mealLabel }) => (
+                <div key={mealKey} className="px-3 py-2">
+                  <label className="block text-xs text-gray-500 mb-1">{mealLabel}</label>
+                  <textarea
+                    rows={2}
+                    className="w-full text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none"
+                    value={anamnesis[dayKey]?.[mealKey] ?? ''}
+                    onChange={(e) => setCell(dayKey, mealKey, e.target.value)}
+                    placeholder="..."
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Section 5: הרגלי אכילה ───────────────────────────────────────────────────
 
 const DIET_TYPES = [
@@ -434,6 +521,7 @@ function EatingSection({ form, set }) {
           ))}
         </div>
       </div>
+      <NutritionAnamnesisTable form={form} set={set} />
     </Section>
   );
 }
@@ -513,6 +601,7 @@ const EMPTY_FORM = {
   sleep_hours: null, sleep_quality: null,
   physical_activity: false, activity_type: null, activity_frequency: null,
   favorite_snacks: null, favorite_foods: null,
+  nutrition_anamnesis: null,
 };
 
 export default function LeadIntakeForm({ leadId }) {

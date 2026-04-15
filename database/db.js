@@ -367,6 +367,10 @@ try {
   // Table already exists — safe to ignore
 }
 
+// Migrate existing databases: add nutrition_anamnesis to intakes
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN nutrition_anamnesis TEXT'); } catch {}
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN nutrition_anamnesis TEXT'); } catch {}
+
 // ── Clinical fields: session_intakes ─────────────────────────────────────────
 try { db.exec('ALTER TABLE session_intakes ADD COLUMN age INTEGER'); } catch {}
 try { db.exec("ALTER TABLE session_intakes ADD COLUMN gender TEXT"); } catch {}
