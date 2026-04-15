@@ -11,6 +11,7 @@ export const LEAD_STATUS = Object.freeze({
   NEW: 'new',
   CONTACTED: 'contacted',
   MEETING_SCHEDULED: 'meeting_scheduled',
+  MEETING_HELD: 'meeting_held',
   BECAME_CLIENT: 'became_client',
   NOT_RELEVANT: 'not_relevant',
 });
@@ -46,6 +47,7 @@ export const LEAD_STATUS_LABEL = Object.freeze({
   new: 'חדש',
   contacted: 'נוצר קשר',
   meeting_scheduled: 'פגישה נקבעה',
+  meeting_held: 'פגישה התקיימה - לא הומר',
   became_client: 'הפך ללקוח',
   not_relevant: 'לא רלוונטי',
 });

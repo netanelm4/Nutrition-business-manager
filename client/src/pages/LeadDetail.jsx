@@ -6,6 +6,7 @@ import { LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_SOURCE_LABEL } from '../constants/
 import { formatDateHebrew } from '../lib/dates';
 import WhatsAppDropdown from '../components/whatsapp/WhatsAppDropdown';
 import MeetingScheduleModal from '../components/leads/MeetingScheduleModal';
+import LeadIntakeForm from '../components/leads/LeadIntakeForm';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -184,6 +185,7 @@ export default function LeadDetail() {
   const [convertError, setConvertError] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
+  const [confirmMeetingHeld, setConfirmMeetingHeld] = useState(false);
 
   // ── Data fetching ────────────────────────────────────────────────────────────
 
@@ -206,7 +208,7 @@ export default function LeadDetail() {
   const meetingQuery = useQuery({
     queryKey: ['lead-meeting', id],
     queryFn: () => fetchLeadMeeting(id),
-    enabled: lead?.status === LEAD_STATUS.MEETING_SCHEDULED,
+    enabled: lead?.status === LEAD_STATUS.MEETING_SCHEDULED || lead?.status === LEAD_STATUS.MEETING_HELD,
   });
 
   // ── Save mutation ────────────────────────────────────────────────────────────
@@ -291,6 +293,8 @@ export default function LeadDetail() {
 
   const isTerminal = lead.status === 'became_client';
   const isNotRelevant = lead.status === 'not_relevant';
+  const isMeetingHeld = lead.status === LEAD_STATUS.MEETING_HELD;
+  const showMeetingSection = lead.status === LEAD_STATUS.MEETING_SCHEDULED || isMeetingHeld;
 
   const createdAt = formatDateHebrew(lead.created_at);
 
@@ -338,6 +342,17 @@ export default function LeadDetail() {
           <div className="text-sm text-gray-500 bg-gray-50 rounded-xl p-3 text-center">
             סומן כלא רלוונטי
           </div>
+        ) : isMeetingHeld ? (
+          <>
+            <StepIndicator
+              currentStatus={LEAD_STATUS.MEETING_SCHEDULED}
+              onStepClick={() => {}}
+              disabled
+            />
+            <div className="mt-3 text-sm text-gray-500 bg-gray-50 rounded-xl p-3 text-center">
+              פגישה התקיימה — הליד לא המשיך לטיפול
+            </div>
+          </>
         ) : (
           <StepIndicator
             currentStatus={lead.status}
@@ -347,49 +362,115 @@ export default function LeadDetail() {
         )}
       </div>
 
-      {/* ── Section 2b: Meeting details (when status = meeting_scheduled) ── */}
-      {lead.status === LEAD_STATUS.MEETING_SCHEDULED && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-gray-600">פרטי הפגישה</h2>
-            <button
-              type="button"
-              onClick={() => setMeetingModalOpen(true)}
-              className="text-xs text-indigo-600 hover:text-indigo-800"
-            >
-              {meetingQuery.data ? 'עדכן' : 'הוסף פרטים'}
-            </button>
-          </div>
+      {/* ── Section 2b: כרטיס פגישת היכרות ── */}
+      {showMeetingSection && (
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-4">
+          <h2 className="text-sm font-semibold text-gray-600">כרטיס פגישת היכרות</h2>
 
-          {meetingQuery.isLoading ? (
-            <div className="h-10 animate-pulse bg-gray-100 rounded-lg" />
-          ) : meetingQuery.data ? (
-            <div className="text-sm text-gray-700 space-y-1">
-              <p>
-                <span className="text-gray-500 ml-1">תאריך:</span>
-                {new Date(meetingQuery.data.start_time).toLocaleDateString('he-IL', {
-                  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-                  timeZone: 'Asia/Jerusalem',
-                })}
-              </p>
-              <p>
-                <span className="text-gray-500 ml-1">שעה:</span>
-                {new Date(meetingQuery.data.start_time).toLocaleTimeString('he-IL', {
-                  hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
-                })}
-              </p>
-              {meetingQuery.data.event_type && (
-                <p>
-                  <span className="text-gray-500 ml-1">סוג:</span>
-                  {{ first_meeting: 'פגישה ראשונה', follow_up: 'מעקב', consultation: 'ייעוץ' }[meetingQuery.data.event_type] || meetingQuery.data.event_type}
-                </p>
-              )}
-              {meetingQuery.data.notes && (
-                <p className="text-gray-500">{meetingQuery.data.notes}</p>
+          {/* A) Meeting info */}
+          <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">פרטי הפגישה</span>
+              {!isMeetingHeld && (
+                <button
+                  type="button"
+                  onClick={() => setMeetingModalOpen(true)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800"
+                >
+                  {meetingQuery.data ? 'עדכן פגישה' : 'הוסף פרטים'}
+                </button>
               )}
             </div>
-          ) : (
-            <p className="text-sm text-gray-400">לא הוזנו פרטי פגישה עדיין.</p>
+            {meetingQuery.isLoading ? (
+              <div className="h-10 animate-pulse bg-gray-100 rounded-lg" />
+            ) : meetingQuery.data ? (
+              <div className="text-sm text-gray-700 space-y-1">
+                <p>
+                  <span className="text-gray-500 ml-1">תאריך:</span>
+                  {new Date(meetingQuery.data.start_time).toLocaleDateString('he-IL', {
+                    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+                    timeZone: 'Asia/Jerusalem',
+                  })}
+                </p>
+                <p>
+                  <span className="text-gray-500 ml-1">שעה:</span>
+                  {new Date(meetingQuery.data.start_time).toLocaleTimeString('he-IL', {
+                    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
+                  })}
+                </p>
+                {meetingQuery.data.event_type && (
+                  <p>
+                    <span className="text-gray-500 ml-1">סוג:</span>
+                    {{ first_meeting: 'פגישה ראשונה', follow_up: 'מעקב', consultation: 'ייעוץ' }[meetingQuery.data.event_type] || meetingQuery.data.event_type}
+                  </p>
+                )}
+                {meetingQuery.data.notes && (
+                  <p className="text-gray-500">{meetingQuery.data.notes}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-400">לא הוזנו פרטי פגישה עדיין.</p>
+            )}
+          </div>
+
+          {/* B) Intake form */}
+          <LeadIntakeForm leadId={lead.id} />
+
+          {/* C) Action buttons — only when meeting is still pending outcome */}
+          {!isMeetingHeld && (
+            <div className="pt-2 space-y-3 border-t border-gray-100">
+              {/* Convert to client */}
+              <button
+                type="button"
+                onClick={handleConvert}
+                disabled={converting}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors disabled:opacity-60"
+              >
+                {converting ? 'ממיר...' : 'התהליך התחיל — הפוך ללקוח'}
+              </button>
+
+              {/* Mark as meeting held (no conversion) */}
+              {!confirmMeetingHeld ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmMeetingHeld(true)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  פגישה התקיימה — לא המשיך
+                </button>
+              ) : (
+                <div className="rounded-xl border border-gray-200 p-3 space-y-3 bg-gray-50">
+                  <p className="text-sm text-gray-700 text-center">לסמן פגישה זו כלא הומרה?</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await save({ status: LEAD_STATUS.MEETING_HELD });
+                          setConfirmMeetingHeld(false);
+                          queryClient.invalidateQueries({ queryKey: ['lead', id] });
+                          queryClient.invalidateQueries({ queryKey: ['leads'] });
+                        } catch {}
+                      }}
+                      className="flex-1 py-2 rounded-xl bg-gray-700 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+                    >
+                      אישור
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmMeetingHeld(false)}
+                      className="flex-1 py-2 rounded-xl border border-gray-300 text-sm text-gray-600 hover:bg-white transition-colors"
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {convertError && (
+                <p className="text-sm text-red-600">{convertError}</p>
+              )}
+            </div>
           )}
         </div>
       )}

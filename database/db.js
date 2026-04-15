@@ -318,4 +318,52 @@ try {
   // Table already exists — safe to ignore
 }
 
+// Migrate existing databases: add pending_intake_data to clients
+try {
+  db.exec('ALTER TABLE clients ADD COLUMN pending_intake_data TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
+// Migrate existing databases: create lead_intakes table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS lead_intakes (
+      id                    INTEGER  PRIMARY KEY AUTOINCREMENT,
+      lead_id               INTEGER  NOT NULL REFERENCES leads(id) ON DELETE CASCADE,
+      height                REAL,
+      marital_status        TEXT,
+      num_children          INTEGER,
+      occupation            TEXT,
+      work_hours            TEXT,
+      work_type             TEXT,
+      eating_at_work        TEXT,
+      medical_conditions    TEXT,
+      medications           TEXT,
+      lab_results_pdf_path  TEXT,
+      prev_treatment        INTEGER  DEFAULT 0,
+      prev_treatment_goal   TEXT,
+      prev_success          TEXT,
+      prev_challenges       TEXT,
+      reason_for_treatment  TEXT,
+      diet_type             TEXT,
+      eating_patterns       TEXT,
+      water_intake          TEXT,
+      coffee_per_day        TEXT,
+      alcohol_per_week      TEXT,
+      sleep_hours           TEXT,
+      sleep_quality         TEXT,
+      physical_activity     INTEGER  DEFAULT 0,
+      activity_type         TEXT,
+      activity_frequency    TEXT,
+      favorite_snacks       TEXT,
+      favorite_foods        TEXT,
+      created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at            DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch {
+  // Table already exists — safe to ignore
+}
+
 module.exports = db;

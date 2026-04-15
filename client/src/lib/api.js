@@ -114,6 +114,24 @@ export const fetchIntake   = (sessionId)       => request('GET',  `/sessions/${s
 export const createIntake  = (sessionId, data) => request('POST', `/sessions/${sessionId}/intake`, data);
 export const updateIntake  = (sessionId, data) => request('PUT',  `/sessions/${sessionId}/intake`, data);
 
+// ── Lead intakes ──────────────────────────────────────────────────────────────
+export const fetchLeadIntake  = (leadId)       => request('GET',  `/leads/${leadId}/intake`);
+export const createLeadIntake = (leadId, data) => request('POST', `/leads/${leadId}/intake`, data);
+export const updateLeadIntake = (leadId, data) => request('PUT',  `/leads/${leadId}/intake`, data);
+
+export function uploadLeadLabPdf(leadId, file) {
+  const formData = new FormData();
+  formData.append('pdf', file);
+  return fetch(`/api/leads/${leadId}/intake/lab-pdf`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${localStorage.getItem('auth_password') || ''}` },
+    body: formData,
+  }).then((r) => r.json()).then((json) => {
+    if (!json.success) throw new Error(json.error || 'Upload failed');
+    return json.data;
+  });
+}
+
 export function uploadLabPdf(sessionId, file) {
   const formData = new FormData();
   formData.append('pdf', file);

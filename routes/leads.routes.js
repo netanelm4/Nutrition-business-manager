@@ -5,7 +5,7 @@ const { createCalendarEvent } = require('../services/google-calendar.service');
 
 const router = express.Router();
 
-const TERMINAL_STATUSES = new Set([LEAD_STATUS.BECAME_CLIENT, LEAD_STATUS.NOT_RELEVANT]);
+const TERMINAL_STATUSES = new Set([LEAD_STATUS.BECAME_CLIENT, LEAD_STATUS.NOT_RELEVANT, LEAD_STATUS.MEETING_HELD]);
 const FROZEN_DAYS = 5;
 
 function computeFrozen(lead) {

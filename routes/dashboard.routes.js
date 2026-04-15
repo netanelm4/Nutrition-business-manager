@@ -7,7 +7,7 @@ const { todayISO, addDays, toISODate, parseDate, diffDays } = require('../utils/
 
 const FROZEN_DAYS = 5;
 const RETENTION_DAYS = 14;
-const TERMINAL_LEAD_STATUSES = new Set([LEAD_STATUS.BECAME_CLIENT, LEAD_STATUS.NOT_RELEVANT]);
+const TERMINAL_LEAD_STATUSES = new Set([LEAD_STATUS.BECAME_CLIENT, LEAD_STATUS.NOT_RELEVANT, LEAD_STATUS.MEETING_HELD]);
 
 const router = express.Router();
 
@@ -55,14 +55,13 @@ router.get('/', (req, res) => {
     const mondayISO = toISODate(addDays(nowInIsrael, -daysFromMonday));
     const sundayISO = toISODate(addDays(nowInIsrael, 6 - daysFromMonday));
 
-    // Also keep the tolerance-based range for session_windows (existing logic)
+    // Also keep the tolerance-based range for session_windows and the sessionsThisWeek counter
     const weekStart = toISODate(addDays(parseDate(today), -SESSION_TOLERANCE_DAYS));
     const weekEnd   = toISODate(addDays(parseDate(today),  SESSION_TOLERANCE_DAYS));
 
-    const weeklySessions = [];
-    const seenClientIds  = new Set();
+    // 2a. client_sessions — session_windows for active clients
+    const client_sessions = [];
 
-    // 2a. session_windows (existing clients with scheduled/expected sessions)
     for (const client of clients) {
       const windows  = windowsByClient[client.id] || [];
       const sessions = sessionsByClient[client.id] || [];
@@ -73,7 +72,7 @@ router.get('/', (req, res) => {
       for (const w of windows) {
         if (w.expected_date >= weekStart && w.expected_date <= weekEnd) {
           const existingSession = sessionByNumber[w.session_number] || null;
-          weeklySessions.push({
+          client_sessions.push({
             client_id: client.id,
             client_name: client.full_name,
             phone: client.phone,
@@ -82,49 +81,32 @@ router.get('/', (req, res) => {
             manually_overridden: w.manually_overridden === 1,
             session_scheduled: !!existingSession,
             session_date: existingSession ? existingSession.session_date : null,
-            source: 'session_window',
           });
-          seenClientIds.add(`${client.id}-${w.session_number}`);
         }
       }
     }
 
-    // 2b. calendly_events — manual or Calendly-booked meetings this week
-    // Compare by the date portion of start_time (works for both naive and UTC strings)
-    const calendlyThisWeek = db.prepare(`
-      SELECT ce.id, ce.invitee_name, ce.start_time, ce.event_type, ce.source,
-             ce.client_id, ce.lead_id,
-             COALESCE(c.full_name, l.full_name, ce.invitee_name) AS display_name,
-             COALESCE(c.phone,     l.phone,     ce.invitee_phone) AS display_phone
+    // 2b. lead_meetings — calendly_events linked to a lead this week
+    const leadMeetingRows = db.prepare(`
+      SELECT ce.id, ce.start_time, ce.event_type,
+             ce.lead_id, l.full_name AS lead_name, l.phone AS lead_phone
       FROM   calendly_events ce
-      LEFT JOIN clients c ON ce.client_id = c.id
-      LEFT JOIN leads   l ON ce.lead_id   = l.id
+      JOIN   leads l ON ce.lead_id = l.id
       WHERE  ce.status = 'active'
+        AND  ce.lead_id IS NOT NULL
         AND  substr(ce.start_time, 1, 10) >= ?
         AND  substr(ce.start_time, 1, 10) <= ?
       ORDER  BY ce.start_time ASC
     `).all(mondayISO, sundayISO);
 
-    for (const ev of calendlyThisWeek) {
-      weeklySessions.push({
-        client_id:    ev.client_id || null,
-        lead_id:      ev.lead_id   || null,
-        client_name:  ev.display_name,
-        phone:        ev.display_phone,
-        event_id:     ev.id,
-        event_type:   ev.event_type,
-        start_time:   ev.start_time,
-        expected_date: ev.start_time.slice(0, 10),
-        source:       'calendly_event',
-      });
-    }
-
-    // Sort by expected_date / start_time ascending
-    weeklySessions.sort((a, b) => {
-      const da = a.start_time || a.expected_date || '';
-      const db_ = b.start_time || b.expected_date || '';
-      return da > db_ ? 1 : -1;
-    });
+    const lead_meetings = leadMeetingRows.map((ev) => ({
+      event_id:   ev.id,
+      lead_id:    ev.lead_id,
+      lead_name:  ev.lead_name,
+      phone:      ev.lead_phone,
+      start_time: ev.start_time,
+      event_type: ev.event_type,
+    }));
 
     // ── 3. All alerts ──────────────────────────────────────────────────────
     const alerts = [];
@@ -256,7 +238,8 @@ router.get('/', (req, res) => {
       .get(weekStart, weekEnd).n;
 
     return ok(res, {
-      weekly_sessions: weeklySessions,
+      client_sessions,
+      lead_meetings,
       alerts,
       frozen_leads,
       retention_alerts,

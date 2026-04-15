@@ -9,6 +9,7 @@ const LEAD_STATUS = Object.freeze({
   NEW: 'new',
   CONTACTED: 'contacted',
   MEETING_SCHEDULED: 'meeting_scheduled',
+  MEETING_HELD: 'meeting_held',
   BECAME_CLIENT: 'became_client',
   NOT_RELEVANT: 'not_relevant',
 });

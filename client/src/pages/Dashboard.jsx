@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { fetchDashboard, fetchTemplates, renderTemplate } from '../lib/api';
-import { formatDateHebrew, relativeLabel } from '../lib/dates';
+import { formatDateHebrew, formatTimeHebrew, relativeLabel } from '../lib/dates';
 import { useAlertColor } from '../hooks/useAlertColor';
 import AlertBadge from '../components/ui/AlertBadge';
 import StatCard from '../components/ui/StatCard';
@@ -78,12 +78,11 @@ function resolveState(item) {
   return ALERT_STATE.YELLOW;
 }
 
-function WeeklySessions({ data }) {
+function ClientSessions({ data }) {
   if (!data || data.length === 0) {
-    return <EmptyState message="אין פגישות צפויות השבוע" sub="לקוחות שחלון הפגישה שלהם חל השבוע יופיעו כאן" />;
+    return <EmptyState message="אין פגישות לקוחות השבוע" sub="לקוחות שחלון הפגישה שלהם חל השבוע יופיעו כאן" />;
   }
 
-  // Sort: RED first, YELLOW second, GREEN last
   const sorted = [...data].sort(
     (a, b) => SessionStateOrder(resolveState(a)) - SessionStateOrder(resolveState(b))
   );
@@ -92,6 +91,48 @@ function WeeklySessions({ data }) {
     <div className="space-y-3">
       {sorted.map((item, i) => (
         <WeeklySessionCard key={`${item.client_id}-${item.session_number}-${i}`} item={item} />
+      ))}
+    </div>
+  );
+}
+
+// ─── Lead meeting card ────────────────────────────────────────────────────────
+
+function LeadMeetingCard({ item }) {
+  const navigate = useNavigate();
+
+  return (
+    <button
+      type="button"
+      onClick={() => navigate(`/leads/${item.lead_id}`)}
+      className="w-full text-right block rounded-xl border border-purple-200 bg-purple-50 p-4 hover:shadow-sm transition-shadow"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-semibold text-gray-900 truncate">{item.lead_name}</p>
+          {item.phone && (
+            <p className="text-xs text-gray-400 mt-0.5" dir="ltr">{item.phone}</p>
+          )}
+          <p className="text-xs text-gray-500 mt-1">
+            {formatDateHebrew(item.start_time.slice(0, 10))}
+            {' · '}
+            {formatTimeHebrew(item.start_time)}
+          </p>
+        </div>
+        <span className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+          פגישת היכרות
+        </span>
+      </div>
+    </button>
+  );
+}
+
+function LeadMeetings({ data }) {
+  if (!data || data.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {data.map((item) => (
+        <LeadMeetingCard key={item.event_id} item={item} />
       ))}
     </div>
   );
@@ -381,7 +422,18 @@ export default function Dashboard() {
         ) : isError ? (
           <p className="text-red-500 text-sm">לא ניתן לטעון את הפגישות.</p>
         ) : (
-          <WeeklySessions data={dashboard.weekly_sessions} />
+          <div className="space-y-5">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">פגישות לקוחות</h3>
+              <ClientSessions data={dashboard.client_sessions} />
+            </div>
+            {dashboard.lead_meetings?.length > 0 && (
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-purple-600 mb-2">פגישות היכרות עם לידים</h3>
+                <LeadMeetings data={dashboard.lead_meetings} />
+              </div>
+            )}
+          </div>
         )}
       </section>
 

@@ -156,6 +156,19 @@ router.post('/', (req, res) => {
 
     const clientId = result.lastInsertRowid;
 
+    // If converted from a lead that has intake data, store it as pending for session 1
+    if (converted_from_lead_id) {
+      try {
+        const leadIntake = db.prepare('SELECT * FROM lead_intakes WHERE lead_id = ?').get(converted_from_lead_id);
+        if (leadIntake) {
+          db.prepare('UPDATE clients SET pending_intake_data = ? WHERE id = ?').run(
+            JSON.stringify(leadIntake),
+            clientId
+          );
+        }
+      } catch { /* best-effort — don't fail client creation */ }
+    }
+
     // Auto-generate 6 session windows if start_date provided
     if (start_date) {
       const windows = calculateSessionWindows(start_date);

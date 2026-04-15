@@ -30,19 +30,33 @@ const upload = multer({
 router.get('/sessions/:id/intake', (req, res) => {
   try {
     const sessionId = req.params.id;
-    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(sessionId);
+    const session = db.prepare('SELECT id, client_id, session_number FROM sessions WHERE id = ?').get(sessionId);
     if (!session) return fail(res, 404, 'Session not found.');
 
     const intake = db.prepare('SELECT * FROM session_intakes WHERE session_id = ?').get(sessionId);
 
-    // Parse JSON fields
     if (intake) {
+      // Parse JSON fields
       try { intake.medical_conditions = JSON.parse(intake.medical_conditions || '{}'); } catch { intake.medical_conditions = {}; }
       try { intake.medications        = JSON.parse(intake.medications        || '[]'); } catch { intake.medications = []; }
       try { intake.eating_patterns    = JSON.parse(intake.eating_patterns    || '{}'); } catch { intake.eating_patterns = {}; }
+      return ok(res, intake);
     }
 
-    return ok(res, intake || null);
+    // For session 1: check if the client has pending intake data from lead conversion
+    if (session.session_number === 1) {
+      const client = db.prepare('SELECT pending_intake_data FROM clients WHERE id = ?').get(session.client_id);
+      if (client?.pending_intake_data) {
+        try {
+          const pending = JSON.parse(client.pending_intake_data);
+          return ok(res, { ...pending, _pending: true });
+        } catch {
+          // Corrupted pending data — ignore
+        }
+      }
+    }
+
+    return ok(res, null);
   } catch (err) {
     console.error('[GET /sessions/:id/intake]', err);
     return fail(res, 500, 'Failed to fetch intake.');
@@ -78,6 +92,11 @@ router.post('/sessions/:id/intake', (req, res) => {
          @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
          @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods)
     `).run({ session_id: sessionId, client_id: session.client_id, ...data });
+
+    // Clear pending intake data from the client once session 1 intake is saved
+    try {
+      db.prepare('UPDATE clients SET pending_intake_data = NULL WHERE id = ?').run(session.client_id);
+    } catch { /* best-effort */ }
 
     const intake = db.prepare('SELECT * FROM session_intakes WHERE id = ?').get(result.lastInsertRowid);
     return ok(res, intake);
@@ -152,6 +171,133 @@ router.post('/sessions/:id/intake/lab-pdf', upload.single('pdf'), (req, res) => 
   } catch (err) {
     console.error('[POST /sessions/:id/intake/lab-pdf]', err);
     // Clean up temp file if rename failed
+    if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch {} }
+    return fail(res, 500, 'Failed to upload PDF.');
+  }
+});
+
+// ── GET /api/leads/:id/intake ─────────────────────────────────────────────────
+
+router.get('/leads/:id/intake', (req, res) => {
+  try {
+    const leadId = req.params.id;
+    const lead = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+    if (!lead) return fail(res, 404, 'Lead not found.');
+
+    const intake = db.prepare('SELECT * FROM lead_intakes WHERE lead_id = ?').get(leadId);
+
+    if (intake) {
+      try { intake.medical_conditions = JSON.parse(intake.medical_conditions || '{}'); } catch { intake.medical_conditions = {}; }
+      try { intake.medications        = JSON.parse(intake.medications        || '[]'); } catch { intake.medications = []; }
+      try { intake.eating_patterns    = JSON.parse(intake.eating_patterns    || '{}'); } catch { intake.eating_patterns = {}; }
+    }
+
+    return ok(res, intake || null);
+  } catch (err) {
+    console.error('[GET /leads/:id/intake]', err);
+    return fail(res, 500, 'Failed to fetch lead intake.');
+  }
+});
+
+// ── POST /api/leads/:id/intake ────────────────────────────────────────────────
+
+router.post('/leads/:id/intake', (req, res) => {
+  try {
+    const leadId = req.params.id;
+    const lead = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+    if (!lead) return fail(res, 404, 'Lead not found.');
+
+    const existing = db.prepare('SELECT id FROM lead_intakes WHERE lead_id = ?').get(leadId);
+    if (existing) return fail(res, 409, 'Lead intake already exists. Use PUT to update.');
+
+    const data = buildIntakeData(req.body);
+
+    const result = db.prepare(`
+      INSERT INTO lead_intakes
+        (lead_id, height, marital_status, num_children, occupation,
+         work_hours, work_type, eating_at_work, medical_conditions, medications,
+         lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
+         prev_challenges, reason_for_treatment, diet_type, eating_patterns,
+         water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
+         physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods)
+      VALUES
+        (@lead_id, @height, @marital_status, @num_children, @occupation,
+         @work_hours, @work_type, @eating_at_work, @medical_conditions, @medications,
+         @lab_results_pdf_path, @prev_treatment, @prev_treatment_goal, @prev_success,
+         @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
+         @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
+         @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods)
+    `).run({ lead_id: leadId, ...data });
+
+    const intake = db.prepare('SELECT * FROM lead_intakes WHERE id = ?').get(result.lastInsertRowid);
+    return ok(res, intake);
+  } catch (err) {
+    console.error('[POST /leads/:id/intake]', err);
+    return fail(res, 500, 'Failed to create lead intake.');
+  }
+});
+
+// ── PUT /api/leads/:id/intake ─────────────────────────────────────────────────
+
+router.put('/leads/:id/intake', (req, res) => {
+  try {
+    const leadId = req.params.id;
+    const intake = db.prepare('SELECT id FROM lead_intakes WHERE lead_id = ?').get(leadId);
+    if (!intake) return fail(res, 404, 'Lead intake not found. Use POST to create.');
+
+    const data = buildIntakeData(req.body);
+
+    db.prepare(`
+      UPDATE lead_intakes SET
+        height = @height, marital_status = @marital_status, num_children = @num_children,
+        occupation = @occupation, work_hours = @work_hours, work_type = @work_type,
+        eating_at_work = @eating_at_work, medical_conditions = @medical_conditions,
+        medications = @medications, prev_treatment = @prev_treatment,
+        prev_treatment_goal = @prev_treatment_goal, prev_success = @prev_success,
+        prev_challenges = @prev_challenges, reason_for_treatment = @reason_for_treatment,
+        diet_type = @diet_type, eating_patterns = @eating_patterns,
+        water_intake = @water_intake, coffee_per_day = @coffee_per_day,
+        alcohol_per_week = @alcohol_per_week, sleep_hours = @sleep_hours,
+        sleep_quality = @sleep_quality, physical_activity = @physical_activity,
+        activity_type = @activity_type, activity_frequency = @activity_frequency,
+        favorite_snacks = @favorite_snacks, favorite_foods = @favorite_foods,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE lead_id = @lead_id
+    `).run({ lead_id: leadId, ...data });
+
+    const updated = db.prepare('SELECT * FROM lead_intakes WHERE lead_id = ?').get(leadId);
+    return ok(res, updated);
+  } catch (err) {
+    console.error('[PUT /leads/:id/intake]', err);
+    return fail(res, 500, 'Failed to update lead intake.');
+  }
+});
+
+// ── POST /api/leads/:id/intake/lab-pdf ───────────────────────────────────────
+
+router.post('/leads/:id/intake/lab-pdf', upload.single('pdf'), (req, res) => {
+  try {
+    const leadId = req.params.id;
+    const lead = db.prepare('SELECT id FROM leads WHERE id = ?').get(leadId);
+    if (!lead) return fail(res, 404, 'Lead not found.');
+
+    if (!req.file) return fail(res, 400, 'No PDF file uploaded.');
+
+    const filename = `lead_${leadId}.pdf`;
+    const dest     = path.join(LABS_DIR, filename);
+    fs.renameSync(req.file.path, dest);
+
+    const existing = db.prepare('SELECT id FROM lead_intakes WHERE lead_id = ?').get(leadId);
+    if (existing) {
+      db.prepare('UPDATE lead_intakes SET lab_results_pdf_path = ?, updated_at = CURRENT_TIMESTAMP WHERE lead_id = ?')
+        .run(filename, leadId);
+    } else {
+      db.prepare('INSERT INTO lead_intakes (lead_id, lab_results_pdf_path) VALUES (?, ?)').run(leadId, filename);
+    }
+
+    return ok(res, { path: filename });
+  } catch (err) {
+    console.error('[POST /leads/:id/intake/lab-pdf]', err);
     if (req.file?.path) { try { fs.unlinkSync(req.file.path); } catch {} }
     return fail(res, 500, 'Failed to upload PDF.');
   }
