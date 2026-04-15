@@ -44,17 +44,6 @@ app.use('/api/google',   googleRouter);   // callback must be public (no auth)
 // ─── Landing page static files ────────────────────────────────────────────────
 app.use('/landing', express.static(path.join(__dirname, 'landing')));
 
-// ─── Temporary debug route (no auth) — remove after bug confirmed fixed ───────
-app.get('/api/debug/clients', (req, res) => {
-  try {
-    const clients = db.prepare('SELECT id, full_name, status, converted_from_lead_id, created_at FROM clients ORDER BY created_at DESC LIMIT 20').all();
-    const leads = db.prepare('SELECT id, full_name, status, created_at FROM leads ORDER BY created_at DESC LIMIT 10').all();
-    res.json({ clients, leads, total_clients: clients.length });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ─── Protected API routes ─────────────────────────────────────────────────────
 app.use('/api', requireAuth);
 
