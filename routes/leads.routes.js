@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 const { LEAD_STATUS, CLIENT_STATUS } = require('../constants/statuses');
+const { calculateSessionWindows } = require('../utils/dates');
 const { createCalendarEvent } = require('../services/google-calendar.service');
 
 const router = express.Router();
@@ -172,16 +173,117 @@ router.post('/:id/convert', (req, res) => {
     const clientId = result.lastInsertRowid;
     console.log(`[convert] Created client id=${clientId} status=active`);
 
-    // Copy full intake data as pending (for session 1 pre-fill)
-    if (intake) {
-      try {
-        db.prepare('UPDATE clients SET pending_intake_data = ? WHERE id = ?').run(
-          JSON.stringify(intake), clientId
-        );
-        console.log(`[convert] Copied intake data to pending_intake_data on client ${clientId}`);
-      } catch (err) {
-        console.error('[convert] Failed to copy intake data:', err.message);
+    // ── Find the lead's meeting ────────────────────────────────────────────────
+    const meeting = db.prepare(`
+      SELECT * FROM calendly_events
+      WHERE lead_id = ? AND status = 'active'
+      ORDER BY start_time ASC LIMIT 1
+    `).get(lead.id);
+
+    if (meeting) {
+      const meetingDate = meeting.start_time.slice(0, 10); // "YYYY-MM-DD"
+      console.log(`[convert] Meeting found: id=${meeting.id} date=${meetingDate}`);
+
+      // Set start_date on client (drives all session window calculations)
+      db.prepare('UPDATE clients SET start_date = ? WHERE id = ?').run(meetingDate, clientId);
+
+      // Generate 6 session windows from meeting date
+      const windows = calculateSessionWindows(meetingDate);
+      const insertWindow = db.prepare(`
+        INSERT INTO session_windows (client_id, session_number, expected_date)
+        VALUES (@client_id, @session_number, @expected_date)
+      `);
+      db.transaction((wins) => {
+        for (const w of wins) insertWindow.run({ client_id: clientId, ...w });
+      })(windows);
+      console.log(`[convert] Generated ${windows.length} session windows from ${meetingDate}`);
+
+      // Create session 1 with the meeting date
+      const sessionResult = db.prepare(`
+        INSERT INTO sessions (client_id, session_number, session_date, highlights, tasks)
+        VALUES (@client_id, 1, @session_date, '', '[]')
+      `).run({ client_id: clientId, session_date: meetingDate });
+      const sessionId = sessionResult.lastInsertRowid;
+      console.log(`[convert] Created session 1 id=${sessionId} date=${meetingDate}`);
+
+      // Link calendly_event to the new client
+      db.prepare('UPDATE calendly_events SET client_id = ? WHERE id = ?').run(clientId, meeting.id);
+      console.log(`[convert] Linked calendly_event ${meeting.id} to client ${clientId}`);
+
+      // Copy lead intake directly to session 1 session_intakes
+      if (intake) {
+        try {
+          db.prepare(`
+            INSERT INTO session_intakes
+              (session_id, client_id,
+               age, gender, weight, goal, activity_factor,
+               bmr_mifflin, bmr_harris, bmr_average, adjusted_weight, tdee,
+               height, marital_status, num_children, occupation,
+               work_hours, work_type, eating_at_work, medical_conditions, medications,
+               lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
+               prev_challenges, reason_for_treatment, diet_type, eating_patterns,
+               water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
+               physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods)
+            VALUES
+              (@session_id, @client_id,
+               @age, @gender, @weight, @goal, @activity_factor,
+               @bmr_mifflin, @bmr_harris, @bmr_average, @adjusted_weight, @tdee,
+               @height, @marital_status, @num_children, @occupation,
+               @work_hours, @work_type, @eating_at_work, @medical_conditions, @medications,
+               @lab_results_pdf_path, @prev_treatment, @prev_treatment_goal, @prev_success,
+               @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
+               @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
+               @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods)
+          `).run({
+            session_id:           sessionId,
+            client_id:            clientId,
+            age:                  intake.age,
+            gender:               intake.gender,
+            weight:               intake.weight,
+            goal:                 intake.goal,
+            activity_factor:      intake.activity_factor,
+            bmr_mifflin:          intake.bmr_mifflin,
+            bmr_harris:           intake.bmr_harris,
+            bmr_average:          intake.bmr_average,
+            adjusted_weight:      intake.adjusted_weight,
+            tdee:                 intake.tdee,
+            height:               intake.height,
+            marital_status:       intake.marital_status,
+            num_children:         intake.num_children,
+            occupation:           intake.occupation,
+            work_hours:           intake.work_hours,
+            work_type:            intake.work_type,
+            eating_at_work:       intake.eating_at_work,
+            medical_conditions:   intake.medical_conditions,
+            medications:          intake.medications,
+            lab_results_pdf_path: intake.lab_results_pdf_path,
+            prev_treatment:       intake.prev_treatment,
+            prev_treatment_goal:  intake.prev_treatment_goal,
+            prev_success:         intake.prev_success,
+            prev_challenges:      intake.prev_challenges,
+            reason_for_treatment: intake.reason_for_treatment,
+            diet_type:            intake.diet_type,
+            eating_patterns:      intake.eating_patterns,
+            water_intake:         intake.water_intake,
+            coffee_per_day:       intake.coffee_per_day,
+            alcohol_per_week:     intake.alcohol_per_week,
+            sleep_hours:          intake.sleep_hours,
+            sleep_quality:        intake.sleep_quality,
+            physical_activity:    intake.physical_activity,
+            activity_type:        intake.activity_type,
+            activity_frequency:   intake.activity_frequency,
+            favorite_snacks:      intake.favorite_snacks,
+            favorite_foods:       intake.favorite_foods,
+          });
+          // Clear pending_intake_data — data is now in session_intakes directly
+          db.prepare('UPDATE clients SET pending_intake_data = NULL WHERE id = ?').run(clientId);
+          console.log(`[convert] Copied lead intake to session_intakes for session ${sessionId}`);
+        } catch (err) {
+          console.error('[convert] Failed to copy intake to session_intakes:', err.message);
+        }
       }
+    } else {
+      console.log('[convert] No meeting found — start_date left empty, no session 1 created');
     }
 
     return ok(res, { client_id: clientId });
