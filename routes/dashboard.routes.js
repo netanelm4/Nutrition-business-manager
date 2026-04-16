@@ -70,8 +70,10 @@ router.get('/', (req, res) => {
       for (const s of sessions) sessionByNumber[s.session_number] = s;
 
       for (const w of windows) {
-        if (w.expected_date >= weekStart && w.expected_date <= weekEnd) {
+        if (w.expected_date >= mondayISO && w.expected_date <= sundayISO) {
           const existingSession = sessionByNumber[w.session_number] || null;
+          // Skip sessions that have already been held (session_date recorded)
+          if (existingSession && existingSession.session_date) continue;
           client_sessions.push({
             client_id: client.id,
             client_name: client.full_name,
@@ -80,7 +82,7 @@ router.get('/', (req, res) => {
             expected_date: w.expected_date,
             manually_overridden: w.manually_overridden === 1,
             session_scheduled: !!existingSession,
-            session_date: existingSession ? existingSession.session_date : null,
+            session_date: null,
           });
         }
       }

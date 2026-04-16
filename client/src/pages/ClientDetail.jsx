@@ -292,16 +292,15 @@ function ProtocolAssignment({ client }) {
                       <button
                         key={w.session_number}
                         type="button"
-                        disabled={isDone}
                         onClick={() => handleAssignToSession(
                           w.session_number,
                           personalizationModal.data.personalized_tasks
                         )}
                         className={[
-                          'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-colors',
+                          'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-colors cursor-pointer',
                           isDone
-                            ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
-                            : 'border-indigo-200 bg-white hover:bg-indigo-50 text-gray-800 cursor-pointer',
+                            ? 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
+                            : 'border-indigo-200 bg-white hover:bg-indigo-50 text-gray-800',
                         ].join(' ')}
                       >
                         <span className="font-medium">פגישה {w.session_number}</span>
@@ -314,10 +313,10 @@ function ProtocolAssignment({ client }) {
                           <span className={[
                             'text-xs px-2 py-0.5 rounded-full font-medium',
                             isDone
-                              ? 'bg-gray-100 text-gray-400'
+                              ? 'bg-gray-100 text-gray-500'
                               : 'bg-green-100 text-green-700',
                           ].join(' ')}>
-                            {isDone ? 'בוצעה' : 'פתוחה'}
+                            {isDone ? 'בוצעה - ניתן להוסיף' : 'פתוחה'}
                           </span>
                         </div>
                       </button>
