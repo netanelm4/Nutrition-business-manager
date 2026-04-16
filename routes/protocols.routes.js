@@ -146,6 +146,13 @@ router.post('/:id/personalize', async (req, res) => {
       .prepare('SELECT session_number, highlights, soap_notes FROM sessions WHERE client_id = ? ORDER BY session_number')
       .all(clientId);
 
+    // Fetch session-1 intake if it exists
+    const intake = db.prepare(`
+      SELECT si.* FROM session_intakes si
+      JOIN sessions s ON s.id = si.session_id
+      WHERE s.client_id = ? AND s.session_number = 1
+    `).get(clientId);
+
     const highlights = parseJsonArray(protocol.highlights);
     const tasks = parseJsonArray(protocol.default_tasks);
 
@@ -163,6 +170,40 @@ router.post('/:id/personalize', async (req, res) => {
           return parts.join(': ');
         })
         .join('\n');
+    }
+
+    // Build intake section string (only when intake data exists)
+    let intakeSection = '';
+    if (intake) {
+      const medConds = (() => {
+        try {
+          const c = JSON.parse(intake.medical_conditions || '{}');
+          const active = Object.entries(c).filter(([, v]) => v).map(([k]) => k);
+          return active.length > 0 ? active.join(', ') : 'אין';
+        } catch { return 'אין'; }
+      })();
+      const meds = (() => {
+        try {
+          const m = JSON.parse(intake.medications || '[]');
+          return Array.isArray(m) && m.length > 0 ? m.join(', ') : 'אין';
+        } catch { return 'אין'; }
+      })();
+      const bmi = (intake.weight && intake.height)
+        ? (intake.weight / ((Number(intake.height) / 100) ** 2)).toFixed(1)
+        : 'לא חושב';
+
+      intakeSection = `
+נתוני טופס היכרות:
+גיל: ${intake.age ?? 'לא ידוע'} | מגדר: ${intake.gender ?? 'לא ידוע'}
+גובה: ${intake.height ?? 'לא ידוע'} ס״מ | משקל: ${intake.weight ?? 'לא ידוע'} ק״ג
+BMI: ${bmi} | משקל מתוקנן: ${intake.adjusted_weight ?? 'לא נדרש'}
+הוצאה קלורית יומית: ${intake.tdee ?? 'לא חושב'} קק״ל
+מקדם פעילות: ${intake.activity_factor ?? 'לא ידוע'}
+מצבים רפואיים פעילים: ${medConds}
+תרופות: ${meds}
+סוג תזונה: ${intake.diet_type ?? 'לא צוין'}
+פעילות גופנית: ${intake.activity_type ?? 'לא צוין'}, ${intake.activity_frequency ?? 'לא צוין'}
+שינה: ${intake.sleep_hours ?? 'לא ידוע'} שעות, איכות: ${intake.sleep_quality ?? 'לא ידוע'}`;
     }
 
     const systemPrompt = `You are a clinical nutrition assistant helping a licensed nutritionist personalize a base protocol for a specific client.
@@ -187,6 +228,8 @@ You may NOT:
 
 If a client's medical notes suggest a condition where you lack sufficient evidence-based guidance, state this explicitly and recommend consulting the relevant specialist.
 
+If the intake form data includes BMI, weight, or other calculated metrics, do NOT suggest calculating them again as tasks — they are already known. Use them as context to give specific, personalized recommendations instead.
+
 Always ground your additions in the client's specific data. Do not give generic advice that applies to everyone.
 
 Respond ONLY in Hebrew.`;
@@ -202,7 +245,7 @@ ${tasksBullet}
 מטרה: ${client.goal || 'לא צוין'}
 הערות רפואיות: ${client.medical_notes || 'אין'}
 היסטוריית פגישות: ${sessionHistorySummary}
-
+${intakeSection}
 אנא התאם את הפרוטוקול לפרופיל זה.
 החזר JSON בלבד במבנה הבא:
 {

@@ -90,8 +90,11 @@ export const updateProtocol = (id, data) => request('PUT', `/protocols/${id}`, d
 export const deleteProtocol = (id) => request('DELETE', `/protocols/${id}`);
 export const personalizeProtocol = (id, clientId) =>
   request('POST', `/protocols/${id}/personalize`, { clientId });
-export const addProtocolTasks = (clientId, tasks) =>
-  request('POST', `/clients/${clientId}/protocol-tasks`, { tasks });
+export const addProtocolTasks = (clientId, tasks, sessionNumber) =>
+  request('POST', `/clients/${clientId}/protocol-tasks`, {
+    tasks,
+    ...(sessionNumber != null ? { session_number: sessionNumber } : {}),
+  });
 
 // ── Payments ──────────────────────────────────────────────────────────────────
 export const fetchPayments = (clientId) => request('GET', `/clients/${clientId}/payments`);

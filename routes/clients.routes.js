@@ -387,7 +387,8 @@ router.get('/:id/sessions', (req, res) => {
 });
 
 // ─── POST /api/clients/:id/protocol-tasks ────────────────────────────────────
-// Adds protocol tasks to the next pending session (or creates one).
+// Adds protocol tasks to a specific session (or the next pending one).
+// Body: { tasks: string[], session_number?: number }
 
 router.post('/:id/protocol-tasks', (req, res) => {
   try {
@@ -395,58 +396,83 @@ router.post('/:id/protocol-tasks', (req, res) => {
     const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId);
     if (!client) return fail(res, 404, 'Client not found.');
 
-    const { tasks: newTasks } = req.body;
+    const { tasks: newTasks, session_number: requestedNumber } = req.body;
     if (!Array.isArray(newTasks) || newTasks.length === 0) {
       return fail(res, 400, 'tasks array is required and must not be empty.');
     }
 
-    // Find next pending window: lowest session_number with no recorded session yet
-    const windows = db
-      .prepare('SELECT * FROM session_windows WHERE client_id = ? ORDER BY session_number')
-      .all(clientId);
-
-    const recordedSessions = db
-      .prepare('SELECT session_number FROM sessions WHERE client_id = ?')
-      .all(clientId)
-      .map((s) => s.session_number);
-
-    const nextWindow = windows.find((w) => !recordedSessions.includes(w.session_number));
-
-    // Build task objects with uuid-style ids
+    // Build task objects
     const taskObjects = newTasks.map((text) => ({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text: typeof text === 'string' ? text : String(text),
       status: 'pending',
     }));
 
+    // ── If a specific session_number was requested ─────────────────────────────
+    if (requestedNumber) {
+      const targetNum = Number(requestedNumber);
+
+      // Try to find an existing session for this number
+      const existingSession = db
+        .prepare('SELECT * FROM sessions WHERE client_id = ? AND session_number = ?')
+        .get(clientId, targetNum);
+
+      if (existingSession) {
+        const existing = parseJsonArray(existingSession.tasks);
+        const merged = JSON.stringify([...existing, ...taskObjects]);
+        db.prepare('UPDATE sessions SET tasks = ? WHERE id = ?').run(merged, existingSession.id);
+        return ok(res, { session_number: targetNum, tasks_added: taskObjects.length });
+      }
+
+      // No session yet — find the window for this number and create a session
+      const window = db
+        .prepare('SELECT * FROM session_windows WHERE client_id = ? AND session_number = ?')
+        .get(clientId, targetNum);
+
+      const sessionDate = window?.expected_date ?? null;
+      db.prepare(`
+        INSERT INTO sessions (client_id, session_number, session_date, highlights, ai_insights, ai_flags, tasks)
+        VALUES (?, ?, ?, '', '[]', '[]', ?)
+      `).run(clientId, targetNum, sessionDate, JSON.stringify(taskObjects));
+
+      return ok(res, { session_number: targetNum, tasks_added: taskObjects.length });
+    }
+
+    // ── Auto: find the next pending window ────────────────────────────────────
+    const windows = db
+      .prepare('SELECT * FROM session_windows WHERE client_id = ? ORDER BY session_number')
+      .all(clientId);
+
+    const recordedNums = db
+      .prepare('SELECT session_number FROM sessions WHERE client_id = ?')
+      .all(clientId)
+      .map((s) => s.session_number);
+
+    const nextWindow = windows.find((w) => !recordedNums.includes(w.session_number));
+
     if (!nextWindow) {
-      // All 6 sessions are recorded — append to the last session's tasks
+      // All windows recorded — append to last session
       const lastSession = db
         .prepare('SELECT * FROM sessions WHERE client_id = ? ORDER BY session_number DESC LIMIT 1')
         .get(clientId);
       if (!lastSession) return fail(res, 400, 'No sessions or windows found for this client.');
-
       const existing = parseJsonArray(lastSession.tasks);
-      const merged = JSON.stringify([...existing, ...taskObjects]);
-      db.prepare('UPDATE sessions SET tasks = ? WHERE id = ?').run(merged, lastSession.id);
-
+      db.prepare('UPDATE sessions SET tasks = ? WHERE id = ?')
+        .run(JSON.stringify([...existing, ...taskObjects]), lastSession.id);
       return ok(res, { session_number: lastSession.session_number, tasks_added: taskObjects.length });
     }
 
-    // Check if a session row already exists for this window
     const existingSession = db
       .prepare('SELECT * FROM sessions WHERE client_id = ? AND session_number = ?')
       .get(clientId, nextWindow.session_number);
 
     if (existingSession) {
-      // Append tasks to existing session
       const existing = parseJsonArray(existingSession.tasks);
-      const merged = JSON.stringify([...existing, ...taskObjects]);
-      db.prepare('UPDATE sessions SET tasks = ? WHERE id = ?').run(merged, existingSession.id);
+      db.prepare('UPDATE sessions SET tasks = ? WHERE id = ?')
+        .run(JSON.stringify([...existing, ...taskObjects]), existingSession.id);
       return ok(res, { session_number: nextWindow.session_number, tasks_added: taskObjects.length });
     }
 
-    // Create a new session row for this window
     db.prepare(`
       INSERT INTO sessions (client_id, session_number, session_date, highlights, ai_insights, ai_flags, tasks)
       VALUES (?, ?, ?, '', '[]', '[]', ?)

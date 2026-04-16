@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -106,6 +106,9 @@ function ProtocolAssignment({ client }) {
   const [replacing, setReplacing] = useState(false);
   const [toast, setToast] = useState(null);
   const [personalizationModal, setPersonalizationModal] = useState(null);
+  // session picker state: null | 'loading' | { windows, recordedNums }
+  const [sessionPicker, setSessionPicker] = useState(null);
+  const [sessionPickerSuccess, setSessionPickerSuccess] = useState(null);
 
   const { data: protocols = [] } = useQuery({
     queryKey: ['protocols'],
@@ -144,12 +147,31 @@ function ProtocolAssignment({ client }) {
     },
   });
 
-  async function handleAddToNextSession(tasks) {
+  async function openSessionPicker() {
+    setSessionPicker('loading');
     try {
-      await addProtocolTasks(client.id, tasks);
+      const [windows, sessions] = await Promise.all([
+        fetchWindows(client.id),
+        fetchSessions(client.id),
+      ]);
+      const recordedNums = new Set(sessions.map((s) => s.session_number));
+      setSessionPicker({ windows, recordedNums });
+    } catch {
+      setSessionPicker(null);
+    }
+  }
+
+  async function handleAssignToSession(sessionNumber, tasks) {
+    try {
+      await addProtocolTasks(client.id, tasks, sessionNumber);
       queryClient.invalidateQueries({ queryKey: ['sessions', String(client.id)] });
+      setSessionPickerSuccess(sessionNumber);
+      setTimeout(() => {
+        setPersonalizationModal(null);
+        setSessionPicker(null);
+        setSessionPickerSuccess(null);
+      }, 1800);
     } catch { /* best-effort */ }
-    setPersonalizationModal(null);
   }
 
   const assignedProtocol = client.protocol;
@@ -249,21 +271,96 @@ function ProtocolAssignment({ client }) {
               ))}
             </ul>
           </div>
-          <div className="flex gap-2 pt-4 border-t border-gray-100">
-            <button
-              type="button"
-              onClick={() => handleAddToNextSession(personalizationModal.data.personalized_tasks)}
-              className="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
-            >
-              הוסף למפגש הבא
-            </button>
-            <button
-              type="button"
-              onClick={() => setPersonalizationModal(null)}
-              className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              סגור
-            </button>
+          <div className="pt-4 border-t border-gray-100">
+            {/* Success message */}
+            {sessionPickerSuccess && (
+              <p className="text-sm text-green-600 font-medium text-center py-2">
+                המשימות והדגשים שויכו לפגישה {sessionPickerSuccess}
+              </p>
+            )}
+
+            {/* Session picker */}
+            {sessionPicker && sessionPicker !== 'loading' && !sessionPickerSuccess && (
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                  בחר פגישה לשיוך הדגשים והמשימות
+                </p>
+                <div className="space-y-2">
+                  {sessionPicker.windows.map((w) => {
+                    const isDone = sessionPicker.recordedNums.has(w.session_number);
+                    return (
+                      <button
+                        key={w.session_number}
+                        type="button"
+                        disabled={isDone}
+                        onClick={() => handleAssignToSession(
+                          w.session_number,
+                          personalizationModal.data.personalized_tasks
+                        )}
+                        className={[
+                          'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-colors',
+                          isDone
+                            ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
+                            : 'border-indigo-200 bg-white hover:bg-indigo-50 text-gray-800 cursor-pointer',
+                        ].join(' ')}
+                      >
+                        <span className="font-medium">פגישה {w.session_number}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400">
+                            {new Date(w.expected_date).toLocaleDateString('he-IL', {
+                              day: 'numeric', month: 'long', year: 'numeric',
+                            })}
+                          </span>
+                          <span className={[
+                            'text-xs px-2 py-0.5 rounded-full font-medium',
+                            isDone
+                              ? 'bg-gray-100 text-gray-400'
+                              : 'bg-green-100 text-green-700',
+                          ].join(' ')}>
+                            {isDone ? 'בוצעה' : 'פתוחה'}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Loading state */}
+            {sessionPicker === 'loading' && (
+              <p className="text-sm text-indigo-500 animate-pulse text-center py-2">טוען פגישות...</p>
+            )}
+
+            {/* Footer buttons */}
+            {!sessionPickerSuccess && (
+              <div className="flex gap-2">
+                {!sessionPicker ? (
+                  <button
+                    type="button"
+                    onClick={openSessionPicker}
+                    className="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+                  >
+                    שייך לפגישה
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setSessionPicker(null)}
+                    className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    ביטול
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => { setPersonalizationModal(null); setSessionPicker(null); }}
+                  className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  סגור
+                </button>
+              </div>
+            )}
           </div>
         </Modal>
       )}
