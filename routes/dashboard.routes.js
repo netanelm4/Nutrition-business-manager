@@ -2,8 +2,7 @@ const express = require('express');
 const db = require('../database/db');
 const { computeClientAlerts, hasActiveAlert } = require('../services/alerts.service');
 const { CLIENT_STATUS, LEAD_STATUS, ALERT_STATE } = require('../constants/statuses');
-const { SESSION_TOLERANCE_DAYS } = require('../constants/events');
-const { todayISO, addDays, toISODate, parseDate, diffDays } = require('../utils/dates');
+const { todayISO, addDays, toISODate, parseDate } = require('../utils/dates');
 
 const FROZEN_DAYS = 5;
 const RETENTION_DAYS = 14;
@@ -55,10 +54,6 @@ router.get('/', (req, res) => {
     const mondayISO = toISODate(addDays(nowInIsrael, -daysFromMonday));
     const sundayISO = toISODate(addDays(nowInIsrael, 6 - daysFromMonday));
 
-    // Also keep the tolerance-based range for session_windows and the sessionsThisWeek counter
-    const weekStart = toISODate(addDays(parseDate(today), -SESSION_TOLERANCE_DAYS));
-    const weekEnd   = toISODate(addDays(parseDate(today),  SESSION_TOLERANCE_DAYS));
-
     // 2a. client_sessions — session_windows for active clients
     const client_sessions = [];
 
@@ -96,7 +91,7 @@ router.get('/', (req, res) => {
       JOIN   leads l ON ce.lead_id = l.id
       WHERE  ce.status = 'active'
         AND  ce.lead_id IS NOT NULL
-        AND  l.status != 'became_client'
+        AND  l.status = 'meeting_scheduled'
         AND  substr(ce.start_time, 1, 10) >= ?
         AND  substr(ce.start_time, 1, 10) <= ?
       ORDER  BY ce.start_time ASC
@@ -235,10 +230,8 @@ router.get('/', (req, res) => {
       .prepare("SELECT COUNT(*) as n FROM leads WHERE created_at >= ?")
       .get(monthStart).n;
 
-    // Sessions held in the current week (session_date within ±7 days of today)
-    const sessionsThisWeek = db
-      .prepare("SELECT COUNT(*) as n FROM sessions WHERE session_date >= ? AND session_date <= ?")
-      .get(weekStart, weekEnd).n;
+    // Sessions this week = upcoming client sessions + lead meetings this week
+    const sessionsThisWeek = client_sessions.length + lead_meetings.length;
 
     return ok(res, {
       client_sessions,

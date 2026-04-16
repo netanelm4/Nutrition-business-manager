@@ -150,6 +150,9 @@ export function uploadLabPdf(sessionId, file) {
   });
 }
 
+// ── Admin ─────────────────────────────────────────────────────────────────────
+export const repairAIAssessments = () => request('POST', '/admin/repair-ai-assessments');
+
 // ── Google Calendar ───────────────────────────────────────────────────────────
 export const fetchGoogleAuthUrl = () => request('GET', '/google/auth-url').then((d) => d.url);
 export const fetchGoogleStatus  = () => request('GET', '/google/status');

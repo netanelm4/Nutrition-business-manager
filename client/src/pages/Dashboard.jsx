@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { fetchDashboard, fetchTemplates, renderTemplate } from '../lib/api';
+import { fetchDashboard, fetchTemplates, renderTemplate, repairAIAssessments } from '../lib/api';
 import { formatDateHebrew, formatTimeHebrew, relativeLabel } from '../lib/dates';
 import { useAlertColor } from '../hooks/useAlertColor';
 import AlertBadge from '../components/ui/AlertBadge';
@@ -369,6 +370,42 @@ function Counters({ counters }) {
   );
 }
 
+// ─── Admin: repair missing AI assessments ────────────────────────────────────
+
+function AdminRepairButton() {
+  const [status, setStatus] = useState('idle'); // idle | loading | done
+  const [repairedCount, setRepairedCount] = useState(0);
+
+  async function handleRepair() {
+    setStatus('loading');
+    try {
+      const result = await repairAIAssessments();
+      setRepairedCount(result.repaired ?? 0);
+      setStatus('done');
+    } catch {
+      setStatus('idle');
+    }
+  }
+
+  if (status === 'done') {
+    return (
+      <p className="text-xs text-center text-green-600">
+        תוקנו {repairedCount} הערכות AI
+      </p>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleRepair}
+      disabled={status === 'loading'}
+      className="w-full text-xs text-gray-400 hover:text-gray-600 py-2 transition-colors disabled:opacity-50"
+    >
+      {status === 'loading' ? 'מתקן...' : 'תקן הערכות AI חסרות'}
+    </button>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -453,6 +490,9 @@ export default function Dashboard() {
           </div>
         )}
       </section>
+
+      {/* Admin */}
+      <AdminRepairButton />
     </div>
   );
 }
