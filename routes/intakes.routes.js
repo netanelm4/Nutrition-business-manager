@@ -1,10 +1,106 @@
-const express = require('express');
-const path    = require('path');
-const fs      = require('fs');
-const multer  = require('multer');
-const db      = require('../database/db');
+const express    = require('express');
+const path       = require('path');
+const fs         = require('fs');
+const multer     = require('multer');
+const Anthropic  = require('@anthropic-ai/sdk');
+const db         = require('../database/db');
 
 const router = express.Router();
+
+// ── AI assessment ─────────────────────────────────────────────────────────────
+
+const AI_MODEL = 'claude-sonnet-4-20250514';
+
+let _aiClient = null;
+function getAIClient() {
+  if (!_aiClient) _aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return _aiClient;
+}
+
+const ASSESSMENT_SYSTEM_PROMPT = `You are a clinical nutrition assistant helping a licensed nutritionist prepare for a first session with a new client.
+
+Based on the intake form data provided, generate an initial clinical assessment that includes:
+
+1. קליני-תזונתי ראשוני: A brief clinical nutrition profile based on the data (BMI category, energy needs, key nutritional considerations)
+
+2. נקודות לתשומת לב: Red flags or important points from medical history, eating patterns, or lifestyle that require attention
+
+3. כיוון טיפולי ראשוני: Suggested initial direction for the nutrition treatment plan based on the client's goal, medical history, and lifestyle
+
+Base ALL recommendations on current scientific consensus from WHO, AND, AHA, EASD and peer-reviewed research.
+Do not make medical diagnoses.
+Respond in Hebrew only.
+Be concise — maximum 3-4 bullet points per section.`;
+
+function buildAssessmentUserPrompt(intake) {
+  const medConds = (() => {
+    try {
+      const c = typeof intake.medical_conditions === 'string'
+        ? JSON.parse(intake.medical_conditions)
+        : (intake.medical_conditions || {});
+      const active = Object.entries(c)
+        .filter(([, v]) => v)
+        .map(([k]) => k);
+      return active.length > 0 ? active.join(', ') : 'אין';
+    } catch { return 'אין'; }
+  })();
+
+  const meds = (() => {
+    try {
+      const m = typeof intake.medications === 'string'
+        ? JSON.parse(intake.medications)
+        : (intake.medications || []);
+      return Array.isArray(m) && m.length > 0 ? m.join(', ') : 'אין';
+    } catch { return 'אין'; }
+  })();
+
+  const bmi = (intake.weight && intake.height)
+    ? (intake.weight / ((Number(intake.height) / 100) ** 2)).toFixed(1)
+    : 'לא חושב';
+
+  return `פרטי הלקוח:
+גיל: ${intake.age ?? 'לא ידוע'} | מגדר: ${intake.gender ?? 'לא ידוע'} | גובה: ${intake.height ?? 'לא ידוע'} ס״מ | משקל: ${intake.weight ?? 'לא ידוע'} ק״ג | BMI: ${bmi} | משקל מתוקנן: ${intake.adjusted_weight ?? 'לא נדרש'}
+הוצאה קלורית יומית: ${intake.tdee ?? 'לא חושב'} קק״ל
+מטרה: ${intake.goal ?? 'לא צוין'}
+מצבים רפואיים: ${medConds}
+תרופות: ${meds}
+סוג תזונה: ${intake.diet_type ?? 'לא צוין'}
+פעילות גופנית: ${intake.physical_activity ? `${intake.activity_type ?? ''} ${intake.activity_frequency ?? ''}`.trim() : 'לא פעיל'}
+שינה: ${intake.sleep_hours ?? 'לא ידוע'} שעות, איכות: ${intake.sleep_quality ?? 'לא ידוע'}
+
+צור הערכה ראשונית קלינית.`;
+}
+
+async function generateInitialAssessment(intake) {
+  const message = await getAIClient().messages.create({
+    model: AI_MODEL,
+    max_tokens: 1200,
+    system: ASSESSMENT_SYSTEM_PROMPT,
+    messages: [{ role: 'user', content: buildAssessmentUserPrompt(intake) }],
+  });
+  return message.content[0]?.text ?? '';
+}
+
+// Fire-and-forget: generate assessment and save to sessions.ai_insights
+function triggerSessionAssessment(sessionId, intake) {
+  generateInitialAssessment(intake)
+    .then((text) => {
+      if (!text) return;
+      const entry = JSON.stringify([{ text, saved_for_next: false, type: 'initial_assessment' }]);
+      db.prepare('UPDATE sessions SET ai_insights = ? WHERE id = ?').run(entry, sessionId);
+    })
+    .catch((err) => console.error('[AI assessment session]', err.message));
+}
+
+// Fire-and-forget: generate assessment and save to lead_intakes.ai_assessment
+function triggerLeadAssessment(leadId, intake) {
+  generateInitialAssessment(intake)
+    .then((text) => {
+      if (!text) return;
+      db.prepare('UPDATE lead_intakes SET ai_assessment = ? WHERE lead_id = ?').run(text, leadId);
+    })
+    .catch((err) => console.error('[AI assessment lead]', err.message));
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -108,6 +204,13 @@ router.post('/sessions/:id/intake', (req, res) => {
     } catch { /* best-effort */ }
 
     const intake = db.prepare('SELECT * FROM session_intakes WHERE id = ?').get(result.lastInsertRowid);
+
+    // Fire-and-forget AI initial assessment (only session 1)
+    const sessionRow = db.prepare('SELECT session_number FROM sessions WHERE id = ?').get(sessionId);
+    if (sessionRow?.session_number === 1) {
+      triggerSessionAssessment(sessionId, intake);
+    }
+
     return ok(res, intake);
   } catch (err) {
     console.error('[POST /sessions/:id/intake]', err);
@@ -253,6 +356,10 @@ router.post('/leads/:id/intake', (req, res) => {
     `).run({ lead_id: leadId, ...data });
 
     const intake = db.prepare('SELECT * FROM lead_intakes WHERE id = ?').get(result.lastInsertRowid);
+
+    // Fire-and-forget AI initial assessment
+    triggerLeadAssessment(leadId, intake);
+
     return ok(res, intake);
   } catch (err) {
     console.error('[POST /leads/:id/intake]', err);

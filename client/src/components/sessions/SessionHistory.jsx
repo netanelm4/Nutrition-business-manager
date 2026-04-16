@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { formatDateHebrew } from '../../lib/dates';
 import { ALERT_STATE } from '../../constants/statuses';
 import AlertBadge from '../ui/AlertBadge';
@@ -8,6 +8,82 @@ import SessionModal from './SessionModal';
 import AIInsightsPanel from './AIInsightsPanel';
 import { ReadonlyTaskList } from './TaskList';
 import SessionIntakeForm from './SessionIntakeForm';
+import { fetchSession } from '../../lib/api';
+
+// ─── AI Initial Assessment (session 1 only) ───────────────────────────────────
+
+function AIInitialAssessment({ session }) {
+  const initialAssessment = Array.isArray(session.ai_insights)
+    ? session.ai_insights.find((i) => i.type === 'initial_assessment')
+    : null;
+
+  const [assessment, setAssessment] = useState(initialAssessment || null);
+  const [intakeExists, setIntakeExists] = useState(false);
+  const pollRef = useRef(null);
+
+  // Detect whether intake was saved (intake form renders → assume intake may exist)
+  // We poll only after intake is saved, signalled by a custom event or always-on for session 1
+  useEffect(() => {
+    if (assessment) return; // already have it — no need to poll
+
+    function startPolling() {
+      if (pollRef.current) return;
+      pollRef.current = setInterval(async () => {
+        try {
+          const updated = await fetchSession(session.id);
+          const found = Array.isArray(updated.ai_insights)
+            ? updated.ai_insights.find((i) => i.type === 'initial_assessment')
+            : null;
+          if (found) {
+            setAssessment(found);
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+        } catch { /* silent */ }
+      }, 3000);
+    }
+
+    // Listen for the intake-saved event dispatched by SessionIntakeForm
+    function handleIntakeSaved() {
+      setIntakeExists(true);
+      startPolling();
+    }
+
+    window.addEventListener(`intake-saved-session-${session.id}`, handleIntakeSaved);
+    return () => {
+      window.removeEventListener(`intake-saved-session-${session.id}`, handleIntakeSaved);
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
+  }, [session.id, assessment]);
+
+  if (!assessment && !intakeExists) return null;
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        הערכה ראשונית — AI
+      </p>
+      {assessment ? (
+        <div className="border-r-4 border-blue-400 pr-3 bg-blue-50 rounded-lg p-3">
+          <p className="text-xs text-blue-600 font-medium mb-1">
+            הערכה ראשונית מבוססת נתוני הפגישה הראשונה
+          </p>
+          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+            {assessment.text}
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 text-sm text-indigo-500 animate-pulse">
+          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          מייצר הערכה ראשונית...
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Compute the session alert state by comparing session_date to expected window.
@@ -115,10 +191,13 @@ function SessionItem({ session, client, windowAlerts }) {
 
             {/* First session intake form */}
             {session.session_number === 1 && (
-              <SessionIntakeForm
-                sessionId={session.id}
-                clientId={client.id}
-              />
+              <>
+                <SessionIntakeForm
+                  sessionId={session.id}
+                  clientId={client.id}
+                />
+                <AIInitialAssessment session={session} />
+              </>
             )}
 
             {/* Edit button */}

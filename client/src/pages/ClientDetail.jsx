@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, updateClient, deleteClient, fetchWhatsAppLog } from '../lib/api';
+import { fetchClient, fetchSessions, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -94,6 +94,179 @@ function ProfileField({ label, value }) {
     <div>
       <p className="text-xs text-gray-400">{label}</p>
       <p className="text-sm text-gray-800 mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+// ─── Protocol assignment ──────────────────────────────────────────────────────
+
+function ProtocolAssignment({ client }) {
+  const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState('');
+  const [replacing, setReplacing] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [personalizationModal, setPersonalizationModal] = useState(null);
+
+  const { data: protocols = [] } = useQuery({
+    queryKey: ['protocols'],
+    queryFn: fetchProtocols,
+  });
+
+  async function runPersonalization(protocolId, updatedClient) {
+    const protocol = protocols.find((p) => p.id === protocolId) || updatedClient?.protocol;
+    setToast('מתאים פרוטוקול ללקוח...');
+    try {
+      const data = await personalizeProtocol(protocolId, client.id);
+      setPersonalizationModal({ protocol, data });
+    } catch {
+      // Non-fatal — personalization failed silently
+    } finally {
+      setToast(null);
+    }
+  }
+
+  const assignMutation = useMutation({
+    mutationFn: (protocolId) => updateClient(client.id, { protocol_id: protocolId }),
+    onSuccess: async (updatedClient) => {
+      setReplacing(false);
+      setSelectedId('');
+      queryClient.invalidateQueries({ queryKey: ['client', String(client.id)] });
+      if (updatedClient?.protocol_id) {
+        await runPersonalization(updatedClient.protocol_id, updatedClient);
+      }
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: () => updateClient(client.id, { protocol_id: null }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client', String(client.id)] });
+    },
+  });
+
+  async function handleAddToNextSession(tasks) {
+    try {
+      await addProtocolTasks(client.id, tasks);
+      queryClient.invalidateQueries({ queryKey: ['sessions', String(client.id)] });
+    } catch { /* best-effort */ }
+    setPersonalizationModal(null);
+  }
+
+  const assignedProtocol = client.protocol;
+  const showDropdown = !assignedProtocol || replacing;
+
+  return (
+    <div className="mb-3">
+      <p className="text-xs text-gray-400 mb-1.5">פרוטוקול טיפול</p>
+
+      {assignedProtocol && !replacing ? (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium">
+            {assignedProtocol.name}
+          </span>
+          <button
+            type="button"
+            onClick={() => setReplacing(true)}
+            className="text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+          >
+            החלף
+          </button>
+          <button
+            type="button"
+            onClick={() => removeMutation.mutate()}
+            disabled={removeMutation.isPending}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-50"
+          >
+            הסר
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="text-sm rounded-lg border border-gray-300 px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          >
+            <option value="">בחר פרוטוקול...</option>
+            {protocols.map((p) => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => selectedId && assignMutation.mutate(Number(selectedId))}
+            disabled={!selectedId || assignMutation.isPending}
+            className="text-xs px-3 py-1.5 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {assignMutation.isPending ? 'שומר...' : 'שייך פרוטוקול'}
+          </button>
+          {replacing && (
+            <button
+              type="button"
+              onClick={() => setReplacing(false)}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              ביטול
+            </button>
+          )}
+        </div>
+      )}
+
+      {toast && (
+        <p className="text-xs text-indigo-500 mt-1.5 animate-pulse">{toast}</p>
+      )}
+
+      {personalizationModal && (
+        <Modal
+          title={`פרוטוקול מותאם — ${personalizationModal.protocol?.name ?? ''}`}
+          onClose={() => setPersonalizationModal(null)}
+          size="lg"
+        >
+          {personalizationModal.data.clinical_notes && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
+              {personalizationModal.data.clinical_notes}
+            </div>
+          )}
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">דגשים מותאמים</p>
+            <ul className="space-y-1.5">
+              {personalizationModal.data.personalized_highlights.map((h, i) => (
+                <li key={i} className="text-sm text-gray-700 flex gap-2">
+                  <span className="text-blue-500 flex-shrink-0 mt-0.5">•</span>
+                  <span>{h}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="mb-5">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">משימות מומלצות</p>
+            <ul className="space-y-1.5">
+              {personalizationModal.data.personalized_tasks.map((t, i) => (
+                <li key={i} className="text-sm text-gray-700 flex gap-2">
+                  <span className="text-indigo-500 flex-shrink-0 mt-0.5">•</span>
+                  <span>{t}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex gap-2 pt-4 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => handleAddToNextSession(personalizationModal.data.personalized_tasks)}
+              className="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
+            >
+              הוסף למפגש הבא
+            </button>
+            <button
+              type="button"
+              onClick={() => setPersonalizationModal(null)}
+              className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              סגור
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -198,6 +371,9 @@ function ClientProfile({ client, sessions, onDelete }) {
             <p className="text-sm text-gray-700 mt-0.5">{client.medical_notes}</p>
           </div>
         )}
+
+        {/* Protocol assignment */}
+        <ProtocolAssignment client={client} />
 
         {/* Menu status */}
         <MenuSentStatus client={client} />

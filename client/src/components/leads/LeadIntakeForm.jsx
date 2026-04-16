@@ -704,6 +704,8 @@ export default function LeadIntakeForm({ leadId }) {
         await updateLeadIntake(leadId, payload);
       } else {
         await createLeadIntake(leadId, payload);
+        // Signal LeadDetail to start polling for AI assessment
+        window.dispatchEvent(new Event(`intake-saved-lead-${leadId}`));
       }
       // Mark as existing so next auto-save uses PUT — do NOT invalidate parent queries
       intakeExistsRef.current = true;

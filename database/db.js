@@ -395,6 +395,20 @@ try { db.exec('ALTER TABLE lead_intakes ADD COLUMN bmr_average REAL'); } catch {
 try { db.exec('ALTER TABLE lead_intakes ADD COLUMN adjusted_weight REAL'); } catch {}
 try { db.exec('ALTER TABLE lead_intakes ADD COLUMN tdee REAL'); } catch {}
 
+// Migrate existing databases: add protocol_id to clients
+try {
+  db.exec('ALTER TABLE clients ADD COLUMN protocol_id INTEGER REFERENCES protocols(id) ON DELETE SET NULL');
+} catch {
+  // Column already exists — safe to ignore
+}
+
+// Migrate existing databases: add ai_assessment to lead_intakes
+try {
+  db.exec('ALTER TABLE lead_intakes ADD COLUMN ai_assessment TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // REPAIR POLICY: Every bug fix that affects existing data
 // must have a corresponding repair function here that

@@ -734,6 +734,8 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
         await updateIntake(sessionId, payload);
       } else {
         await createIntake(sessionId, { ...payload, client_id: clientId });
+        // Signal AIInitialAssessment to start polling
+        window.dispatchEvent(new Event(`intake-saved-session-${sessionId}`));
       }
       // Mark as existing so next auto-save uses PUT — do NOT invalidate parent queries
       intakeExistsRef.current = true;

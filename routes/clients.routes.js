@@ -195,11 +195,28 @@ router.post('/', (req, res) => {
 
 // ─── GET /api/clients/:id ─────────────────────────────────────────────────────
 
+function attachProtocol(client) {
+  if (!client) return client;
+  const protocol = client.protocol_id
+    ? db.prepare('SELECT id, name, description, highlights, default_tasks FROM protocols WHERE id = ?').get(client.protocol_id)
+    : null;
+  return {
+    ...client,
+    protocol: protocol
+      ? {
+          ...protocol,
+          highlights:    JSON.parse(protocol.highlights    || '[]'),
+          default_tasks: JSON.parse(protocol.default_tasks || '[]'),
+        }
+      : null,
+  };
+}
+
 router.get('/:id', (req, res) => {
   try {
     const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
     if (!client) return fail(res, 404, 'Client not found.');
-    return ok(res, attachAlerts(client));
+    return ok(res, attachProtocol(attachAlerts(client)));
   } catch (err) {
     console.error('[GET /clients/:id]', err);
     return fail(res, 500, 'Failed to fetch client.');
@@ -216,7 +233,7 @@ router.put('/:id', (req, res) => {
     const fields = [
       'full_name', 'phone', 'age', 'gender', 'start_date', 'goal',
       'medical_notes', 'menu_sent', 'menu_sent_date', 'initial_weight',
-      'process_end_date', 'status', 'package_price',
+      'process_end_date', 'status', 'package_price', 'protocol_id',
     ];
 
     const updates = {};
@@ -252,7 +269,7 @@ router.put('/:id', (req, res) => {
     }
 
     const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
-    return ok(res, attachAlerts(updated));
+    return ok(res, attachProtocol(attachAlerts(updated)));
   } catch (err) {
     console.error('[PUT /clients/:id]', err);
     return fail(res, 500, 'Failed to update client.');
@@ -366,6 +383,79 @@ router.get('/:id/sessions', (req, res) => {
   } catch (err) {
     console.error('[GET /clients/:id/sessions]', err);
     return fail(res, 500, 'Failed to fetch sessions.');
+  }
+});
+
+// ─── POST /api/clients/:id/protocol-tasks ────────────────────────────────────
+// Adds protocol tasks to the next pending session (or creates one).
+
+router.post('/:id/protocol-tasks', (req, res) => {
+  try {
+    const clientId = Number(req.params.id);
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId);
+    if (!client) return fail(res, 404, 'Client not found.');
+
+    const { tasks: newTasks } = req.body;
+    if (!Array.isArray(newTasks) || newTasks.length === 0) {
+      return fail(res, 400, 'tasks array is required and must not be empty.');
+    }
+
+    // Find next pending window: lowest session_number with no recorded session yet
+    const windows = db
+      .prepare('SELECT * FROM session_windows WHERE client_id = ? ORDER BY session_number')
+      .all(clientId);
+
+    const recordedSessions = db
+      .prepare('SELECT session_number FROM sessions WHERE client_id = ?')
+      .all(clientId)
+      .map((s) => s.session_number);
+
+    const nextWindow = windows.find((w) => !recordedSessions.includes(w.session_number));
+
+    // Build task objects with uuid-style ids
+    const taskObjects = newTasks.map((text) => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      text: typeof text === 'string' ? text : String(text),
+      status: 'pending',
+    }));
+
+    if (!nextWindow) {
+      // All 6 sessions are recorded — append to the last session's tasks
+      const lastSession = db
+        .prepare('SELECT * FROM sessions WHERE client_id = ? ORDER BY session_number DESC LIMIT 1')
+        .get(clientId);
+      if (!lastSession) return fail(res, 400, 'No sessions or windows found for this client.');
+
+      const existing = parseJsonArray(lastSession.tasks);
+      const merged = JSON.stringify([...existing, ...taskObjects]);
+      db.prepare('UPDATE sessions SET tasks = ? WHERE id = ?').run(merged, lastSession.id);
+
+      return ok(res, { session_number: lastSession.session_number, tasks_added: taskObjects.length });
+    }
+
+    // Check if a session row already exists for this window
+    const existingSession = db
+      .prepare('SELECT * FROM sessions WHERE client_id = ? AND session_number = ?')
+      .get(clientId, nextWindow.session_number);
+
+    if (existingSession) {
+      // Append tasks to existing session
+      const existing = parseJsonArray(existingSession.tasks);
+      const merged = JSON.stringify([...existing, ...taskObjects]);
+      db.prepare('UPDATE sessions SET tasks = ? WHERE id = ?').run(merged, existingSession.id);
+      return ok(res, { session_number: nextWindow.session_number, tasks_added: taskObjects.length });
+    }
+
+    // Create a new session row for this window
+    db.prepare(`
+      INSERT INTO sessions (client_id, session_number, session_date, highlights, ai_insights, ai_flags, tasks)
+      VALUES (?, ?, ?, '', '[]', '[]', ?)
+    `).run(clientId, nextWindow.session_number, nextWindow.expected_date, JSON.stringify(taskObjects));
+
+    return ok(res, { session_number: nextWindow.session_number, tasks_added: taskObjects.length });
+  } catch (err) {
+    console.error('[POST /clients/:id/protocol-tasks]', err);
+    return fail(res, 500, 'Failed to add protocol tasks.');
   }
 });
 

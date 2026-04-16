@@ -204,23 +204,67 @@ const PROTOCOLS = [
       { text: 'להפסיק מזון מעובד ונקניקים לשבוע ניסיון', status: 'pending' },
     ]),
   },
+  {
+    name: 'הריון',
+    description: 'פרוטוקול תזונתי מבוסס ראיות להריון לפי שלבים',
+    highlights: JSON.stringify([
+      'שליש ראשון (0-13 שבועות): אין תוספת קלורית. מיקוד בחומצה פולית 400-800 מק״ג/יום, ויטמין D, הפחתת בחילות עם ארוחות קטנות ותכופות',
+      'שליש שני (14-27 שבועות): תוספת 340 קק״ל/יום. חלבון 1.1 גרם/ק״ג/יום. ברזל 27 מ״ג/יום + ויטמין C לספיגה. סידן 1000 מ״ג/יום',
+      'שליש שלישי (28-40 שבועות): תוספת 450 קק״ל/יום. DHA 200-300 מ״ג/יום לפיתוח מוח העובר. הימנעות מדגים עתירי כספית',
+      'להימנע: כבד בכמות גדולה, גבינות רכות לא מפוסטרות, בשר נא, קפאין מעל 200 מ״ג/יום',
+      'מעקב עלייה במשקל לפי BMI טרום הריון (IOM guidelines 2009)',
+      'תיסוף מומלץ: חומצה פולית, ויטמין D, ברזל, DHA - לפי בדיקות דם',
+    ]),
+    default_tasks: JSON.stringify([
+      { text: 'להביא בדיקות דם עדכניות (ברזל, פריטין, ויטמין D, B12, המוגלובין)', status: 'pending' },
+      { text: 'לרשום תוספים נוכחיים (ויטמין הריון, DHA, כל תוסף אחר)', status: 'pending' },
+      { text: 'לתעד בחילות, הקאות ומזונות מחמירים', status: 'pending' },
+      { text: 'לציין שבוע הריון ושליש נוכחי', status: 'pending' },
+    ]),
+  },
+  {
+    name: 'הנקה',
+    description: 'פרוטוקול תזונתי מבוסס ראיות לתקופת ההנקה',
+    highlights: JSON.stringify([
+      'תוספת קלורית 400-500 קק״ל/יום מעל צרכי תחזוקה',
+      'חלבון: 1.3 גרם/ק״ג/יום',
+      'נוזלים: 3.1 ליטר/יום - השתייה משפיעה ישירות על נפח החלב',
+      'DHA 200-300 מ״ג/יום - עובר לחלב האם ומשפיע על התפתחות מוח התינוק',
+      'יוד 290 מק״ג/יום - חיוני להתפתחות מוח התינוק',
+      'ויטמין D לתינוק: 400 יחב״ל/יום אם ניזון רק מחלב אם',
+      'סידן 1000 מ״ג/יום למניעת דלדול עצם',
+      'קפאין: עד 300 מ״ג/יום. אלכוהול: המתנה 2-3 שעות לפני הנקה',
+      'ירידה במשקל: לא מעל 0.5 ק״ג/שבוע כדי לא לפגוע בייצור החלב',
+    ]),
+    default_tasks: JSON.stringify([
+      { text: 'לתעד כמות הנקות/שאיבות ביום ומשך כל הנקה', status: 'pending' },
+      { text: 'לוודא תיסוף ויטמין D לתינוק', status: 'pending' },
+      { text: 'להביא בדיקות דם (ברזל, ויטמין D, B12)', status: 'pending' },
+      { text: 'לרשום תוספים נוכחיים', status: 'pending' },
+    ]),
+  },
 ];
 
 function seedProtocols(db) {
-  const count = db.prepare('SELECT COUNT(*) as n FROM protocols').get();
-  if (count.n > 0) return;
-
+  // Idempotent per name — safe to call on every startup even when protocols already exist
   const insert = db.prepare(`
     INSERT INTO protocols (name, description, highlights, default_tasks, is_custom, is_active)
     VALUES (@name, @description, @highlights, @default_tasks, 0, 1)
   `);
 
-  const insertAll = db.transaction((protocols) => {
-    for (const p of protocols) insert.run(p);
+  let added = 0;
+  const insertMissing = db.transaction((protocols) => {
+    for (const p of protocols) {
+      const existing = db.prepare('SELECT id FROM protocols WHERE name = ?').get(p.name);
+      if (!existing) {
+        insert.run(p);
+        added++;
+      }
+    }
   });
 
-  insertAll(PROTOCOLS);
-  console.log(`[seed] Inserted ${PROTOCOLS.length} protocols.`);
+  insertMissing(PROTOCOLS);
+  if (added > 0) console.log(`[seed] Inserted ${added} protocol(s).`);
 }
 
 module.exports = { runSeed, seedProtocols };
