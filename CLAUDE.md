@@ -75,6 +75,17 @@ Trigger phrases for visual review:
 
 Skip visual testing for: backend changes, DB migrations, config files.
 
+## Retroactive Data Policy
+Every new feature or bug fix that affects existing data
+MUST include a repair function that runs on server startup.
+No exceptions. If a feature adds a new field, generates
+new data, or changes behavior — existing records must be
+updated automatically on the next deploy.
+
+Repair functions live in database/db.js, called at the bottom
+before `module.exports = db`. Use setTimeout for async repairs
+(e.g. AI calls) to avoid blocking startup.
+
 ## Before Every Task
 1. Read ALL available skill files relevant to the task
 2. Plan the full approach before writing any code

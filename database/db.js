@@ -569,4 +569,143 @@ function repairConvertedLeads(database) {
 repairPaymentStatus(db);
 repairConvertedLeads(db);
 
+// ── Repair 3: Generate missing AI assessments for session 1 intakes ───────────
+// Runs async (fire-and-forget) so it never blocks server startup.
+
+function parseJsonSafe(str, fallback = []) {
+  try { return JSON.parse(str || '[]'); }
+  catch { return fallback; }
+}
+
+function scheduleAIAssessmentRepairs(database) {
+  try {
+    const sessionsNeedingAssessment = database.prepare(`
+      SELECT s.id as session_id, s.client_id,
+             si.id as intake_id
+      FROM sessions s
+      JOIN session_intakes si ON si.session_id = s.id
+      WHERE s.session_number = 1
+      AND (
+        s.ai_insights IS NULL
+        OR s.ai_insights = '[]'
+        OR s.ai_insights = ''
+        OR s.ai_insights NOT LIKE '%initial_assessment%'
+      )
+    `).all();
+
+    if (sessionsNeedingAssessment.length === 0) {
+      console.log('[repair] All session 1 AI assessments are present');
+      return;
+    }
+
+    console.log(`[repair] Scheduling AI assessments for ${sessionsNeedingAssessment.length} sessions`);
+
+    sessionsNeedingAssessment.forEach((row, index) => {
+      setTimeout(async () => {
+        try {
+          const intake = database.prepare(
+            'SELECT * FROM session_intakes WHERE session_id = ?'
+          ).get(row.session_id);
+
+          const client = database.prepare(
+            'SELECT * FROM clients WHERE id = ?'
+          ).get(row.client_id);
+
+          if (!intake || !client) return;
+
+          // Build the same prompt as in intakes.routes.js
+          const activeMedical = (() => {
+            try {
+              const c = typeof intake.medical_conditions === 'string'
+                ? JSON.parse(intake.medical_conditions)
+                : (intake.medical_conditions || {});
+              const active = Object.entries(c).filter(([, v]) => v).map(([k]) => k);
+              return active.length > 0 ? active.join(', ') : 'אין';
+            } catch { return 'אין'; }
+          })();
+
+          const medications = (() => {
+            try {
+              const m = typeof intake.medications === 'string'
+                ? JSON.parse(intake.medications)
+                : (intake.medications || []);
+              return Array.isArray(m) && m.length > 0 ? m.join(', ') : 'אין';
+            } catch { return 'אין'; }
+          })();
+
+          const prompt = `פרטי הלקוח:
+גיל: ${intake.age || 'לא צוין'} | מגדר: ${intake.gender === 'male' ? 'זכר' : intake.gender === 'female' ? 'נקבה' : 'לא צוין'}
+גובה: ${intake.height || 'לא צוין'} ס״מ | משקל: ${intake.weight || client.initial_weight || 'לא צוין'} ק״ג
+BMI: ${intake.weight && intake.height ? (intake.weight / ((Number(intake.height) / 100) ** 2)).toFixed(1) : 'לא חושב'}
+משקל מתוקנן: ${intake.adjusted_weight ? intake.adjusted_weight + ' ק״ג' : 'לא נדרש'}
+הוצאה קלורית יומית: ${intake.tdee ? Math.round(intake.tdee) + ' קק״ל' : 'לא חושב'}
+מטרה: ${intake.goal || client.goal || 'לא צוין'}
+מצבים רפואיים: ${activeMedical}
+תרופות: ${medications}
+סוג תזונה: ${intake.diet_type || 'לא צוין'}
+פעילות גופנית: ${intake.activity_type || 'לא צוין'}, ${intake.activity_frequency || ''}
+שינה: ${intake.sleep_hours || 'לא צוין'} שעות, איכות: ${intake.sleep_quality || 'לא צוין'}
+
+צור הערכה ראשונית קלינית.`;
+
+          const Anthropic = require('@anthropic-ai/sdk');
+          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+          const response = await anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            system: `You are a clinical nutrition assistant helping a licensed nutritionist prepare for a first session with a new client.
+
+Based on the intake form data provided, generate an initial clinical assessment that includes:
+
+1. קליני-תזונתי ראשוני: A brief clinical nutrition profile based on the data (BMI category, energy needs, key nutritional considerations)
+
+2. נקודות לתשומת לב: Red flags or important points from medical history, eating patterns, or lifestyle that require attention
+
+3. כיוון טיפולי ראשוני: Suggested initial direction for the nutrition treatment plan based on the client's goal, medical history, and lifestyle
+
+Base ALL recommendations on current scientific consensus from WHO, AND, AHA, EASD and peer-reviewed research.
+Do not make medical diagnoses.
+Respond in Hebrew only.
+Be concise — maximum 3-4 bullet points per section.
+If BMI, weight, or other metrics are already calculated, use them as context — do NOT suggest calculating them again.`,
+            messages: [{ role: 'user', content: prompt }],
+          });
+
+          const assessmentText = response.content
+            .filter((b) => b.type === 'text')
+            .map((b) => b.text)
+            .join('\n');
+
+          const existingInsights = parseJsonSafe(
+            database.prepare('SELECT ai_insights FROM sessions WHERE id = ?')
+              .get(row.session_id)?.ai_insights
+          );
+
+          const filtered = Array.isArray(existingInsights)
+            ? existingInsights.filter((i) => i.type !== 'initial_assessment')
+            : [];
+          filtered.unshift({
+            text: assessmentText,
+            saved_for_next: false,
+            type: 'initial_assessment',
+          });
+
+          database.prepare('UPDATE sessions SET ai_insights = ? WHERE id = ?')
+            .run(JSON.stringify(filtered), row.session_id);
+
+          console.log(`[repair] ✓ AI assessment generated for session ${row.session_id}`);
+        } catch (err) {
+          console.error(`[repair] AI assessment failed for session ${row.session_id}:`, err.message);
+        }
+      }, index * 3000); // 3 second delay between each
+    });
+  } catch (err) {
+    console.error('[repair] scheduleAIAssessmentRepairs error:', err.message);
+  }
+}
+
+// Delay 5 s so server is fully ready before making external API calls
+setTimeout(() => scheduleAIAssessmentRepairs(db), 5000);
+
 module.exports = db;
