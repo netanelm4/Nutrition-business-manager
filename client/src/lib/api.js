@@ -150,6 +150,18 @@ export function uploadLabPdf(sessionId, file) {
   });
 }
 
+// ── AI Summary ────────────────────────────────────────────────────────────────
+export const generateClientAISummary = (clientId) => request('POST', `/clients/${clientId}/ai-summary`);
+export const fetchClientAISummary    = (clientId) => request('GET',  `/clients/${clientId}/ai-summary`);
+
+// ── Check-in message ──────────────────────────────────────────────────────────
+export const generateCheckinMessage = (sessionId) => request('POST', `/sessions/${sessionId}/checkin-message`);
+export const fetchCheckinMessage    = (sessionId) => request('GET',  `/sessions/${sessionId}/checkin-message`);
+
+// ── Process summary ───────────────────────────────────────────────────────────
+export const generateProcessSummary = (clientId) => request('POST', `/clients/${clientId}/process-summary`);
+export const fetchProcessSummary    = (clientId) => request('GET',  `/clients/${clientId}/process-summary`);
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const repairAIAssessments = () => request('POST', '/admin/repair-ai-assessments');
 

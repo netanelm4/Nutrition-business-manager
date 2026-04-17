@@ -409,6 +409,32 @@ try {
   // Column already exists — safe to ignore
 }
 
+// Migrate existing databases: add ai_summary fields to clients
+try {
+  db.exec('ALTER TABLE clients ADD COLUMN ai_summary TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+try {
+  db.exec('ALTER TABLE clients ADD COLUMN ai_summary_updated_at DATETIME');
+} catch {
+  // Column already exists — safe to ignore
+}
+
+// Migrate existing databases: add checkin_message to sessions
+try {
+  db.exec('ALTER TABLE sessions ADD COLUMN checkin_message TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
+// Migrate existing databases: add process_summary to clients
+try {
+  db.exec('ALTER TABLE clients ADD COLUMN process_summary TEXT');
+} catch {
+  // Column already exists — safe to ignore
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // REPAIR POLICY: Every bug fix that affects existing data
 // must have a corresponding repair function here that
@@ -707,5 +733,120 @@ If BMI, weight, or other metrics are already calculated, use them as context —
 
 // Delay 5 s so server is fully ready before making external API calls
 setTimeout(() => scheduleAIAssessmentRepairs(db), 5000);
+
+// ── Repair 4: Generate process_summary for ended clients that don't have one ──
+
+function scheduleProcessSummaryRepairs(database) {
+  try {
+    const clientsToRepair = database.prepare(`
+      SELECT id, full_name, goal, initial_weight, start_date
+      FROM clients
+      WHERE status = 'ended'
+        AND (process_summary IS NULL OR process_summary = '')
+    `).all();
+
+    if (clientsToRepair.length === 0) return;
+    console.log(`[repair] Scheduling process summaries for ${clientsToRepair.length} ended client(s)`);
+
+    clientsToRepair.forEach((client, index) => {
+      setTimeout(async () => {
+        try {
+          const sessions = database.prepare(
+            'SELECT * FROM sessions WHERE client_id = ? ORDER BY session_number ASC'
+          ).all(client.id);
+
+          const lines = [];
+          lines.push(`שם: ${client.full_name}`);
+          if (client.goal)           lines.push(`מטרה: ${client.goal}`);
+          if (client.initial_weight) lines.push(`משקל התחלתי: ${client.initial_weight} ק"ג`);
+          if (client.start_date)     lines.push(`תחילת טיפול: ${client.start_date}`);
+          lines.push(`מספר פגישות: ${sessions.length}`);
+          const lastSession = sessions.at(-1);
+          if (lastSession?.weight) lines.push(`משקל אחרון: ${lastSession.weight} ק"ג`);
+          for (const s of sessions) {
+            lines.push(`\nפגישה ${s.session_number}: ${s.highlights || '(אין דגשים)'}`);
+          }
+
+          const Anthropic = require('@anthropic-ai/sdk');
+          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+          const message = await anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1500,
+            system: `אתה תזונאי קליני מסכם תהליך טיפולי שהסתיים. החזר JSON בלבד: { "headline": "כותרת", "journey": "תיאור", "achievements": "הישגים", "recommendations": "המלצות", "closing": "משפט סיום" }. כתוב בעברית בלבד.`,
+            messages: [{ role: 'user', content: lines.join('\n') + '\n\nכתוב סיכום תהליך.' }],
+          });
+
+          const rawText = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+          const cleaned = rawText.replace(/```(?:json)?\s*/g, '').replace(/```\s*$/g, '').trim();
+          const parsed  = JSON.parse(cleaned);
+
+          database.prepare('UPDATE clients SET process_summary = ? WHERE id = ?')
+            .run(JSON.stringify(parsed), client.id);
+          console.log(`[repair] ✓ Process summary generated for client ${client.id}`);
+        } catch (err) {
+          console.error(`[repair] Process summary failed for client ${client.id}:`, err.message);
+        }
+      }, 10000 + index * 5000); // start after 10s, 5s between each
+    });
+  } catch (err) {
+    console.error('[repair] scheduleProcessSummaryRepairs error:', err.message);
+  }
+}
+
+// ── Repair 5: Generate checkin_message for last 10 sessions that don't have one ──
+
+function scheduleCheckinMessageRepairs(database) {
+  try {
+    const sessionsToRepair = database.prepare(`
+      SELECT s.id, s.client_id, s.session_number, s.session_date, s.highlights, s.soap_notes
+      FROM sessions s
+      WHERE (s.checkin_message IS NULL OR s.checkin_message = '')
+        AND s.highlights IS NOT NULL AND s.highlights != ''
+      ORDER BY s.id DESC
+      LIMIT 10
+    `).all();
+
+    if (sessionsToRepair.length === 0) return;
+    console.log(`[repair] Scheduling check-in messages for ${sessionsToRepair.length} session(s)`);
+
+    sessionsToRepair.forEach((session, index) => {
+      setTimeout(async () => {
+        try {
+          const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(session.client_id);
+          if (!client) return;
+
+          const Anthropic = require('@anthropic-ai/sdk');
+          const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+          const message = await anthropic.messages.create({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 500,
+            system: `אתה תזונאי קליני שכותב הודעת צ'ק-אין חמה ללקוח בסיום פגישה. כתוב 3-5 משפטים בגוף שני, בסגנון אישי וחם. כתוב בעברית בלבד, ללא כוכביות.`,
+            messages: [{
+              role: 'user',
+              content: `לקוח: ${client.full_name}, פגישה ${session.session_number}.\nדגשים: ${session.highlights}\nכתוב הודעת צ'ק-אין.`,
+            }],
+          });
+
+          const text = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+          if (!text) return;
+
+          database.prepare('UPDATE sessions SET checkin_message = ? WHERE id = ?').run(text, session.id);
+          console.log(`[repair] ✓ Check-in message generated for session ${session.id}`);
+        } catch (err) {
+          console.error(`[repair] Check-in message failed for session ${session.id}:`, err.message);
+        }
+      }, 20000 + index * 4000); // start after 20s, 4s between each
+    });
+  } catch (err) {
+    console.error('[repair] scheduleCheckinMessageRepairs error:', err.message);
+  }
+}
+
+setTimeout(() => {
+  scheduleProcessSummaryRepairs(db);
+  scheduleCheckinMessageRepairs(db);
+}, 5000);
 
 module.exports = db;

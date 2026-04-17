@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -10,6 +10,291 @@ import ClientForm from '../components/clients/ClientForm';
 import SessionTimeline from '../components/sessions/SessionTimeline';
 import SessionHistory from '../components/sessions/SessionHistory';
 import WhatsAppDropdown from '../components/whatsapp/WhatsAppDropdown';
+
+// ─── Process Summary section (shown when status = 'ended') ───────────────────
+
+function ProcessSummarySection({ clientId, clientPhone }) {
+  const queryClient = useQueryClient();
+
+  const { data: stored, isLoading } = useQuery({
+    queryKey: ['process-summary', String(clientId)],
+    queryFn:  () => fetchProcessSummary(clientId),
+    staleTime: Infinity,
+  });
+
+  const genMutation = useMutation({
+    mutationFn: () => generateProcessSummary(clientId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['process-summary', String(clientId)] });
+    },
+  });
+
+  if (isLoading) return null;
+
+  const summary = genMutation.data ?? stored;
+
+  const phone   = clientPhone?.replace(/\D/g, '');
+  const waText  = summary
+    ? [summary.headline, summary.journey, summary.achievements, summary.closing]
+        .filter(Boolean).join('\n\n')
+    : '';
+  const waLink  = phone && waText
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(waText)}`
+    : null;
+
+  if (genMutation.isPending) {
+    return (
+      <section className="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 className="text-base font-semibold text-gray-700 mb-3">סיכום תהליך</h2>
+        <div className="flex items-center gap-3 text-indigo-600">
+          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          <span className="text-sm">מייצר סיכום תהליך...</span>
+        </div>
+      </section>
+    );
+  }
+
+  if (!summary) {
+    return (
+      <section className="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 className="text-base font-semibold text-gray-700 mb-1">סיכום תהליך</h2>
+        <p className="text-sm text-gray-400 mb-3">התהליך הסתיים. ניתן להפיק סיכום כולל.</p>
+        <button
+          type="button"
+          onClick={() => genMutation.mutate()}
+          className="text-sm px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+        >
+          צור סיכום תהליך
+        </button>
+        {genMutation.isError && (
+          <p className="text-xs text-red-500 mt-2">{genMutation.error?.message}</p>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-semibold text-gray-700">סיכום תהליך</h2>
+        <button
+          type="button"
+          onClick={() => genMutation.mutate()}
+          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          רענן
+        </button>
+      </div>
+
+      {summary.headline && (
+        <p className="text-base font-bold text-gray-900 mb-4">{summary.headline}</p>
+      )}
+
+      <div className="space-y-3">
+        {[
+          { key: 'journey',         label: 'המסע הטיפולי',        color: 'bg-blue-50 border-blue-200 text-blue-900' },
+          { key: 'achievements',    label: 'הישגים עיקריים',       color: 'bg-green-50 border-green-200 text-green-900' },
+          { key: 'recommendations', label: 'המלצות להמשך',         color: 'bg-amber-50 border-amber-200 text-amber-900' },
+          { key: 'closing',         label: 'סיכום',                color: 'bg-gray-50 border-gray-200 text-gray-800' },
+        ].map(({ key, label, color }) => {
+          if (!summary[key]) return null;
+          return (
+            <div key={key} className={`rounded-lg border p-3 ${color}`}>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-1.5 opacity-60">{label}</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{summary[key]}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex gap-2 mt-4 flex-wrap">
+        <button
+          type="button"
+          disabled
+          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-400 cursor-not-allowed"
+          title="בקרוב"
+        >
+          הפק PDF
+        </button>
+        {waLink && (
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
+          >
+            שלח ללקוח בווטסאפ
+          </a>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ─── AI Summary section ───────────────────────────────────────────────────────
+
+const SUMMARY_CARD_CONFIG = [
+  { key: 'clinical_summary', label: 'סיכום קליני',                  color: 'bg-blue-50 border-blue-200 text-blue-900' },
+  { key: 'focus_points',     label: 'נקודות מיקוד לפגישה הבאה',     color: 'bg-indigo-50 border-indigo-200 text-indigo-900' },
+  { key: 'flags',            label: 'דגלים לתשומת לב',               color: 'bg-amber-50 border-amber-200 text-amber-900' },
+  { key: 'recommendations',  label: 'המלצות טיפוליות',               color: 'bg-green-50 border-green-200 text-green-900' },
+];
+
+const PRIORITY_LABEL = { high: 'גבוהה', medium: 'בינונית', low: 'נמוכה' };
+const PRIORITY_COLOR = {
+  high:   'bg-red-100 text-red-700',
+  medium: 'bg-amber-100 text-amber-700',
+  low:    'bg-gray-100 text-gray-600',
+};
+
+function AISummarySection({ clientId, sessions }) {
+  const queryClient  = useQueryClient();
+  const [taskAdded, setTaskAdded] = useState({});
+
+  const { data: stored, isLoading: loadingStored } = useQuery({
+    queryKey: ['ai-summary', String(clientId)],
+    queryFn:  () => fetchClientAISummary(clientId),
+    staleTime: Infinity,
+  });
+
+  const generateMutation = useMutation({
+    mutationFn: () => generateClientAISummary(clientId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai-summary', String(clientId)] });
+    },
+  });
+
+  const addTaskMutation = useMutation({
+    mutationFn: ({ task, sessionNumber }) =>
+      addProtocolTasks(clientId, [task.text], sessionNumber),
+    onSuccess: (_, { task }) => {
+      setTaskAdded((prev) => ({ ...prev, [task.text]: true }));
+      queryClient.invalidateQueries({ queryKey: ['sessions', String(clientId)] });
+    },
+  });
+
+  function handleAddTask(task) {
+    const maxNum = sessions.reduce((m, s) => Math.max(m, s.session_number || 0), 0);
+    addTaskMutation.mutate({ task, sessionNumber: maxNum + 1 });
+  }
+
+  const isGenerating = generateMutation.isPending;
+  const summary = generateMutation.data ?? stored;
+
+  if (loadingStored) return null;
+
+  // Empty state
+  if (!summary && !isGenerating) {
+    return (
+      <section className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex items-center justify-between mb-1">
+          <h2 className="text-base font-semibold text-gray-700">סיכום AI</h2>
+        </div>
+        <p className="text-sm text-gray-400 mb-3">
+          ניתוח מקיף של כלל נתוני הלקוח — אנמנזה, פגישות, מעבדה ופרוטוקול.
+        </p>
+        <button
+          type="button"
+          onClick={() => generateMutation.mutate()}
+          className="text-sm px-4 py-2 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+        >
+          צור סיכום AI
+        </button>
+        {generateMutation.isError && (
+          <p className="text-xs text-red-500 mt-2">{generateMutation.error?.message}</p>
+        )}
+      </section>
+    );
+  }
+
+  // Loading state
+  if (isGenerating) {
+    return (
+      <section className="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 className="text-base font-semibold text-gray-700 mb-3">סיכום AI</h2>
+        <div className="flex items-center gap-3 text-indigo-600">
+          <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+          </svg>
+          <span className="text-sm">מנתח את כל נתוני הלקוח...</span>
+        </div>
+      </section>
+    );
+  }
+
+  // Summary display
+  return (
+    <section className="bg-white rounded-xl border border-gray-200 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-700">סיכום AI</h2>
+          {summary?.updated_at && (
+            <p className="text-xs text-gray-400 mt-0.5">
+              עודכן {new Date(summary.updated_at).toLocaleDateString('he-IL', {
+                day: 'numeric', month: 'long', year: 'numeric',
+              })}
+            </p>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => generateMutation.mutate()}
+          disabled={isGenerating}
+          className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+        >
+          רענן
+        </button>
+      </div>
+
+      {/* 4 subsection cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+        {SUMMARY_CARD_CONFIG.map(({ key, label, color }) => {
+          const text = summary?.summary?.[key];
+          if (!text) return null;
+          return (
+            <div key={key} className={`rounded-lg border p-3 ${color}`}>
+              <p className="text-xs font-semibold uppercase tracking-wide mb-1.5 opacity-70">{label}</p>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">{text}</p>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Recommended tasks */}
+      {Array.isArray(summary?.tasks) && summary.tasks.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">משימות מומלצות</p>
+          <ul className="space-y-2">
+            {summary.tasks.map((task, i) => (
+              <li key={i} className="flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  {task.priority && (
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${PRIORITY_COLOR[task.priority] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {PRIORITY_LABEL[task.priority] ?? task.priority}
+                    </span>
+                  )}
+                  <span className="text-sm text-gray-800 truncate">{task.text}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddTask(task)}
+                  disabled={taskAdded[task.text] || addTaskMutation.isPending}
+                  className="text-xs flex-shrink-0 px-2.5 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  {taskAdded[task.text] ? 'נוסף' : 'הוסף לפגישה הבאה'}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
 
 // ─── Client profile section ───────────────────────────────────────────────────
 
@@ -534,6 +819,18 @@ export default function ClientDetail() {
     },
   });
 
+  const aiSummaryMutation = useMutation({
+    mutationFn: () => generateClientAISummary(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai-summary', id] });
+    },
+  });
+
+  // Auto-trigger AI summary regeneration 2s after a session is saved
+  const handleSessionSaved = useCallback(() => {
+    setTimeout(() => aiSummaryMutation.mutate(), 2000);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const { data: client, isLoading: clientLoading, isError: clientError } = useQuery({
     queryKey: ['client', id],
     queryFn: () => fetchClient(id),
@@ -585,13 +882,21 @@ export default function ClientDetail() {
       {/* Section 1 — Profile */}
       <ClientProfile client={client} sessions={sessions} onDelete={() => deleteMutation.mutate()} />
 
-      {/* Section 2 — Session timeline */}
+      {/* Section 2 — Process Summary (ended clients only) */}
+      {client.status === 'ended' && (
+        <ProcessSummarySection clientId={id} clientPhone={client.phone} />
+      )}
+
+      {/* Section 3 — AI Summary */}
+      <AISummarySection clientId={id} sessions={sessions} />
+
+      {/* Section 4 — Session timeline */}
       <section>
         <h2 className="text-base font-semibold text-gray-700 mb-3">ציר זמן פגישות</h2>
         <SessionTimeline client={client} sessions={sessions} />
       </section>
 
-      {/* Section 3 — Session history */}
+      {/* Section 5 — Session history */}
       <section>
         <h2 className="text-base font-semibold text-gray-700 mb-3">היסטוריית פגישות</h2>
         {sessions.length === 0 && !sessionsLoading && (
@@ -600,7 +905,7 @@ export default function ClientDetail() {
             <p className="text-xs text-gray-400">לחץ על אחד מחלונות הפגישה כדי לתעד את הפגישה הראשונה</p>
           </div>
         )}
-        <SessionHistory client={client} sessions={sessions} />
+        <SessionHistory client={client} sessions={sessions} onSessionSaved={handleSessionSaved} />
       </section>
 
       {/* Section 4 — Payment tracking */}

@@ -21,6 +21,7 @@ const publicRouter = require('./routes/public.routes');
 const { webhookRouter, calendlyRouter } = require('./routes/calendly.routes');
 const intakesRouter  = require('./routes/intakes.routes');
 const adminRouter    = require('./routes/admin.routes');
+const aiSummaryRouter = require('./routes/ai-summary.routes');
 const googleRouter   = require('./routes/google.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
@@ -60,6 +61,7 @@ app.use('/api/protocols',        protocolsRouter);
 app.use('/api/calendly',         calendlyRouter);
 app.use('/api',                  intakesRouter);
 app.use('/api/admin',            adminRouter);
+app.use('/api',                  aiSummaryRouter);
 
 // Session sub-routes are mounted on the clients router (/:id/sessions, /:id/windows)
 // Direct session access (/api/sessions/:id) is mounted here for GET/PUT/POST insights

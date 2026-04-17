@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { formatDateHebrew } from '../../lib/dates';
 import { ALERT_STATE } from '../../constants/statuses';
 import AlertBadge from '../ui/AlertBadge';
@@ -8,7 +9,7 @@ import SessionModal from './SessionModal';
 import AIInsightsPanel from './AIInsightsPanel';
 import { ReadonlyTaskList } from './TaskList';
 import SessionIntakeForm from './SessionIntakeForm';
-import { fetchSession } from '../../lib/api';
+import { fetchSession, fetchCheckinMessage, generateCheckinMessage } from '../../lib/api';
 
 // ─── AI Initial Assessment (session 1 only) ───────────────────────────────────
 
@@ -85,6 +86,102 @@ function AIInitialAssessment({ session }) {
   );
 }
 
+// ─── Check-in message panel ───────────────────────────────────────────────────
+
+function CheckinMessagePanel({ session, clientPhone }) {
+  const [draft, setDraft] = useState(session.checkin_message || '');
+  const [generated, setGenerated] = useState(false);
+
+  const { data: stored, isLoading: loadingStored } = useQuery({
+    queryKey: ['checkin-message', session.id],
+    queryFn:  () => fetchCheckinMessage(session.id),
+    enabled:  !session.checkin_message,  // skip if already in session object
+    staleTime: Infinity,
+  });
+
+  // Sync stored value once loaded
+  useEffect(() => {
+    if (stored?.message && !draft) setDraft(stored.message);
+  }, [stored]);
+
+  const genMutation = useMutation({
+    mutationFn: () => generateCheckinMessage(session.id),
+    onSuccess: (data) => {
+      setDraft(data.message || '');
+      setGenerated(true);
+    },
+  });
+
+  const phone = clientPhone?.replace(/\D/g, '');
+  const waLink = phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(draft)}`
+    : null;
+
+  if (loadingStored) return null;
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+        הודעת צ׳ק-אין
+      </p>
+      {draft ? (
+        <div className="space-y-2">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={4}
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-y"
+            dir="rtl"
+          />
+          <div className="flex gap-2 flex-wrap">
+            {waLink && (
+              <a
+                href={waLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
+              >
+                שלח בווטסאפ
+              </a>
+            )}
+            <button
+              type="button"
+              onClick={() => genMutation.mutate()}
+              disabled={genMutation.isPending}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {genMutation.isPending ? 'מייצר...' : 'צור מחדש'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {genMutation.isPending ? (
+            <div className="flex items-center gap-2 text-indigo-500 text-sm animate-pulse">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              מייצר הודעה...
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => genMutation.mutate()}
+              className="text-xs px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+            >
+              צור הודעת צ׳ק-אין
+            </button>
+          )}
+          {genMutation.isError && (
+            <p className="text-xs text-red-500">{genMutation.error?.message}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Compute the session alert state by comparing session_date to expected window.
  * We get this from the client's windowAlerts.
@@ -94,7 +191,7 @@ function getSessionAlertState(sessionNumber, windowAlerts = []) {
   return w?.state ?? ALERT_STATE.NONE;
 }
 
-function SessionItem({ session, client, windowAlerts }) {
+function SessionItem({ session, client, windowAlerts, onSessionSaved }) {
   const [expanded, setExpanded] = useState(false);
   const [editOpen, setEditOpen]  = useState(false);
 
@@ -200,6 +297,9 @@ function SessionItem({ session, client, windowAlerts }) {
               </>
             )}
 
+            {/* Check-in message */}
+            <CheckinMessagePanel session={session} clientPhone={client.phone} />
+
             {/* Edit button */}
             <button
               type="button"
@@ -221,7 +321,7 @@ function SessionItem({ session, client, windowAlerts }) {
           <SessionModal
             clientId={client.id}
             session={session}
-            onSuccess={() => setEditOpen(false)}
+            onSuccess={() => { setEditOpen(false); onSessionSaved?.(); }}
           />
         </Modal>
       )}
@@ -235,7 +335,7 @@ function SessionItem({ session, client, windowAlerts }) {
  * @param {object}  client    - Client object (with alerts.windowAlerts)
  * @param {Array}   sessions  - All sessions for this client (parsed)
  */
-export default function SessionHistory({ client, sessions }) {
+export default function SessionHistory({ client, sessions, onSessionSaved }) {
   const [addOpen, setAddOpen] = useState(false);
 
   const windowAlerts = client.alerts?.windowAlerts ?? [];
@@ -261,6 +361,7 @@ export default function SessionHistory({ client, sessions }) {
                 session={session}
                 client={client}
                 windowAlerts={windowAlerts}
+                onSessionSaved={onSessionSaved}
               />
             ))}
         </div>
@@ -292,7 +393,7 @@ export default function SessionHistory({ client, sessions }) {
             clientId={client.id}
             session={null}
             sessionNumber={nextSessionNumber}
-            onSuccess={() => setAddOpen(false)}
+            onSuccess={() => { setAddOpen(false); onSessionSaved?.(); }}
           />
         </Modal>
       )}

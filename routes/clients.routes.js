@@ -1,10 +1,76 @@
-const express = require('express');
+const express    = require('express');
+const Anthropic  = require('@anthropic-ai/sdk');
 const { v4: uuidv4 } = require('uuid');
-const db = require('../database/db');
+const db         = require('../database/db');
 const { calculateSessionWindows, calculateProcessEndDate } = require('../utils/dates');
 const { computeClientAlerts } = require('../services/alerts.service');
 const { CLIENT_STATUS, TASK_STATUS } = require('../constants/statuses');
 const { parseJsonArray } = require('../utils/parseJson');
+
+const AI_MODEL = 'claude-sonnet-4-20250514';
+let _aiClient = null;
+function getAIClient() {
+  if (!_aiClient) _aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  return _aiClient;
+}
+
+// Fire-and-forget: generate process summary when client status changes to 'ended'
+function triggerProcessSummary(clientId) {
+  (async () => {
+    try {
+      const client   = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId);
+      if (!client) return;
+
+      const sessions = db.prepare(
+        'SELECT * FROM sessions WHERE client_id = ? ORDER BY session_number ASC'
+      ).all(clientId);
+
+      const lines = [];
+      lines.push(`שם: ${client.full_name}`);
+      if (client.goal)           lines.push(`מטרה: ${client.goal}`);
+      if (client.initial_weight) lines.push(`משקל התחלתי: ${client.initial_weight} ק"ג`);
+      if (client.start_date)     lines.push(`תחילת טיפול: ${client.start_date}`);
+      lines.push(`מספר פגישות: ${sessions.length}`);
+      lines.push('');
+
+      const lastSession = sessions.at(-1);
+      if (lastSession?.weight) lines.push(`משקל בפגישה אחרונה: ${lastSession.weight} ק"ג`);
+
+      for (const s of sessions) {
+        lines.push(`\nפגישה ${s.session_number} (${s.session_date || 'לא ידוע'})`);
+        if (s.highlights) lines.push(`דגשים: ${s.highlights}`);
+        try {
+          const tasks = JSON.parse(s.tasks || '[]');
+          const done = Array.isArray(tasks)
+            ? tasks.filter((t) => t.status === 'done').map((t) => t.text)
+            : [];
+          if (done.length) lines.push(`משימות שהושלמו: ${done.join(', ')}`);
+        } catch {}
+      }
+
+      const message = await getAIClient().messages.create({
+        model: AI_MODEL,
+        max_tokens: 1500,
+        system: `אתה תזונאי קליני מסכם תהליך טיפולי שהסתיים.
+כתוב סיכום תהליך מקצועי, חם ומועיל.
+החזר JSON בלבד: { "headline": "כותרת", "journey": "תיאור המסע", "achievements": "הישגים עיקריים", "recommendations": "המלצות להמשך", "closing": "משפט סיום" }
+כתוב בעברית בלבד.`,
+        messages: [{ role: 'user', content: lines.join('\n') + '\n\nכתוב סיכום תהליך.' }],
+      });
+
+      const rawText = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+      const cleaned = rawText.replace(/```(?:json)?\s*/g, '').replace(/```\s*$/g, '').trim();
+      const parsed  = JSON.parse(cleaned);
+
+      db.prepare('UPDATE clients SET process_summary = ? WHERE id = ?')
+        .run(JSON.stringify(parsed), clientId);
+
+      console.log(`[process-summary] Generated for client ${clientId}`);
+    } catch (err) {
+      console.error(`[process-summary] Failed for client ${clientId}:`, err.message);
+    }
+  })();
+}
 
 const router = express.Router();
 
@@ -269,6 +335,14 @@ router.put('/:id', (req, res) => {
     }
 
     const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
+
+    // If status just changed to 'ended', fire-and-forget process summary generation
+    if (updates.status === CLIENT_STATUS.ENDED && client.status !== CLIENT_STATUS.ENDED) {
+      if (!updated.process_summary) {
+        triggerProcessSummary(req.params.id);
+      }
+    }
+
     return ok(res, attachProtocol(attachAlerts(updated)));
   } catch (err) {
     console.error('[PUT /clients/:id]', err);

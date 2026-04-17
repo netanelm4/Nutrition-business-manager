@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createSession, updateSession, generateInsights, fetchProtocols, personalizeProtocol } from '../../lib/api';
+import { createSession, updateSession, generateInsights, fetchProtocols, personalizeProtocol, generateCheckinMessage } from '../../lib/api';
 import { EditableTaskList } from './TaskList';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -173,10 +173,15 @@ export default function SessionModal({ clientId, session, sessionNumber, onSucce
       isEdit
         ? updateSession(session.id, data)
         : createSession(clientId, data),
-    onSuccess: () => {
+    onSuccess: (savedSession) => {
       queryClient.invalidateQueries({ queryKey: ['sessions', String(clientId)] });
       queryClient.invalidateQueries({ queryKey: ['client', String(clientId)] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
+      // Fire-and-forget: generate check-in message for this session
+      if (savedSession?.id) {
+        generateCheckinMessage(savedSession.id).catch(() => {});
+        queryClient.invalidateQueries({ queryKey: ['checkin-message', String(savedSession.id)] });
+      }
       onSuccess();
     },
     onError: (err) => setServerError(err.message || 'שגיאה בשמירה. נסה שוב.'),

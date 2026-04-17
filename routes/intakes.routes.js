@@ -205,12 +205,6 @@ router.post('/sessions/:id/intake', (req, res) => {
 
     const intake = db.prepare('SELECT * FROM session_intakes WHERE id = ?').get(result.lastInsertRowid);
 
-    // Fire-and-forget AI initial assessment (only session 1)
-    const sessionRow = db.prepare('SELECT session_number FROM sessions WHERE id = ?').get(sessionId);
-    if (sessionRow?.session_number === 1) {
-      triggerSessionAssessment(sessionId, intake);
-    }
-
     return ok(res, intake);
   } catch (err) {
     console.error('[POST /sessions/:id/intake]', err);
