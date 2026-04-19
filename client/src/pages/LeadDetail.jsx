@@ -1,86 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchLead, updateLead, convertLead, deleteLead, fetchClientByLeadId, fetchLeadMeeting, fetchLeadIntake } from '../lib/api';
+import { fetchLead, updateLead, convertLead, deleteLead, fetchClientByLeadId, fetchLeadMeeting } from '../lib/api';
 import { LEAD_STATUS, LEAD_STATUS_LABEL, LEAD_SOURCE_LABEL } from '../constants/statuses';
 import { formatDateHebrew } from '../lib/dates';
 import WhatsAppDropdown from '../components/whatsapp/WhatsAppDropdown';
 import MeetingScheduleModal from '../components/leads/MeetingScheduleModal';
 import LeadIntakeForm from '../components/leads/LeadIntakeForm';
-
-// ── AI Initial Assessment (lead intake) ───────────────────────────────────────
-
-function LeadAIAssessment({ leadId }) {
-  const [assessment, setAssessment] = useState(null);
-  const [intakeSaved, setIntakeSaved] = useState(false);
-  const pollRef = useRef(null);
-
-  // Check if intake already has an assessment on mount
-  useEffect(() => {
-    fetchLeadIntake(leadId).then((intake) => {
-      if (intake?.ai_assessment) {
-        setAssessment(intake.ai_assessment);
-      }
-    }).catch(() => {});
-  }, [leadId]);
-
-  useEffect(() => {
-    if (assessment) return;
-
-    function startPolling() {
-      if (pollRef.current) return;
-      pollRef.current = setInterval(async () => {
-        try {
-          const intake = await fetchLeadIntake(leadId);
-          if (intake?.ai_assessment) {
-            setAssessment(intake.ai_assessment);
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
-        } catch { /* silent */ }
-      }, 3000);
-    }
-
-    function handleIntakeSaved() {
-      setIntakeSaved(true);
-      startPolling();
-    }
-
-    window.addEventListener(`intake-saved-lead-${leadId}`, handleIntakeSaved);
-    return () => {
-      window.removeEventListener(`intake-saved-lead-${leadId}`, handleIntakeSaved);
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-    };
-  }, [leadId, assessment]);
-
-  if (!assessment && !intakeSaved) return null;
-
-  return (
-    <div>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-        הערכה ראשונית — AI
-      </p>
-      {assessment ? (
-        <div className="border-r-4 border-blue-400 pr-3 bg-blue-50 rounded-lg p-3">
-          <p className="text-xs text-blue-600 font-medium mb-1">
-            הערכה ראשונית מבוססת נתוני הפגישה הראשונה
-          </p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-            {assessment}
-          </p>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 text-sm text-indigo-500 animate-pulse">
-          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-          מייצר הערכה ראשונית...
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -484,9 +410,6 @@ export default function LeadDetail() {
 
           {/* B) Intake form */}
           <LeadIntakeForm leadId={lead.id} />
-
-          {/* B2) AI initial assessment */}
-          <LeadAIAssessment leadId={lead.id} />
 
           {/* C) Action buttons — only when meeting is still pending outcome */}
           {!isMeetingHeld && (

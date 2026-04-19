@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -150,9 +150,120 @@ const PRIORITY_COLOR = {
   low:    'bg-gray-100 text-gray-600',
 };
 
+// ─── Session picker for adding tasks ─────────────────────────────────────────
+
+function TaskSessionPicker({ clientId, sessions, tasksToAdd, onClose, onSuccess }) {
+  const queryClient = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const [successNum, setSuccessNum] = useState(null);
+
+  const { data: windows = [], isLoading } = useQuery({
+    queryKey: ['windows', String(clientId)],
+    queryFn:  () => fetchWindows(clientId),
+    staleTime: 60_000,
+  });
+
+  const recordedNums = new Set(sessions.map((s) => s.session_number));
+
+  async function handleSelect(window) {
+    setAdding(true);
+    try {
+      const existingSession = sessions.find((s) => s.session_number === window.session_number);
+      const newTasks = tasksToAdd.map((t) => ({
+        id: crypto.randomUUID(),
+        text: typeof t === 'string' ? t : t.text,
+        status: 'pending',
+      }));
+
+      if (existingSession) {
+        const currentTasks = Array.isArray(existingSession.tasks) ? existingSession.tasks : [];
+        await updateSession(existingSession.id, { tasks: [...currentTasks, ...newTasks] });
+      } else {
+        await createSession(clientId, {
+          session_number: window.session_number,
+          session_date:   window.expected_date,
+          tasks:          newTasks,
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['sessions', String(clientId)] });
+      setSuccessNum(window.session_number);
+      setTimeout(() => { onSuccess(window.session_number); onClose(); }, 1500);
+    } catch (err) {
+      console.error('[TaskSessionPicker]', err);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  if (isLoading) {
+    return <p className="text-sm text-indigo-500 animate-pulse mt-3 px-1">טוען פגישות...</p>;
+  }
+
+  if (successNum) {
+    return (
+      <p className="text-sm text-green-600 font-medium mt-3 px-1">
+        המשימות נוספו לפגישה {successNum}
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 border border-gray-200 rounded-xl overflow-hidden">
+      <p className="px-4 py-2 text-xs font-medium text-gray-400 bg-gray-50 border-b border-gray-100">
+        בחר פגישה לשיוך המשימות
+      </p>
+      {windows.map((w) => {
+        const isDone = recordedNums.has(w.session_number);
+        return (
+          <button
+            key={w.session_number}
+            type="button"
+            onClick={() => !adding && handleSelect(w)}
+            disabled={adding}
+            className={[
+              'w-full flex items-center justify-between px-4 py-2.5 border-b border-gray-100 last:border-0 text-sm transition-colors text-right',
+              isDone
+                ? 'bg-white hover:bg-gray-50 text-gray-700'
+                : 'bg-white hover:bg-indigo-50 text-gray-800',
+              adding ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
+            ].join(' ')}
+          >
+            <span className="font-medium">פגישה {w.session_number}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-400">
+                {new Date(w.expected_date).toLocaleDateString('he-IL', {
+                  day: 'numeric', month: 'long',
+                })}
+              </span>
+              <span className={[
+                'text-xs px-2 py-0.5 rounded-full font-medium',
+                isDone ? 'bg-gray-100 text-gray-500' : 'bg-green-100 text-green-700',
+              ].join(' ')}>
+                {isDone ? 'בוצעה - ניתן להוסיף' : 'פתוחה'}
+              </span>
+            </div>
+          </button>
+        );
+      })}
+      <div className="px-4 py-2 bg-gray-50 border-t border-gray-100">
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          ביטול
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AISummarySection({ clientId, sessions }) {
-  const queryClient  = useQueryClient();
-  const [taskAdded, setTaskAdded] = useState({});
+  const queryClient = useQueryClient();
+  // picker: null | { mode: 'single', task } | { mode: 'all' }
+  const [picker, setPicker] = useState(null);
+  const [toast, setToast] = useState(null);
 
   const { data: stored, isLoading: loadingStored } = useQuery({
     queryKey: ['ai-summary', String(clientId)],
@@ -167,18 +278,9 @@ function AISummarySection({ clientId, sessions }) {
     },
   });
 
-  const addTaskMutation = useMutation({
-    mutationFn: ({ task, sessionNumber }) =>
-      addProtocolTasks(clientId, [task.text], sessionNumber),
-    onSuccess: (_, { task }) => {
-      setTaskAdded((prev) => ({ ...prev, [task.text]: true }));
-      queryClient.invalidateQueries({ queryKey: ['sessions', String(clientId)] });
-    },
-  });
-
-  function handleAddTask(task) {
-    const maxNum = sessions.reduce((m, s) => Math.max(m, s.session_number || 0), 0);
-    addTaskMutation.mutate({ task, sessionNumber: maxNum + 1 });
+  function showToast(num) {
+    setToast(`המשימות נוספו לפגישה ${num}`);
+    setTimeout(() => setToast(null), 3000);
   }
 
   const isGenerating = generateMutation.isPending;
@@ -226,6 +328,8 @@ function AISummarySection({ clientId, sessions }) {
     );
   }
 
+  const hasTasks = Array.isArray(summary?.tasks) && summary.tasks.length > 0;
+
   // Summary display
   return (
     <section className="bg-white rounded-xl border border-gray-200 p-5">
@@ -265,9 +369,18 @@ function AISummarySection({ clientId, sessions }) {
       </div>
 
       {/* Recommended tasks */}
-      {Array.isArray(summary?.tasks) && summary.tasks.length > 0 && (
+      {hasTasks && (
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">משימות מומלצות</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">משימות מומלצות</p>
+            <button
+              type="button"
+              onClick={() => setPicker({ mode: 'all' })}
+              className="text-xs px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 transition-colors"
+            >
+              הוסף את כל המשימות
+            </button>
+          </div>
           <ul className="space-y-2">
             {summary.tasks.map((task, i) => (
               <li key={i} className="flex items-center justify-between gap-2 bg-gray-50 rounded-lg px-3 py-2">
@@ -281,15 +394,33 @@ function AISummarySection({ clientId, sessions }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleAddTask(task)}
-                  disabled={taskAdded[task.text] || addTaskMutation.isPending}
-                  className="text-xs flex-shrink-0 px-2.5 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                  onClick={() => setPicker({ mode: 'single', task })}
+                  className="text-xs flex-shrink-0 px-2.5 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                 >
-                  {taskAdded[task.text] ? 'נוסף' : 'הוסף לפגישה הבאה'}
+                  הוסף לפגישה
                 </button>
               </li>
             ))}
           </ul>
+
+          {/* Session picker — shown inline below tasks */}
+          {picker && (
+            <TaskSessionPicker
+              clientId={clientId}
+              sessions={sessions}
+              tasksToAdd={
+                picker.mode === 'all'
+                  ? summary.tasks
+                  : [picker.task]
+              }
+              onClose={() => setPicker(null)}
+              onSuccess={(num) => { setPicker(null); showToast(num); }}
+            />
+          )}
+
+          {toast && (
+            <p className="text-sm text-green-600 font-medium mt-2 px-1">{toast}</p>
+          )}
         </div>
       )}
     </section>

@@ -6,7 +6,6 @@ import AlertBadge from '../ui/AlertBadge';
 import EmptyState from '../ui/EmptyState';
 import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
-import AIInsightsPanel from './AIInsightsPanel';
 import { ReadonlyTaskList } from './TaskList';
 import SessionIntakeForm from './SessionIntakeForm';
 import { fetchSession, fetchCheckinMessage, generateCheckinMessage } from '../../lib/api';
@@ -270,14 +269,6 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved }) {
               );
             })()}
 
-            {/* AI insights */}
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                תובנות AI
-              </p>
-              <AIInsightsPanel session={session} clientId={client.id} />
-            </div>
-
             {/* Tasks */}
             <div>
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
@@ -288,13 +279,10 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved }) {
 
             {/* First session intake form */}
             {session.session_number === 1 && (
-              <>
-                <SessionIntakeForm
-                  sessionId={session.id}
-                  clientId={client.id}
-                />
-                <AIInitialAssessment session={session} />
-              </>
+              <SessionIntakeForm
+                sessionId={session.id}
+                clientId={client.id}
+              />
             )}
 
             {/* Check-in message */}
