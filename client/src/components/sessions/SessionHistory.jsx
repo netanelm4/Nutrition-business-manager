@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDateHebrew } from '../../lib/dates';
 import { ALERT_STATE } from '../../constants/statuses';
 import AlertBadge from '../ui/AlertBadge';
@@ -8,82 +8,7 @@ import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
 import { ReadonlyTaskList } from './TaskList';
 import SessionIntakeForm from './SessionIntakeForm';
-import { fetchSession, fetchCheckinMessage, generateCheckinMessage } from '../../lib/api';
-
-// ─── AI Initial Assessment (session 1 only) ───────────────────────────────────
-
-function AIInitialAssessment({ session }) {
-  const initialAssessment = Array.isArray(session.ai_insights)
-    ? session.ai_insights.find((i) => i.type === 'initial_assessment')
-    : null;
-
-  const [assessment, setAssessment] = useState(initialAssessment || null);
-  const [intakeExists, setIntakeExists] = useState(false);
-  const pollRef = useRef(null);
-
-  // Detect whether intake was saved (intake form renders → assume intake may exist)
-  // We poll only after intake is saved, signalled by a custom event or always-on for session 1
-  useEffect(() => {
-    if (assessment) return; // already have it — no need to poll
-
-    function startPolling() {
-      if (pollRef.current) return;
-      pollRef.current = setInterval(async () => {
-        try {
-          const updated = await fetchSession(session.id);
-          const found = Array.isArray(updated.ai_insights)
-            ? updated.ai_insights.find((i) => i.type === 'initial_assessment')
-            : null;
-          if (found) {
-            setAssessment(found);
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
-        } catch { /* silent */ }
-      }, 3000);
-    }
-
-    // Listen for the intake-saved event dispatched by SessionIntakeForm
-    function handleIntakeSaved() {
-      setIntakeExists(true);
-      startPolling();
-    }
-
-    window.addEventListener(`intake-saved-session-${session.id}`, handleIntakeSaved);
-    return () => {
-      window.removeEventListener(`intake-saved-session-${session.id}`, handleIntakeSaved);
-      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-    };
-  }, [session.id, assessment]);
-
-  if (!assessment && !intakeExists) return null;
-
-  return (
-    <div>
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-        הערכה ראשונית — AI
-      </p>
-      {assessment ? (
-        <div className="border-r-4 border-blue-400 pr-3 bg-blue-50 rounded-lg p-3">
-          <p className="text-xs text-blue-600 font-medium mb-1">
-            הערכה ראשונית מבוססת נתוני הפגישה הראשונה
-          </p>
-          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-            {assessment.text}
-          </p>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 text-sm text-indigo-500 animate-pulse">
-          <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-          </svg>
-          מייצר הערכה ראשונית...
-        </div>
-      )}
-    </div>
-  );
-}
+import { fetchCheckinMessage, generateCheckinMessage, deleteSession } from '../../lib/api';
 
 // ─── Check-in message panel ───────────────────────────────────────────────────
 
@@ -190,11 +115,24 @@ function getSessionAlertState(sessionNumber, windowAlerts = []) {
   return w?.state ?? ALERT_STATE.NONE;
 }
 
-function SessionItem({ session, client, windowAlerts, onSessionSaved }) {
-  const [expanded, setExpanded] = useState(false);
-  const [editOpen, setEditOpen]  = useState(false);
+function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionDeleted }) {
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded]       = useState(false);
+  const [editOpen, setEditOpen]       = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteToast, setDeleteToast] = useState(false);
 
   const alertState = getSessionAlertState(session.session_number, windowAlerts);
+
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteSession(session.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', String(client.id)] });
+      queryClient.invalidateQueries({ queryKey: ['client',   String(client.id)] });
+      setConfirmDelete(false);
+      onSessionDeleted?.();
+    },
+  });
 
   return (
     <>
@@ -288,14 +226,54 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved }) {
             {/* Check-in message */}
             <CheckinMessagePanel session={session} clientPhone={client.phone} />
 
-            {/* Edit button */}
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="text-sm text-indigo-600 hover:text-indigo-800 transition-colors"
-            >
-              עריכת פגישה
-            </button>
+            {/* Edit + Delete buttons */}
+            {!confirmDelete ? (
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setEditOpen(true)}
+                  className="text-sm text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  עריכת פגישה
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="text-sm text-red-500 hover:text-red-700 transition-colors"
+                >
+                  מחק פגישה
+                </button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
+                <p className="text-sm text-gray-700">
+                  האם למחוק פגישה {session.session_number}
+                  {session.session_date ? ` מתאריך ${formatDateHebrew(session.session_date)}` : ''}?
+                  פעולה זו תמחק גם את המשימות וההערות.
+                </p>
+                {deleteMutation.isError && (
+                  <p className="text-xs text-red-600">{deleteMutation.error?.message}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => deleteMutation.mutate()}
+                    disabled={deleteMutation.isPending}
+                    className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    {deleteMutation.isPending ? 'מוחק...' : 'מחק'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={deleteMutation.isPending}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    ביטול
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -325,15 +303,27 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved }) {
  */
 export default function SessionHistory({ client, sessions, onSessionSaved }) {
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteToast, setDeleteToast] = useState(false);
 
   const windowAlerts = client.alerts?.windowAlerts ?? [];
   const nextSessionNumber = sessions.length > 0
-    ? sessions[sessions.length - 1].session_number + 1
+    ? Math.max(...sessions.map((s) => s.session_number)) + 1
     : 1;
   const canAddMore = nextSessionNumber <= 6;
 
+  function handleSessionDeleted() {
+    setDeleteToast(true);
+    setTimeout(() => setDeleteToast(false), 3000);
+  }
+
   return (
     <div>
+      {deleteToast && (
+        <div className="mb-3 px-4 py-2.5 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700 font-medium">
+          הפגישה נמחקה
+        </div>
+      )}
+
       {sessions.length === 0 ? (
         <EmptyState
           message="לא קיימות פגישות עדיין"
@@ -350,6 +340,7 @@ export default function SessionHistory({ client, sessions, onSessionSaved }) {
                 client={client}
                 windowAlerts={windowAlerts}
                 onSessionSaved={onSessionSaved}
+                onSessionDeleted={handleSessionDeleted}
               />
             ))}
         </div>

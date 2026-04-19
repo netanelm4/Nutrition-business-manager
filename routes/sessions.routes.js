@@ -185,4 +185,18 @@ router.get('/:id/checkin-message', (req, res) => {
   }
 });
 
+// ─── DELETE /api/sessions/:id ─────────────────────────────────────────────────
+
+router.delete('/:id', (req, res) => {
+  try {
+    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(req.params.id);
+    if (!session) return fail(res, 404, 'Session not found.');
+    db.prepare('DELETE FROM sessions WHERE id = ?').run(req.params.id);
+    return ok(res, { deleted: true });
+  } catch (err) {
+    console.error('[DELETE /sessions/:id]', err);
+    return fail(res, 500, 'Failed to delete session.');
+  }
+});
+
 module.exports = router;

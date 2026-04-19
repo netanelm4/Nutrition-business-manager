@@ -397,7 +397,7 @@ function AISummarySection({ clientId, sessions }) {
                   onClick={() => setPicker({ mode: 'single', task })}
                   className="text-xs flex-shrink-0 px-2.5 py-1 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                 >
-                  הוסף לפגישה
+                  בחר פגישה
                 </button>
               </li>
             ))}
