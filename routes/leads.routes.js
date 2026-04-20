@@ -121,267 +121,187 @@ router.put('/:id', (req, res) => {
 });
 
 // ─── POST /api/leads/:id/convert ──────────────────────────────────────────────
-// One-click conversion: marks lead as became_client AND creates the client row.
-// Returns { client_id } so the UI can navigate directly to the client page.
+// Atomically converts a lead into an active client.
+// All steps run inside a single db.transaction() — if anything fails, nothing
+// is committed and the lead stays unconverted (safe to retry).
+// Returns { clientId, sessionId }.
+
+// Shared helper: copy intake fields into session_intakes row.
+function insertSessionIntakeFromLead(database, sessionId, clientId, intake) {
+  database.prepare(`
+    INSERT INTO session_intakes
+      (session_id, client_id,
+       age, gender, weight, goal, activity_factor,
+       bmr_mifflin, bmr_harris, bmr_average, adjusted_weight, tdee,
+       height, marital_status, num_children, occupation,
+       work_hours, work_type, eating_at_work, medical_conditions, medications,
+       lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
+       prev_challenges, reason_for_treatment, diet_type, eating_patterns,
+       water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
+       physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods,
+       nutrition_anamnesis)
+    VALUES
+      (@session_id, @client_id,
+       @age, @gender, @weight, @goal, @activity_factor,
+       @bmr_mifflin, @bmr_harris, @bmr_average, @adjusted_weight, @tdee,
+       @height, @marital_status, @num_children, @occupation,
+       @work_hours, @work_type, @eating_at_work, @medical_conditions, @medications,
+       @lab_results_pdf_path, @prev_treatment, @prev_treatment_goal, @prev_success,
+       @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
+       @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
+       @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods,
+       @nutrition_anamnesis)
+  `).run({
+    session_id:           sessionId,
+    client_id:            clientId,
+    age:                  intake.age,
+    gender:               intake.gender,
+    weight:               intake.weight,
+    goal:                 intake.goal,
+    activity_factor:      intake.activity_factor,
+    bmr_mifflin:          intake.bmr_mifflin,
+    bmr_harris:           intake.bmr_harris,
+    bmr_average:          intake.bmr_average,
+    adjusted_weight:      intake.adjusted_weight,
+    tdee:                 intake.tdee,
+    height:               intake.height,
+    marital_status:       intake.marital_status,
+    num_children:         intake.num_children,
+    occupation:           intake.occupation,
+    work_hours:           intake.work_hours,
+    work_type:            intake.work_type,
+    eating_at_work:       intake.eating_at_work,
+    medical_conditions:   intake.medical_conditions,
+    medications:          intake.medications,
+    lab_results_pdf_path: intake.lab_results_pdf_path,
+    prev_treatment:       intake.prev_treatment,
+    prev_treatment_goal:  intake.prev_treatment_goal,
+    prev_success:         intake.prev_success,
+    prev_challenges:      intake.prev_challenges,
+    reason_for_treatment: intake.reason_for_treatment,
+    diet_type:            intake.diet_type,
+    eating_patterns:      intake.eating_patterns,
+    water_intake:         intake.water_intake,
+    coffee_per_day:       intake.coffee_per_day,
+    alcohol_per_week:     intake.alcohol_per_week,
+    sleep_hours:          intake.sleep_hours,
+    sleep_quality:        intake.sleep_quality,
+    physical_activity:    intake.physical_activity,
+    activity_type:        intake.activity_type,
+    activity_frequency:   intake.activity_frequency,
+    favorite_snacks:      intake.favorite_snacks,
+    favorite_foods:       intake.favorite_foods,
+    nutrition_anamnesis:  intake.nutrition_anamnesis,
+  });
+}
 
 router.post('/:id/convert', (req, res) => {
   try {
     const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(req.params.id);
     if (!lead) return fail(res, 404, 'Lead not found.');
 
-    console.log(`[convert] Starting conversion: lead id=${lead.id} name="${lead.full_name}" current_status=${lead.status}`);
+    console.log(`[convert] Starting conversion: lead id=${lead.id} name="${lead.full_name}" status=${lead.status}`);
 
-    // Idempotent: if already converted, return the existing client
+    // Idempotent: already converted AND client row exists → return it
     if (lead.status === LEAD_STATUS.BECAME_CLIENT) {
       const existing = db.prepare('SELECT id FROM clients WHERE converted_from_lead_id = ?').get(lead.id);
       if (existing) {
         console.log(`[convert] Already converted — returning existing client id=${existing.id}`);
-        return ok(res, { client_id: existing.id });
+        return ok(res, { clientId: existing.id });
       }
-      return fail(res, 409, 'Lead already converted but no matching client found.');
+      // Lead stuck as became_client but no client row — fall through and repair it
+      console.log(`[convert] Lead is became_client but no client row — repairing...`);
     }
 
-    // Fetch intake data to copy clinical fields to the client record
-    const intake = db.prepare('SELECT * FROM lead_intakes WHERE lead_id = ?').get(lead.id);
-    console.log(`[convert] Intake data found: ${intake ? 'yes' : 'no'}`);
-
-    // Mark lead as converted
-    db.prepare('UPDATE leads SET status = ?, status_updated_at = ? WHERE id = ?').run(
-      LEAD_STATUS.BECAME_CLIENT,
-      new Date().toISOString(),
-      lead.id
-    );
-    console.log(`[convert] Lead ${lead.id} marked as became_client`);
-
-    // Create the client row automatically
-    console.log(`[convert] Inserting client row for lead ${lead.id}...`);
-    const result = db.prepare(`
-      INSERT INTO clients
-        (full_name, phone, age, gender, initial_weight, status, converted_from_lead_id)
-      VALUES
-        (@full_name, @phone, @age, @gender, @initial_weight, @status, @converted_from_lead_id)
-    `).run({
-      full_name:             lead.full_name,
-      phone:                 lead.phone    || null,
-      age:                   intake?.age   || null,
-      gender:                intake?.gender || null,
-      initial_weight:        intake?.weight || null,
-      status:                CLIENT_STATUS.ACTIVE,
-      converted_from_lead_id: lead.id,
-    });
-
-    const clientId = result.lastInsertRowid;
-    console.log(`[convert] Created client id=${clientId} status=active`);
-
-    // ── Find the lead's meeting ────────────────────────────────────────────────
+    // Pre-fetch data outside the transaction (read-only, safe)
+    const intake  = db.prepare('SELECT * FROM lead_intakes WHERE lead_id = ?').get(lead.id);
     const meeting = db.prepare(`
       SELECT * FROM calendly_events
       WHERE lead_id = ? AND status = 'active'
       ORDER BY start_time ASC LIMIT 1
     `).get(lead.id);
 
-    if (meeting) {
-      const meetingDate = meeting.start_time.slice(0, 10); // "YYYY-MM-DD"
-      console.log(`[convert] Meeting found: id=${meeting.id} date=${meetingDate}`);
+    console.log(`[convert] Intake: ${intake ? 'found' : 'none'} | Meeting: ${meeting ? meeting.start_time.slice(0, 10) : 'none'}`);
 
-      // Set start_date on client (drives all session window calculations)
-      db.prepare('UPDATE clients SET start_date = ? WHERE id = ?').run(meetingDate, clientId);
+    const sessionDate = meeting
+      ? meeting.start_time.slice(0, 10)
+      : new Date().toISOString().slice(0, 10);
 
-      // Generate 6 session windows from meeting date
-      const windows = calculateSessionWindows(meetingDate);
-      const insertWindow = db.prepare(`
-        INSERT INTO session_windows (client_id, session_number, expected_date)
-        VALUES (@client_id, @session_number, @expected_date)
-      `);
-      db.transaction((wins) => {
-        for (const w of wins) insertWindow.run({ client_id: clientId, ...w });
-      })(windows);
-      console.log(`[convert] Generated ${windows.length} session windows from ${meetingDate}`);
+    const windows = calculateSessionWindows(sessionDate);
 
-      // Create session 1 with the meeting date
-      const sessionResult = db.prepare(`
+    // ── Atomic transaction: all steps or nothing ──────────────────────────────
+    const doConvert = db.transaction(() => {
+      // a) INSERT client (start_date included from the start)
+      const clientRes = db.prepare(`
+        INSERT INTO clients
+          (full_name, phone, age, gender, initial_weight, status,
+           converted_from_lead_id, start_date)
+        VALUES
+          (@full_name, @phone, @age, @gender, @initial_weight, @status,
+           @converted_from_lead_id, @start_date)
+      `).run({
+        full_name:              lead.full_name,
+        phone:                  lead.phone          || null,
+        age:                    intake?.age         || null,
+        gender:                 intake?.gender      || null,
+        initial_weight:         intake?.weight      || null,
+        status:                 CLIENT_STATUS.ACTIVE,
+        converted_from_lead_id: lead.id,
+        start_date:             sessionDate,
+      });
+      const clientId = clientRes.lastInsertRowid;
+      console.log(`[convert] ✓ a) Client created id=${clientId}`);
+
+      // b) UPDATE lead status (after client insert — never before)
+      db.prepare('UPDATE leads SET status = ?, status_updated_at = ? WHERE id = ?').run(
+        LEAD_STATUS.BECAME_CLIENT, new Date().toISOString(), lead.id
+      );
+      console.log(`[convert] ✓ b) Lead ${lead.id} → became_client`);
+
+      // d) INSERT session 1
+      const sessionRes = db.prepare(`
         INSERT INTO sessions (client_id, session_number, session_date, highlights, tasks)
-        VALUES (@client_id, 1, @session_date, '', '[]')
-      `).run({ client_id: clientId, session_date: meetingDate });
-      const sessionId = sessionResult.lastInsertRowid;
-      console.log(`[convert] Created session 1 id=${sessionId} date=${meetingDate}`);
+        VALUES (?, 1, ?, '', '[]')
+      `).run(clientId, sessionDate);
+      const sessionId = sessionRes.lastInsertRowid;
+      console.log(`[convert] ✓ d) Session 1 id=${sessionId} date=${sessionDate}`);
 
-      // Link calendly_event to the new client
-      db.prepare('UPDATE calendly_events SET client_id = ? WHERE id = ?').run(clientId, meeting.id);
-      console.log(`[convert] Linked calendly_event ${meeting.id} to client ${clientId}`);
-
-      // Copy lead intake directly to session 1 session_intakes
-      if (intake) {
-        try {
-          db.prepare(`
-            INSERT INTO session_intakes
-              (session_id, client_id,
-               age, gender, weight, goal, activity_factor,
-               bmr_mifflin, bmr_harris, bmr_average, adjusted_weight, tdee,
-               height, marital_status, num_children, occupation,
-               work_hours, work_type, eating_at_work, medical_conditions, medications,
-               lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
-               prev_challenges, reason_for_treatment, diet_type, eating_patterns,
-               water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
-               physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods)
-            VALUES
-              (@session_id, @client_id,
-               @age, @gender, @weight, @goal, @activity_factor,
-               @bmr_mifflin, @bmr_harris, @bmr_average, @adjusted_weight, @tdee,
-               @height, @marital_status, @num_children, @occupation,
-               @work_hours, @work_type, @eating_at_work, @medical_conditions, @medications,
-               @lab_results_pdf_path, @prev_treatment, @prev_treatment_goal, @prev_success,
-               @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
-               @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
-               @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods)
-          `).run({
-            session_id:           sessionId,
-            client_id:            clientId,
-            age:                  intake.age,
-            gender:               intake.gender,
-            weight:               intake.weight,
-            goal:                 intake.goal,
-            activity_factor:      intake.activity_factor,
-            bmr_mifflin:          intake.bmr_mifflin,
-            bmr_harris:           intake.bmr_harris,
-            bmr_average:          intake.bmr_average,
-            adjusted_weight:      intake.adjusted_weight,
-            tdee:                 intake.tdee,
-            height:               intake.height,
-            marital_status:       intake.marital_status,
-            num_children:         intake.num_children,
-            occupation:           intake.occupation,
-            work_hours:           intake.work_hours,
-            work_type:            intake.work_type,
-            eating_at_work:       intake.eating_at_work,
-            medical_conditions:   intake.medical_conditions,
-            medications:          intake.medications,
-            lab_results_pdf_path: intake.lab_results_pdf_path,
-            prev_treatment:       intake.prev_treatment,
-            prev_treatment_goal:  intake.prev_treatment_goal,
-            prev_success:         intake.prev_success,
-            prev_challenges:      intake.prev_challenges,
-            reason_for_treatment: intake.reason_for_treatment,
-            diet_type:            intake.diet_type,
-            eating_patterns:      intake.eating_patterns,
-            water_intake:         intake.water_intake,
-            coffee_per_day:       intake.coffee_per_day,
-            alcohol_per_week:     intake.alcohol_per_week,
-            sleep_hours:          intake.sleep_hours,
-            sleep_quality:        intake.sleep_quality,
-            physical_activity:    intake.physical_activity,
-            activity_type:        intake.activity_type,
-            activity_frequency:   intake.activity_frequency,
-            favorite_snacks:      intake.favorite_snacks,
-            favorite_foods:       intake.favorite_foods,
-          });
-          // Clear pending_intake_data — data is now in session_intakes directly
-          db.prepare('UPDATE clients SET pending_intake_data = NULL WHERE id = ?').run(clientId);
-          console.log(`[convert] Copied lead intake to session_intakes for session ${sessionId}`);
-        } catch (err) {
-          console.error('[convert] Failed to copy intake to session_intakes:', err.message);
-        }
+      // e) Link calendly_event → new client
+      if (meeting) {
+        db.prepare('UPDATE calendly_events SET client_id = ? WHERE id = ?').run(clientId, meeting.id);
+        console.log(`[convert] ✓ e) Linked calendly_event ${meeting.id} → client ${clientId}`);
       }
-    } else {
-      // No Calendly meeting — use today as the start date and create session 1
-      const todayDate = new Date().toISOString().slice(0, 10);
-      console.log(`[convert] No meeting found — using today ${todayDate} as session 1 date`);
 
-      db.prepare('UPDATE clients SET start_date = ? WHERE id = ?').run(todayDate, clientId);
+      // g) DELETE stale windows, INSERT 6 fresh ones
+      db.prepare('DELETE FROM session_windows WHERE client_id = ?').run(clientId);
+      const insertWin = db.prepare(
+        'INSERT INTO session_windows (client_id, session_number, expected_date) VALUES (?, ?, ?)'
+      );
+      for (const w of windows) insertWin.run(clientId, w.session_number, w.expected_date);
+      console.log(`[convert] ✓ g) Created ${windows.length} session windows from ${sessionDate}`);
 
-      const windows = calculateSessionWindows(todayDate);
-      const insertWindow = db.prepare(`
-        INSERT INTO session_windows (client_id, session_number, expected_date)
-        VALUES (@client_id, @session_number, @expected_date)
-      `);
-      db.transaction((wins) => {
-        for (const w of wins) insertWindow.run({ client_id: clientId, ...w });
-      })(windows);
-      console.log(`[convert] Generated ${windows.length} session windows from ${todayDate}`);
-
-      const sessionResult = db.prepare(`
-        INSERT INTO sessions (client_id, session_number, session_date, highlights, tasks)
-        VALUES (@client_id, 1, @session_date, '', '[]')
-      `).run({ client_id: clientId, session_date: todayDate });
-      const sessionId = sessionResult.lastInsertRowid;
-      console.log(`[convert] Created session 1 id=${sessionId} date=${todayDate}`);
-
+      // h) Copy lead_intakes → session_intakes
       if (intake) {
-        try {
-          db.prepare(`
-            INSERT INTO session_intakes
-              (session_id, client_id,
-               age, gender, weight, goal, activity_factor,
-               bmr_mifflin, bmr_harris, bmr_average, adjusted_weight, tdee,
-               height, marital_status, num_children, occupation,
-               work_hours, work_type, eating_at_work, medical_conditions, medications,
-               lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
-               prev_challenges, reason_for_treatment, diet_type, eating_patterns,
-               water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
-               physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods)
-            VALUES
-              (@session_id, @client_id,
-               @age, @gender, @weight, @goal, @activity_factor,
-               @bmr_mifflin, @bmr_harris, @bmr_average, @adjusted_weight, @tdee,
-               @height, @marital_status, @num_children, @occupation,
-               @work_hours, @work_type, @eating_at_work, @medical_conditions, @medications,
-               @lab_results_pdf_path, @prev_treatment, @prev_treatment_goal, @prev_success,
-               @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
-               @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
-               @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods)
-          `).run({
-            session_id:           sessionId,
-            client_id:            clientId,
-            age:                  intake.age,
-            gender:               intake.gender,
-            weight:               intake.weight,
-            goal:                 intake.goal,
-            activity_factor:      intake.activity_factor,
-            bmr_mifflin:          intake.bmr_mifflin,
-            bmr_harris:           intake.bmr_harris,
-            bmr_average:          intake.bmr_average,
-            adjusted_weight:      intake.adjusted_weight,
-            tdee:                 intake.tdee,
-            height:               intake.height,
-            marital_status:       intake.marital_status,
-            num_children:         intake.num_children,
-            occupation:           intake.occupation,
-            work_hours:           intake.work_hours,
-            work_type:            intake.work_type,
-            eating_at_work:       intake.eating_at_work,
-            medical_conditions:   intake.medical_conditions,
-            medications:          intake.medications,
-            lab_results_pdf_path: intake.lab_results_pdf_path,
-            prev_treatment:       intake.prev_treatment,
-            prev_treatment_goal:  intake.prev_treatment_goal,
-            prev_success:         intake.prev_success,
-            prev_challenges:      intake.prev_challenges,
-            reason_for_treatment: intake.reason_for_treatment,
-            diet_type:            intake.diet_type,
-            eating_patterns:      intake.eating_patterns,
-            water_intake:         intake.water_intake,
-            coffee_per_day:       intake.coffee_per_day,
-            alcohol_per_week:     intake.alcohol_per_week,
-            sleep_hours:          intake.sleep_hours,
-            sleep_quality:        intake.sleep_quality,
-            physical_activity:    intake.physical_activity,
-            activity_type:        intake.activity_type,
-            activity_frequency:   intake.activity_frequency,
-            favorite_snacks:      intake.favorite_snacks,
-            favorite_foods:       intake.favorite_foods,
-          });
-          db.prepare('UPDATE clients SET pending_intake_data = NULL WHERE id = ?').run(clientId);
-          console.log(`[convert] Copied lead intake to session_intakes for session ${sessionId}`);
-        } catch (err) {
-          console.error('[convert] Failed to copy intake to session_intakes:', err.message);
-        }
+        insertSessionIntakeFromLead(db, sessionId, clientId, intake);
+        console.log(`[convert] ✓ h) Copied intake to session_intakes`);
       }
-    }
 
-    return ok(res, { client_id: clientId });
+      // i) Store raw intake in pending_intake_data for backward compat
+      if (intake) {
+        db.prepare('UPDATE clients SET pending_intake_data = ? WHERE id = ?').run(
+          JSON.stringify(intake), clientId
+        );
+      }
+
+      return { clientId, sessionId };
+    });
+
+    const { clientId, sessionId } = doConvert();
+    console.log(`[convert] ✓ Conversion complete: client=${clientId} session=${sessionId}`);
+    return ok(res, { clientId, sessionId });
   } catch (err) {
-    console.error('[POST /leads/:id/convert]', err);
-    return fail(res, 500, 'Failed to convert lead.');
+    console.error('[POST /leads/:id/convert] FAILED:', err.message);
+    return fail(res, 500, `Failed to convert lead: ${err.message}`);
   }
 });
 

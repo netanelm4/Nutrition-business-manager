@@ -255,13 +255,14 @@ export default function LeadDetail() {
     setConverting(true);
     setConvertError(null);
     try {
-      // Server creates the client row automatically and returns the new client_id
       const result = await convertLead(id);
       queryClient.invalidateQueries({ queryKey: ['lead', id] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['clients'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      navigate(`/clients/${result.client_id}`);
+      if (result.clientId) {
+        navigate(`/clients/${result.clientId}`);
+      }
     } catch (err) {
       setConvertError(err.message || 'אירעה שגיאה בהמרת הליד. נסה שוב.');
     } finally {

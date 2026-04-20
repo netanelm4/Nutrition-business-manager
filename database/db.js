@@ -849,6 +849,133 @@ setTimeout(() => {
   scheduleCheckinMessageRepairs(db);
 }, 5000);
 
+// ── Repair 6: Create missing client rows for leads stuck as 'became_client' ───
+// Catches leads where conversion started but the transaction was interrupted
+// before the client row was committed.
+
+function repairOrphanedConvertedLeads(database) {
+  try {
+    // Find leads that were marked became_client but have no client row
+    const orphaned = database.prepare(`
+      SELECT l.id, l.full_name, l.phone, l.created_at,
+             li.age, li.gender, li.weight, li.goal, li.activity_factor,
+             li.bmr_mifflin, li.bmr_harris, li.bmr_average, li.adjusted_weight, li.tdee,
+             li.height, li.marital_status, li.num_children, li.occupation,
+             li.work_hours, li.work_type, li.eating_at_work, li.medical_conditions,
+             li.medications, li.lab_results_pdf_path, li.prev_treatment,
+             li.prev_treatment_goal, li.prev_success, li.prev_challenges,
+             li.reason_for_treatment, li.diet_type, li.eating_patterns, li.water_intake,
+             li.coffee_per_day, li.alcohol_per_week, li.sleep_hours, li.sleep_quality,
+             li.physical_activity, li.activity_type, li.activity_frequency,
+             li.favorite_snacks, li.favorite_foods, li.nutrition_anamnesis
+      FROM leads l
+      LEFT JOIN lead_intakes li ON li.lead_id = l.id
+      LEFT JOIN clients c       ON c.converted_from_lead_id = l.id
+      WHERE l.status = 'became_client'
+        AND c.id IS NULL
+    `).all();
+
+    if (orphaned.length === 0) return;
+    console.log(`[repair] Found ${orphaned.length} orphaned converted lead(s) — repairing...`);
+
+    for (const lead of orphaned) {
+      try {
+        const meeting = database.prepare(`
+          SELECT * FROM calendly_events
+          WHERE lead_id = ? AND status = 'active'
+          ORDER BY start_time ASC LIMIT 1
+        `).get(lead.id);
+
+        const sessionDate = meeting
+          ? meeting.start_time.slice(0, 10)
+          : (lead.created_at ? lead.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10));
+
+        const doRepair = database.transaction(() => {
+          // Create client row
+          const clientRes = database.prepare(`
+            INSERT INTO clients
+              (full_name, phone, age, gender, initial_weight, status,
+               converted_from_lead_id, start_date)
+            VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
+          `).run(
+            lead.full_name, lead.phone || null,
+            lead.age || null, lead.gender || null, lead.weight || null,
+            lead.id, sessionDate
+          );
+          const clientId = clientRes.lastInsertRowid;
+          console.log(`[repair] ✓ Created client id=${clientId} for lead ${lead.id} "${lead.full_name}"`);
+
+          // Create session 1
+          const sessionRes = database.prepare(`
+            INSERT INTO sessions (client_id, session_number, session_date, highlights, tasks)
+            VALUES (?, 1, ?, '', '[]')
+          `).run(clientId, sessionDate);
+          const sessionId = sessionRes.lastInsertRowid;
+          console.log(`[repair] ✓ Session 1 id=${sessionId} for client ${clientId}`);
+
+          // Link calendly_event
+          if (meeting) {
+            database.prepare('UPDATE calendly_events SET client_id = ? WHERE id = ?')
+              .run(clientId, meeting.id);
+          }
+
+          // Create 6 session windows
+          const windows = calculateSessionWindows(sessionDate);
+          database.prepare('DELETE FROM session_windows WHERE client_id = ?').run(clientId);
+          const insertWin = database.prepare(
+            'INSERT INTO session_windows (client_id, session_number, expected_date) VALUES (?, ?, ?)'
+          );
+          for (const w of windows) insertWin.run(clientId, w.session_number, w.expected_date);
+          console.log(`[repair] ✓ Created ${windows.length} windows for client ${clientId}`);
+
+          // Copy intake data if available
+          const hasIntake = lead.age || lead.gender || lead.weight || lead.medical_conditions;
+          if (hasIntake) {
+            try {
+              database.prepare(`
+                INSERT INTO session_intakes
+                  (session_id, client_id, age, gender, weight, goal, activity_factor,
+                   bmr_mifflin, bmr_harris, bmr_average, adjusted_weight, tdee,
+                   height, marital_status, num_children, occupation,
+                   work_hours, work_type, eating_at_work, medical_conditions, medications,
+                   lab_results_pdf_path, prev_treatment, prev_treatment_goal, prev_success,
+                   prev_challenges, reason_for_treatment, diet_type, eating_patterns,
+                   water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
+                   physical_activity, activity_type, activity_frequency, favorite_snacks,
+                   favorite_foods, nutrition_anamnesis)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+              `).run(
+                sessionId, clientId,
+                lead.age, lead.gender, lead.weight, lead.goal, lead.activity_factor,
+                lead.bmr_mifflin, lead.bmr_harris, lead.bmr_average, lead.adjusted_weight, lead.tdee,
+                lead.height, lead.marital_status, lead.num_children, lead.occupation,
+                lead.work_hours, lead.work_type, lead.eating_at_work,
+                lead.medical_conditions, lead.medications, lead.lab_results_pdf_path,
+                lead.prev_treatment, lead.prev_treatment_goal, lead.prev_success, lead.prev_challenges,
+                lead.reason_for_treatment, lead.diet_type, lead.eating_patterns, lead.water_intake,
+                lead.coffee_per_day, lead.alcohol_per_week, lead.sleep_hours, lead.sleep_quality,
+                lead.physical_activity, lead.activity_type, lead.activity_frequency,
+                lead.favorite_snacks, lead.favorite_foods, lead.nutrition_anamnesis || null
+              );
+              console.log(`[repair] ✓ Copied intake for client ${clientId}`);
+            } catch (err) {
+              console.error(`[repair] Intake copy failed for client ${clientId}:`, err.message);
+            }
+          }
+        });
+
+        doRepair();
+      } catch (err) {
+        console.error(`[repair] Failed to repair orphaned lead ${lead.id}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[repair] repairOrphanedConvertedLeads failed:', err.message);
+  }
+}
+
+repairOrphanedConvertedLeads(db);
+
 // ── Migrate: create daily_tasks table ─────────────────────────────────────────
 try {
   db.exec(`
