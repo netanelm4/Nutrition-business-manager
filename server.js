@@ -44,6 +44,10 @@ app.use('/api', publicRouter);
 app.use('/api/calendly', webhookRouter);
 app.use('/api/google',   googleRouter);   // callback must be public (no auth)
 
+// ─── TEMPORARY: diagnostic + repair routes (NO AUTH — remove after use) ──────
+const tempAdminRouter = require('./routes/temp-admin.routes');
+app.use('/api/admin', tempAdminRouter);
+
 // ─── Landing page static files ────────────────────────────────────────────────
 app.use('/landing', express.static(path.join(__dirname, 'landing')));
 

@@ -74,25 +74,6 @@ function fail(res, status, message) { return res.status(status).json({ success: 
 
 router.post('/repair-ai-assessments', async (req, res) => {
   try {
-    // ── 1. Session-1 intakes needing assessment ────────────────────────────
-    const sessionRows = db.prepare(`
-      SELECT s.id AS session_id, si.*
-      FROM sessions s
-      JOIN session_intakes si ON si.session_id = s.id
-      WHERE s.session_number = 1
-    `).all();
-
-    const sessionsNeedingRepair = sessionRows.filter((row) => {
-      try {
-        const insights = JSON.parse(row.ai_insights || '[]');
-        return !Array.isArray(insights) || !insights.some((i) => i.type === 'initial_assessment');
-      } catch {
-        return true;
-      }
-    // ai_insights is on the sessions table, not on si — need to fetch it separately
-    // Actually we need to join it properly below
-    });
-
     // Re-query with ai_insights from sessions
     const sessionRowsWithInsights = db.prepare(`
       SELECT s.id AS session_id, s.ai_insights, si.*
@@ -110,7 +91,7 @@ router.post('/repair-ai-assessments', async (req, res) => {
       }
     });
 
-    // ── 2. Lead intakes needing assessment ────────────────────────────────
+    // ── Lead intakes needing assessment ────────────────────────────────
     const leadsToRepair = db.prepare(`
       SELECT li.*, l.id AS lead_id
       FROM lead_intakes li
@@ -136,7 +117,6 @@ router.post('/repair-ai-assessments', async (req, res) => {
 
         if (!text) continue;
 
-        // Merge with existing insights if any
         let existing = [];
         try { existing = JSON.parse(row.ai_insights || '[]'); } catch {}
         if (!Array.isArray(existing)) existing = [];
