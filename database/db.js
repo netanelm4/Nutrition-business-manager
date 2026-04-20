@@ -849,4 +849,43 @@ setTimeout(() => {
   scheduleCheckinMessageRepairs(db);
 }, 5000);
 
+// ── Migrate: create daily_tasks table ─────────────────────────────────────────
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_tasks (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      text         TEXT    NOT NULL,
+      source       TEXT    DEFAULT 'manual',
+      quadrant     INTEGER NOT NULL,
+      client_id    INTEGER REFERENCES clients(id) ON DELETE SET NULL,
+      completed    INTEGER DEFAULT 0,
+      completed_at DATETIME,
+      created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      date         DATE    NOT NULL,
+      carried_over INTEGER DEFAULT 0
+    )
+  `);
+} catch {
+  // Table already exists — safe to ignore
+}
+
+// ── Carry over incomplete tasks from previous days to today ───────────────────
+function carryOverIncompleteTasks(database) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const result = database.prepare(`
+      UPDATE daily_tasks
+      SET date = ?, carried_over = 1
+      WHERE date < ? AND completed = 0
+    `).run(today, today);
+    if (result.changes > 0) {
+      console.log(`[tasks] Carried over ${result.changes} tasks to today`);
+    }
+  } catch (err) {
+    console.error('[tasks] carryOverIncompleteTasks failed:', err.message);
+  }
+}
+
+carryOverIncompleteTasks(db);
+
 module.exports = db;

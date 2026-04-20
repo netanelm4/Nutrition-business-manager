@@ -163,6 +163,13 @@ export const fetchCheckinMessage    = (sessionId) => request('GET',  `/sessions/
 export const generateProcessSummary = (clientId) => request('POST', `/clients/${clientId}/process-summary`);
 export const fetchProcessSummary    = (clientId) => request('GET',  `/clients/${clientId}/process-summary`);
 
+// ── Daily Tasks ───────────────────────────────────────────────────────────────
+export const fetchDailyTasks = ()          => request('GET',    '/daily-tasks');
+export const createDailyTask = (data)      => request('POST',   '/daily-tasks', data);
+export const updateDailyTask = (id, data)  => request('PUT',    `/daily-tasks/${id}`, data);
+export const deleteDailyTask = (id)        => request('DELETE', `/daily-tasks/${id}`);
+export const runAIScan       = ()          => request('POST',   '/daily-tasks/ai-scan');
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const repairAIAssessments = () => request('POST', '/admin/repair-ai-assessments');
 
