@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS leads (
 CREATE TABLE IF NOT EXISTS clients (
   id                      INTEGER PRIMARY KEY AUTOINCREMENT,
   full_name               TEXT    NOT NULL,
-  phone                   TEXT    NOT NULL,
+  phone                   TEXT    DEFAULT '',
   age                     INTEGER,
   gender                  TEXT    CHECK (gender IN ('male', 'female', 'other')),
   start_date              TEXT,

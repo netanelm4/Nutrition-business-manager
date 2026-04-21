@@ -898,7 +898,7 @@ function repairOrphanedConvertedLeads(database) {
                converted_from_lead_id, start_date)
             VALUES (?, ?, ?, ?, ?, 'active', ?, ?)
           `).run(
-            lead.full_name, lead.phone || null,
+            lead.full_name, lead.phone || '',
             lead.age || null, lead.gender || null, lead.weight || null,
             lead.id, sessionDate
           );

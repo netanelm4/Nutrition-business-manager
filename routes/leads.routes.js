@@ -241,7 +241,7 @@ router.post('/:id/convert', (req, res) => {
            @converted_from_lead_id, @start_date)
       `).run({
         full_name:              lead.full_name,
-        phone:                  lead.phone          || null,
+        phone:                  lead.phone          || '',
         age:                    intake?.age         || null,
         gender:                 intake?.gender      || null,
         initial_weight:         intake?.weight      || null,
