@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -413,11 +413,15 @@ function AdminRepairButton() {
 // ─── Daily Tasks — Eisenhower Matrix ─────────────────────────────────────────
 
 const QUADRANT_CONFIG = [
-  { q: 1, label: 'דחוף + חשוב',       sub: 'בצע עכשיו', border: '#E24B4A', headerBg: 'rgba(226,75,74,0.08)',    badge: 'bg-red-100 text-red-700'    },
-  { q: 2, label: 'חשוב + לא דחוף',    sub: 'תכנן',       border: '#567DBF', headerBg: 'rgba(86,125,191,0.08)',   badge: 'bg-blue-100 text-blue-700'  },
-  { q: 3, label: 'דחוף + לא חשוב',    sub: 'האצל',       border: '#BA7517', headerBg: 'rgba(186,117,23,0.08)',   badge: 'bg-amber-100 text-amber-700' },
-  { q: 4, label: 'לא דחוף + לא חשוב', sub: 'בטל',        border: '#888780', headerBg: 'rgba(136,135,128,0.08)', badge: 'bg-gray-100 text-gray-600'  },
+  { q: 1, label: 'דחוף + חשוב',       border: '#E24B4A', headerBg: 'rgba(226,75,74,0.08)',    badgeBg: 'rgba(226,75,74,0.15)'    },
+  { q: 2, label: 'חשוב + לא דחוף',    border: '#567DBF', headerBg: 'rgba(86,125,191,0.08)',   badgeBg: 'rgba(86,125,191,0.15)'   },
+  { q: 3, label: 'דחוף + לא חשוב',    border: '#BA7517', headerBg: 'rgba(186,117,23,0.08)',   badgeBg: 'rgba(186,117,23,0.15)'   },
+  { q: 4, label: 'לא דחוף + לא חשוב', border: '#888780', headerBg: 'rgba(136,135,128,0.08)', badgeBg: 'rgba(136,135,128,0.15)' },
 ];
+
+const COMPLETED_CONFIG = {
+  label: 'הושלמו היום', border: '#9CA3AF', headerBg: 'rgba(156,163,175,0.06)', badgeBg: 'rgba(156,163,175,0.15)',
+};
 
 function TaskItem({ task, onToggle, onDelete }) {
   return (
@@ -485,42 +489,87 @@ function TaskItem({ task, onToggle, onDelete }) {
   );
 }
 
-function QuadrantCard({ config, tasks, onToggle, onDelete }) {
+function AccordionRow({ config, tasks, isOpen, onToggleOpen, onToggle, onDelete }) {
+  const count = tasks.length;
+  const canExpand = count > 0;
+
   return (
     <div
-      className="rounded-xl border-2 overflow-hidden bg-white"
-      style={{ borderColor: config.border }}
+      style={{
+        borderRadius: 12,
+        border: '1px solid #E5E7EB',
+        borderRight: `4px solid ${config.border}`,
+        overflow: 'hidden',
+      }}
     >
       {/* Header */}
-      <div
-        className="px-3 py-2.5 flex items-center justify-between"
-        style={{ background: config.headerBg }}
+      <button
+        type="button"
+        onClick={canExpand ? onToggleOpen : undefined}
+        disabled={!canExpand}
+        className={`w-full flex items-center justify-between px-4 transition-colors duration-150 ${
+          canExpand ? 'cursor-pointer hover:brightness-95' : 'cursor-default'
+        }`}
+        style={{
+          height: 48,
+          background: config.headerBg,
+          borderRadius: isOpen && canExpand ? '11px 11px 0 0' : 11,
+        }}
       >
-        <div>
-          <p className="text-xs font-semibold text-gray-700 leading-tight">{config.label}</p>
-          <p className="text-xs text-gray-400">{config.sub}</p>
+        {/* Dot + label */}
+        <div className="flex items-center gap-2.5">
+          <span
+            className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ background: config.border }}
+          />
+          <span className="text-sm font-medium text-gray-700">{config.label}</span>
         </div>
-        {tasks.length > 0 && (
-          <span className={`text-xs font-bold min-w-[1.25rem] h-5 px-1 rounded-full flex items-center justify-center ${config.badge}`}>
-            {tasks.length}
-          </span>
-        )}
-      </div>
 
-      {/* Tasks */}
-      <div className="px-3">
-        {tasks.length === 0 ? (
-          <p className="text-xs text-gray-300 py-4 text-center">אין משימות</p>
-        ) : (
-          tasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onToggle={onToggle}
-              onDelete={onDelete}
-            />
-          ))
-        )}
+        {/* Badge + chevron */}
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs px-2 py-0.5 rounded-full font-medium"
+            style={canExpand
+              ? { background: config.badgeBg, color: config.border }
+              : { background: '#F3F4F6', color: '#9CA3AF' }
+            }
+          >
+            {count > 0 ? `${count} משימות` : 'אין משימות'}
+          </span>
+          {canExpand && (
+            <svg
+              className="w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200"
+              style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+          )}
+        </div>
+      </button>
+
+      {/* Animated expand wrapper */}
+      <div
+        style={{
+          maxHeight: isOpen ? 420 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.25s ease',
+        }}
+      >
+        <div
+          className="px-3"
+          style={{
+            background: 'white',
+            borderTop: '1px solid #F3F4F6',
+            maxHeight: 400,
+            overflowY: 'auto',
+          }}
+        >
+          {tasks.map((task) => (
+            <TaskItem key={task.id} task={task} onToggle={onToggle} onDelete={onDelete} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -608,9 +657,11 @@ function AddTaskForm({ onAdd, onClose, clients }) {
 
 function DailyTasksSection() {
   const queryClient = useQueryClient();
-  const [addOpen,          setAddOpen]          = useState(false);
-  const [aiToast,          setAiToast]          = useState(null);
-  const [expandCompleted,  setExpandCompleted]  = useState(false);
+  const [addOpen,        setAddOpen]        = useState(false);
+  const [aiToast,        setAiToast]        = useState(null);
+  const [openQuadrants,  setOpenQuadrants]  = useState(new Set());
+  const [openCompleted,  setOpenCompleted]  = useState(false);
+  const didAutoOpen = useRef(false);
 
   const { data: tasksData, isLoading: tasksLoading } = useQuery({
     queryKey: ['daily-tasks'],
@@ -660,6 +711,23 @@ function DailyTasksSection() {
   const completed = tasksData?.completed ?? [];
   const totalActive = q1.length + q2.length + q3.length + q4.length;
   const quadrantTasks = [q1, q2, q3, q4];
+
+  // Auto-open Q1 once on first data load if it has tasks
+  useEffect(() => {
+    if (!didAutoOpen.current && q1.length > 0) {
+      didAutoOpen.current = true;
+      setOpenQuadrants(new Set([1]));
+    }
+  }, [q1.length]);
+
+  function toggleQuadrant(q) {
+    setOpenQuadrants((prev) => {
+      const next = new Set(prev);
+      if (next.has(q)) next.delete(q);
+      else next.add(q);
+      return next;
+    });
+  }
 
   function handleToggle(task) {
     toggleMutation.mutate({ id: task.id, completed: !task.completed });
@@ -724,9 +792,9 @@ function DailyTasksSection() {
 
       {/* Loading skeleton */}
       {tasksLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="space-y-2">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-32" />
+            <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-12" />
           ))}
         </div>
       ) : (
@@ -738,46 +806,32 @@ function DailyTasksSection() {
               <p className="text-xs text-gray-300">לחץ על "סריקת AI" לקבלת המלצות, או הוסף משימה ידנית</p>
             </div>
           ) : (
-            <>
-              {/* 2×2 Eisenhower Matrix */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {QUADRANT_CONFIG.map((config, idx) => (
-                  <QuadrantCard
-                    key={config.q}
-                    config={config}
-                    tasks={quadrantTasks[idx]}
-                    onToggle={handleToggle}
-                    onDelete={handleDelete}
-                  />
-                ))}
-              </div>
+            <div className="space-y-2">
+              {/* Q1–Q4 accordion rows */}
+              {QUADRANT_CONFIG.map((config, idx) => (
+                <AccordionRow
+                  key={config.q}
+                  config={config}
+                  tasks={quadrantTasks[idx]}
+                  isOpen={openQuadrants.has(config.q)}
+                  onToggleOpen={() => toggleQuadrant(config.q)}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                />
+              ))}
 
-              {/* Completed tasks — collapsed */}
+              {/* Completed tasks — 5th row */}
               {completed.length > 0 && (
-                <div className="mt-3">
-                  <button
-                    type="button"
-                    onClick={() => setExpandCompleted((v) => !v)}
-                    className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <span className="text-xs">{expandCompleted ? '▲' : '▼'}</span>
-                    <span>הושלמו היום ({completed.length})</span>
-                  </button>
-                  {expandCompleted && (
-                    <div className="mt-2 bg-white rounded-xl border border-gray-200 px-3">
-                      {completed.map((task) => (
-                        <TaskItem
-                          key={task.id}
-                          task={task}
-                          onToggle={handleToggle}
-                          onDelete={handleDelete}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <AccordionRow
+                  config={COMPLETED_CONFIG}
+                  tasks={completed}
+                  isOpen={openCompleted}
+                  onToggleOpen={() => setOpenCompleted((v) => !v)}
+                  onToggle={handleToggle}
+                  onDelete={handleDelete}
+                />
               )}
-            </>
+            </div>
           )}
         </>
       )}
