@@ -870,9 +870,10 @@ function repairOrphanedConvertedLeads(database) {
              li.favorite_snacks, li.favorite_foods, li.nutrition_anamnesis
       FROM leads l
       LEFT JOIN lead_intakes li ON li.lead_id = l.id
-      LEFT JOIN clients c       ON c.converted_from_lead_id = l.id
       WHERE l.status = 'became_client'
-        AND c.id IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM clients c WHERE c.converted_from_lead_id = l.id
+        )
     `).all();
 
     if (orphaned.length === 0) return;

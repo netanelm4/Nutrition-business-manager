@@ -26,9 +26,10 @@ router.get('/diagnose-leads', (req, res) => {
     const orphaned_leads = db.prepare(`
       SELECT l.id, l.full_name, l.status
       FROM leads l
-      LEFT JOIN clients c ON c.converted_from_lead_id = l.id
       WHERE l.status = 'became_client'
-        AND c.id IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM clients c WHERE c.converted_from_lead_id = l.id
+        )
     `).all();
 
     console.log('[diagnose-leads] stuck_leads:', stuck_leads.length,
@@ -59,9 +60,10 @@ router.get('/repair-now', (req, res) => {
              li.favorite_snacks, li.favorite_foods, li.nutrition_anamnesis
       FROM leads l
       LEFT JOIN lead_intakes li ON li.lead_id = l.id
-      LEFT JOIN clients c       ON c.converted_from_lead_id = l.id
       WHERE l.status = 'became_client'
-        AND c.id IS NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM clients c WHERE c.converted_from_lead_id = l.id
+        )
     `).all();
 
     console.log(`[repair-now] Found ${orphaned.length} orphaned lead(s)`);
