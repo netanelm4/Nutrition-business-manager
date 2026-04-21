@@ -1,5 +1,72 @@
 # Nutrition CRM — Claude Code Instructions
 
+## ⚠️ CRITICAL RULE #1 — RETROACTIVE DATA POLICY
+
+This rule applies to EVERY change, fix, or new feature.
+No exceptions. Ever.
+
+### The Rule:
+When you change how data is created, stored, or displayed —
+you MUST also update ALL existing records in the database
+to match the new expected state.
+
+### This applies to:
+- Bug fixes that affect data structure
+- New fields added to existing tables
+- New features that generate data (AI summaries, assessments, etc.)
+- Changes to how leads convert to clients
+- Changes to how sessions are created
+- Changes to how tasks, protocols, or payments work
+- ANY change where existing records would be in a different
+  state than records created after the change
+
+### How to implement:
+Every fix must have TWO parts:
+
+PART 1 — Code fix (future data):
+  Fix the bug or add the feature normally.
+
+PART 2 — Repair function (existing data):
+  Add a repair function in db.js that:
+  - Finds all existing records that need updating
+  - Updates them to match the new expected state
+  - Runs on every server startup (idempotent — safe to run multiple times)
+  - Logs every action: console.log('[repair] Fixed X for client Y')
+  - Is wrapped in try/catch so it never crashes the server
+
+### The repair function must cover ALL entities:
+- All clients (every status: active, ended, paused)
+- All leads (every status: new, contacted, meeting_scheduled,
+  became_client, not_relevant, meeting_held)
+- All sessions (all 6 session numbers)
+- All calendly_events
+- All intakes (lead_intakes and session_intakes)
+
+### Examples of what this means:
+✅ Added AI summary → run repair to generate summaries
+   for all existing clients
+✅ Fixed session creation on lead conversion → run repair
+   to create sessions for all leads that already converted
+✅ Added new field to clients table → run repair to
+   populate the field for all existing clients
+✅ Changed payment status logic → run repair to recalculate
+   status for all existing clients
+
+### When you are done with ANY task:
+Before saying "done" or "pushed" — ask yourself:
+"Are there any existing records that should look different
+after this change?"
+If YES → write the repair function first, then push.
+If NO → explicitly state why no repair is needed.
+
+### Never acceptable:
+❌ "Fixed for future data only"
+❌ "Existing records will need to be updated manually"
+❌ "This only affects new records"
+❌ Pushing without checking if existing data needs repair
+
+---
+
 ## Project Overview
 A full-stack CRM web app for a clinical nutritionist (נתנאל מלכה).
 Stack: React + Tailwind (frontend), Node.js + Express (backend),
@@ -74,17 +141,6 @@ Trigger phrases for visual review:
 - "look at this page..."
 
 Skip visual testing for: backend changes, DB migrations, config files.
-
-## Retroactive Data Policy
-Every new feature or bug fix that affects existing data
-MUST include a repair function that runs on server startup.
-No exceptions. If a feature adds a new field, generates
-new data, or changes behavior — existing records must be
-updated automatically on the next deploy.
-
-Repair functions live in database/db.js, called at the bottom
-before `module.exports = db`. Use setTimeout for async repairs
-(e.g. AI calls) to avoid blocking startup.
 
 ## Before Every Task
 1. Read ALL available skill files relevant to the task
