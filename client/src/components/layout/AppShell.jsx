@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { DesktopSidebar, MobileNav } from './Sidebar';
 import GlobalSearch from '../search/GlobalSearch';
+import AIAssistant from '../assistant/AIAssistant';
 
 // Mobile search overlay
 function MobileSearchOverlay({ onClose }) {
@@ -22,11 +23,16 @@ function MobileSearchOverlay({ onClose }) {
 }
 
 export default function AppShell() {
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const [mobileSearchOpen,  setMobileSearchOpen]  = useState(false);
+  const [assistantOpen,     setAssistantOpen]      = useState(false);
+
+  function toggleAssistant() {
+    setAssistantOpen((v) => !v);
+  }
 
   return (
     <div className="flex flex-row-reverse min-h-screen bg-gray-50">
-      <DesktopSidebar />
+      <DesktopSidebar onToggleAssistant={toggleAssistant} />
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top header */}
@@ -53,7 +59,13 @@ export default function AppShell() {
         </main>
       </div>
 
-      <MobileNav />
+      <MobileNav onToggleAssistant={toggleAssistant} />
+
+      {/* AI Assistant panel */}
+      <AIAssistant
+        isOpen={assistantOpen}
+        onClose={() => setAssistantOpen(false)}
+      />
 
       {mobileSearchOpen && (
         <MobileSearchOverlay onClose={() => setMobileSearchOpen(false)} />

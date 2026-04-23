@@ -173,6 +173,10 @@ export const runAIScan       = ()          => request('POST',   '/daily-tasks/ai
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const repairAIAssessments = () => request('POST', '/admin/repair-ai-assessments');
 
+// ── AI Assistant ──────────────────────────────────────────────────────────────
+export const chatWithAssistant = (message, history) =>
+  request('POST', '/assistant/chat', { message, history });
+
 // ── Google Calendar ───────────────────────────────────────────────────────────
 export const fetchGoogleAuthUrl = () => request('GET', '/google/auth-url').then((d) => d.url);
 export const fetchGoogleStatus  = () => request('GET', '/google/status');

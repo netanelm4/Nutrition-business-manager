@@ -29,22 +29,35 @@ function NavItem({ to, icon, label }) {
 }
 
 // Desktop sidebar (hidden on mobile)
-export function DesktopSidebar() {
+export function DesktopSidebar({ onToggleAssistant }) {
   return (
     <aside className="hidden md:flex flex-col w-56 bg-white border-l border-gray-200 min-h-screen p-4 gap-1 flex-shrink-0">
       <div className="mb-6 px-2">
         <h1 className="text-base font-bold text-gray-900">ניהול לקוחות</h1>
         <p className="text-xs text-gray-400">תזונה קלינית</p>
       </div>
+
       {NAV_ITEMS.map((item) => (
         <NavItem key={item.to} {...item} />
       ))}
+
+      {/* AI Assistant trigger — pushed to bottom */}
+      <div className="mt-auto pt-3 border-t border-gray-100">
+        <button
+          type="button"
+          onClick={onToggleAssistant}
+          className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors text-indigo-600 hover:bg-indigo-50"
+        >
+          <span className="text-lg leading-none">✨</span>
+          <span>עוזר AI</span>
+        </button>
+      </div>
     </aside>
   );
 }
 
 // Mobile bottom nav (visible on mobile only)
-export function MobileNav() {
+export function MobileNav({ onToggleAssistant }) {
   return (
     <nav className="md:hidden fixed bottom-0 right-0 left-0 bg-white border-t border-gray-200 flex z-50">
       {NAV_ITEMS.map((item) => (
@@ -62,6 +75,16 @@ export function MobileNav() {
           <span>{item.label}</span>
         </NavLink>
       ))}
+
+      {/* AI Assistant trigger in mobile nav */}
+      <button
+        type="button"
+        onClick={onToggleAssistant}
+        className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium text-indigo-600 transition-colors"
+      >
+        <span className="text-xl">✨</span>
+        <span>עוזר AI</span>
+      </button>
     </nav>
   );
 }
