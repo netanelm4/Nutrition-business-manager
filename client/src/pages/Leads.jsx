@@ -7,21 +7,57 @@ import LeadCard from '../components/leads/LeadCard';
 import LeadForm from '../components/leads/LeadForm';
 import MeetingScheduleModal from '../components/leads/MeetingScheduleModal';
 import Modal from '../components/ui/Modal';
-import EmptyState from '../components/ui/EmptyState';
 
-function Skeleton({ className = '' }) {
-  return <div className={`animate-pulse bg-gray-200 rounded-xl ${className}`} />;
+// ── Inline icons ──────────────────────────────────────────────────────────────
+
+function IcPlus() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 5v14M5 12h14"/>
+    </svg>
+  );
 }
+function IcSearch() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+    </svg>
+  );
+}
+function IcGrid() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+    </svg>
+  );
+}
+function IcList() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h9"/><path d="M7 7h10M7 11h7M7 15h5"/>
+    </svg>
+  );
+}
+
+// ── Skeleton ──────────────────────────────────────────────────────────────────
+
+function Skel() {
+  return (
+    <div className="animate-pulse rounded-xl" style={{ height: 120, background: 'var(--surface-3)' }} />
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function Leads() {
   const queryClient = useQueryClient();
 
   const [addOpen, setAddOpen] = useState(false);
   const [editLead, setEditLead] = useState(null);
-  const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'list'
   const [statusError, setStatusError] = useState(null);
-  // Meeting modal state: { lead, newStatus } when intercepted
   const [meetingModal, setMeetingModal] = useState(null);
 
   const { data: leads = [], isLoading, isError } = useQuery({
@@ -42,7 +78,6 @@ export default function Leads() {
     if (newStatus === LEAD_STATUS.MEETING_SCHEDULED) {
       const lead = leads.find((l) => l.id === leadId);
       if (lead) {
-        // Update status immediately, then show meeting modal
         statusMutation.mutate({ leadId, newStatus });
         setMeetingModal({ lead, newStatus });
         return;
@@ -52,91 +87,69 @@ export default function Leads() {
   }
 
   const filtered = useMemo(() => {
-    let result = leads;
-
-    if (statusFilter) {
-      result = result.filter((l) => l.status === statusFilter);
-    }
-
     const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter((l) => l.full_name.toLowerCase().includes(q));
-    }
+    if (!q) return leads;
+    return leads.filter((l) => l.full_name.toLowerCase().includes(q));
+  }, [leads, search]);
 
-    return result;
-  }, [leads, statusFilter, search]);
-
-  const filtersActive = statusFilter || search.trim();
+  const activeLeads = leads.filter((l) =>
+    l.status !== LEAD_STATUS.NOT_RELEVANT && l.status !== LEAD_STATUS.BECAME_CLIENT
+  );
 
   return (
     <>
-      <div className="p-4 md:p-6 space-y-5">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3">
+      <div className="crm-page">
+        {/* ── Subhead ── */}
+        <div className="subhead">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">לידים</h1>
-            {!isLoading && (
-              <p className="text-sm text-gray-400 mt-0.5">{leads.length} לידים</p>
-            )}
+            <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>
+              <b style={{ color: 'var(--ink-1)', fontSize: 14 }}>{activeLeads.length} לידים פעילים</b>
+              {leads.filter((l) => l.status === LEAD_STATUS.BECAME_CLIENT).length > 0 && (
+                <> · {leads.filter((l) => l.status === LEAD_STATUS.BECAME_CLIENT).length} הומרו</>
+              )}
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors flex-shrink-0"
-          >
-            <span>ליד חדש</span>
-            <span>+</span>
-          </button>
+
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="search-box">
+              <IcSearch />
+              <input
+                placeholder="חיפוש ליד..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            <div className="seg">
+              <button className={viewMode === 'kanban' ? 'is-active' : ''} onClick={() => setViewMode('kanban')}>
+                <IcGrid /> קנבן
+              </button>
+              <button className={viewMode === 'list' ? 'is-active' : ''} onClick={() => setViewMode('list')}>
+                <IcList /> רשימה
+              </button>
+            </div>
+            <button
+              type="button"
+              className="crm-btn crm-btn--primary"
+              onClick={() => setAddOpen(true)}
+            >
+              <IcPlus /> ליד חדש
+            </button>
+          </div>
         </div>
 
-        {/* Filter bar */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 sm:w-44"
-          >
-            <option value="">כל הסטטוסים</option>
-            {Object.entries(LEAD_STATUS).map(([, val]) => (
-              <option key={val} value={val}>{LEAD_STATUS_LABEL[val]}</option>
-            ))}
-          </select>
+        {/* ── Errors ── */}
+        {isError && <p style={{ color: 'var(--red-ink)', fontSize: 13, marginBottom: 12 }}>שגיאה בטעינת הלידים.</p>}
+        {statusError && <p style={{ color: 'var(--red-ink)', fontSize: 13, marginBottom: 12 }}>{statusError}</p>}
 
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="חיפוש לפי שם..."
-            className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-        </div>
-
-        {/* Loading skeletons */}
+        {/* ── Loading ── */}
         {isLoading && (
-          <div className="space-y-3">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-36" />)}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+            {[1, 2, 3, 4].map((i) => <Skel key={i} />)}
           </div>
         )}
 
-        {/* Error */}
-        {isError && (
-          <p className="text-red-500 text-sm">שגיאה בטעינת רשימת הלידים.</p>
-        )}
-
-        {statusError && (
-          <p className="text-red-500 text-sm">{statusError}</p>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && !isError && filtered.length === 0 && (
-          <EmptyState
-            message={filtersActive ? 'לא נמצאו לידים' : 'אין לידים עדיין'}
-            sub={!filtersActive ? 'לחץ על "ליד חדש" כדי להתחיל' : undefined}
-          />
-        )}
-
-        {/* Desktop: Kanban board */}
-        {!isLoading && !isError && filtered.length > 0 && (
+        {/* ── Kanban (desktop) ── */}
+        {!isLoading && !isError && filtered.length > 0 && viewMode === 'kanban' && (
           <div className="hidden md:block">
             <KanbanBoard
               leads={filtered}
@@ -147,9 +160,23 @@ export default function Leads() {
           </div>
         )}
 
-        {/* Mobile: stacked list */}
-        {!isLoading && !isError && filtered.length > 0 && (
-          <div className="md:hidden space-y-3">
+        {/* ── List (mobile / list mode) ── */}
+        {!isLoading && !isError && filtered.length > 0 && (viewMode === 'list' || true) && (
+          <div className={viewMode === 'list' ? 'block' : 'md:hidden'} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {viewMode === 'list' && filtered.map((lead) => (
+              <LeadCard
+                key={lead.id}
+                lead={lead}
+                onEdit={(lead) => setEditLead(lead)}
+                onStatusAdvance={handleStatusChange}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* ── Mobile fallback ── */}
+        {!isLoading && !isError && viewMode === 'kanban' && (
+          <div className="md:hidden" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {filtered.map((lead) => (
               <LeadCard
                 key={lead.id}
@@ -160,23 +187,38 @@ export default function Leads() {
             ))}
           </div>
         )}
+
+        {!isLoading && !isError && filtered.length === 0 && (
+          <div className="card" style={{ padding: '40px 20px', textAlign: 'center' }}>
+            <p style={{ color: 'var(--ink-3)', fontSize: 13 }}>
+              {search ? 'לא נמצאו לידים' : 'אין לידים עדיין'}
+            </p>
+            {!search && (
+              <button
+                type="button"
+                className="crm-btn crm-btn--primary"
+                style={{ marginTop: 12 }}
+                onClick={() => setAddOpen(true)}
+              >
+                <IcPlus /> ליד חדש
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Add lead modal */}
       {addOpen && (
         <Modal title="ליד חדש" onClose={() => setAddOpen(false)}>
           <LeadForm onSuccess={() => setAddOpen(false)} />
         </Modal>
       )}
 
-      {/* Edit lead modal */}
       {editLead && (
         <Modal title="עריכת ליד" onClose={() => setEditLead(null)}>
           <LeadForm lead={editLead} onSuccess={() => setEditLead(null)} />
         </Modal>
       )}
 
-      {/* Meeting schedule modal */}
       {meetingModal && (
         <MeetingScheduleModal
           lead={meetingModal.lead}

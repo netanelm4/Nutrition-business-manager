@@ -14,22 +14,15 @@ const STEP_ORDER = ['new', 'contacted', 'meeting_scheduled', 'became_client'];
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
-function Skeleton({ className = '' }) {
-  return <div className={`animate-pulse bg-gray-200 rounded-xl ${className}`} />;
-}
-
 function PageSkeleton() {
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-2xl mx-auto">
-      <Skeleton className="h-6 w-32" />
-      <Skeleton className="h-10 w-64" />
-      <Skeleton className="h-5 w-48" />
-      <Skeleton className="h-16" />
-      <div className="space-y-4">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <Skeleton key={i} className="h-14" />
-        ))}
-      </div>
+    <div className="crm-page" style={{ maxWidth: 720 }}>
+      <div className="animate-pulse" style={{ height: 14, width: 80, background: 'var(--surface-3)', borderRadius: 6, marginBottom: 24 }} />
+      <div className="animate-pulse" style={{ height: 28, width: 200, background: 'var(--surface-3)', borderRadius: 8, marginBottom: 8 }} />
+      <div className="animate-pulse" style={{ height: 14, width: 140, background: 'var(--surface-3)', borderRadius: 6, marginBottom: 24 }} />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="card animate-pulse" style={{ height: 80, marginBottom: 12, background: 'var(--surface-2)' }} />
+      ))}
     </div>
   );
 }
@@ -56,11 +49,11 @@ function InlineField({ label, value, onSave, type = 'text', dir }) {
   }
 
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-0">
-      <span className="text-sm font-medium text-gray-500 w-28 flex-shrink-0 mt-1 text-right">
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--hairline)' }}>
+      <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, paddingTop: 2, textAlign: 'right' }}>
         {label}
       </span>
-      <div className="flex-1">
+      <div style={{ flex: 1 }}>
         {editing ? (
           type === 'textarea' ? (
             <textarea
@@ -71,7 +64,8 @@ function InlineField({ label, value, onSave, type = 'text', dir }) {
               onBlur={commit}
               onKeyDown={handleKeyDown}
               dir={dir}
-              className="w-full rounded-lg border border-indigo-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+              className="field-input"
+              style={{ width: '100%', resize: 'none' }}
             />
           ) : (
             <input
@@ -82,15 +76,18 @@ function InlineField({ label, value, onSave, type = 'text', dir }) {
               onBlur={commit}
               onKeyDown={handleKeyDown}
               dir={dir}
-              className="w-full rounded-lg border border-indigo-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="field-input"
+              style={{ width: '100%' }}
             />
           )
         ) : (
           <span
             onClick={handleOpen}
-            className="cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5 text-sm text-gray-800 block"
+            style={{ cursor: 'pointer', fontSize: 13.5, color: 'var(--ink-1)', display: 'block', padding: '2px 4px', borderRadius: 4 }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = ''}
           >
-            {value || <span className="text-gray-400">—</span>}
+            {value || <span style={{ color: 'var(--ink-4)' }}>—</span>}
           </span>
         )}
       </div>
@@ -100,15 +97,15 @@ function InlineField({ label, value, onSave, type = 'text', dir }) {
 
 function InlineSelect({ label, value, options, onSave }) {
   return (
-    <div className="flex items-center gap-3 py-3 border-b border-gray-100 last:border-0">
-      <span className="text-sm font-medium text-gray-500 w-28 flex-shrink-0 text-right">
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--hairline)' }}>
+      <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, textAlign: 'right' }}>
         {label}
       </span>
-      <div className="flex-1">
+      <div style={{ flex: 1 }}>
         <select
           value={value ?? ''}
           onChange={(e) => onSave(e.target.value)}
-          className="rounded-lg border border-gray-300 px-2 py-1 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+          className="field-input"
         >
           {options.map(({ value: v, label: l }) => (
             <option key={v} value={v}>{l}</option>
@@ -125,46 +122,41 @@ function StepIndicator({ currentStatus, onStepClick, disabled }) {
   const currentIndex = STEP_ORDER.indexOf(currentStatus);
 
   return (
-    <div className="flex items-center gap-0">
+    <div style={{ display: 'flex', alignItems: 'center' }}>
       {STEP_ORDER.map((step, i) => {
         const isCompleted = i < currentIndex;
         const isActive = i === currentIndex;
-        const isFuture = i > currentIndex;
 
         return (
-          <div key={step} className="flex items-center flex-1 last:flex-none">
-            {/* Circle + label */}
-            <div className="flex flex-col items-center gap-1">
+          <div key={step} style={{ display: 'flex', alignItems: 'center', flex: i < STEP_ORDER.length - 1 ? 1 : 'none' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => !disabled && onStepClick(step)}
                 title={LEAD_STATUS_LABEL[step]}
-                className={[
-                  'w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors',
-                  isCompleted
-                    ? 'bg-indigo-600 text-white'
-                    : isActive
-                    ? 'bg-indigo-600 text-white ring-2 ring-indigo-300 ring-offset-1'
-                    : 'bg-white border-2 border-gray-300 text-gray-400',
-                  !disabled ? 'cursor-pointer hover:border-indigo-400' : 'cursor-default',
-                ].join(' ')}
+                style={{
+                  width: 30, height: 30, borderRadius: '50%', border: 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, cursor: disabled ? 'default' : 'pointer',
+                  transition: 'background 0.15s',
+                  background: (isCompleted || isActive) ? 'var(--blue)' : 'var(--surface-3)',
+                  color: (isCompleted || isActive) ? '#fff' : 'var(--ink-3)',
+                  boxShadow: isActive ? '0 0 0 3px var(--blue-soft)' : 'none',
+                }}
               >
                 {isCompleted ? '✓' : i + 1}
               </button>
-              <span className="text-xs text-gray-500 text-center leading-tight w-16">
+              <span style={{ fontSize: 10.5, color: 'var(--ink-3)', textAlign: 'center', width: 60, lineHeight: 1.3 }}>
                 {LEAD_STATUS_LABEL[step]}
               </span>
             </div>
 
-            {/* Connector line (not after last item) */}
             {i < STEP_ORDER.length - 1 && (
-              <div
-                className={[
-                  'h-0.5 flex-1 mx-1 mb-5',
-                  i < currentIndex ? 'bg-indigo-500' : 'bg-gray-200',
-                ].join(' ')}
-              />
+              <div style={{
+                height: 2, flex: 1, margin: '0 4px', marginBottom: 20,
+                background: i < currentIndex ? 'var(--blue)' : 'var(--line)',
+              }} />
             )}
           </div>
         );
@@ -277,11 +269,11 @@ export default function LeadDetail() {
   if (isError) {
     if (error?.status === 404) {
       return (
-        <div className="p-6 text-center text-gray-500 mt-10">הליד לא נמצא.</div>
+        <div className="crm-page" style={{ textAlign: 'center', color: 'var(--ink-3)', paddingTop: 60 }}>הליד לא נמצא.</div>
       );
     }
     return (
-      <div className="p-6 text-center text-red-500 mt-10">שגיאה בטעינת הליד.</div>
+      <div className="crm-page" style={{ textAlign: 'center', color: 'var(--red-ink)', paddingTop: 60 }}>שגיאה בטעינת הליד.</div>
     );
   }
 
@@ -311,31 +303,37 @@ export default function LeadDetail() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6" dir="rtl">
-      {/* ── Section 1: Page header ── */}
-      <div>
-        <Link
-          to="/leads"
-          className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 mb-4"
-        >
-          <span>←</span>
-          <span>חזרה ללידים</span>
-        </Link>
+    <div className="crm-page" style={{ maxWidth: 720 }} dir="rtl">
+      {/* ── Back link ── */}
+      <Link to="/leads" className="back">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M19 12H5M12 19l-7-7 7-7"/>
+        </svg>
+        חזרה ללידים
+      </Link>
 
-        <h1 className="text-2xl font-bold text-gray-900">{lead.full_name}</h1>
-
-        <p className="text-sm text-gray-400 mt-1">
-          {LEAD_SOURCE_LABEL[lead.source] || lead.source}
-          {createdAt ? ` · נוסף ${createdAt}` : ''}
-        </p>
+      {/* ── Page head ── */}
+      <div className="page-head" style={{ marginBottom: 20 }}>
+        <div>
+          <h1 className="page-title">{lead.full_name}</h1>
+          <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>
+            {LEAD_SOURCE_LABEL[lead.source] || lead.source}
+            {createdAt ? ` · נוסף ${createdAt}` : ''}
+          </p>
+        </div>
+        {lead.phone && (
+          <WhatsAppDropdown clientId={lead.id} phone={lead.phone} />
+        )}
       </div>
 
-      {/* ── Section 2: Step indicator ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-600 mb-4">סטטוס ליד</h2>
+      {/* ── Section: Status steps ── */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 16 }}>
+          סטטוס ליד
+        </div>
 
         {isNotRelevant ? (
-          <div className="text-sm text-gray-500 bg-gray-50 rounded-xl p-3 text-center">
+          <div style={{ fontSize: 13, color: 'var(--ink-3)', background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
             סומן כלא רלוונטי
           </div>
         ) : isMeetingHeld ? (
@@ -345,7 +343,7 @@ export default function LeadDetail() {
               onStepClick={() => {}}
               disabled
             />
-            <div className="mt-3 text-sm text-gray-500 bg-gray-50 rounded-xl p-3 text-center">
+            <div style={{ marginTop: 12, fontSize: 13, color: 'var(--ink-3)', background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
               פגישה התקיימה — הליד לא המשיך לטיפול
             </div>
           </>
@@ -358,86 +356,88 @@ export default function LeadDetail() {
         )}
       </div>
 
-      {/* ── Section 2b: כרטיס פגישת היכרות ── */}
+      {/* ── Section: Meeting card ── */}
       {showMeetingSection && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm space-y-4">
-          <h2 className="text-sm font-semibold text-gray-600">כרטיס פגישת היכרות</h2>
+        <div className="card" style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 14 }}>
+            כרטיס פגישת היכרות
+          </div>
 
-          {/* A) Meeting info */}
-          <div className="bg-gray-50 rounded-xl p-3 space-y-1">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">פרטי הפגישה</span>
+          {/* Meeting info */}
+          <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', marginBottom: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>פרטי הפגישה</span>
               {!isMeetingHeld && (
                 <button
                   type="button"
                   onClick={() => setMeetingModalOpen(true)}
-                  className="text-xs text-indigo-600 hover:text-indigo-800"
+                  style={{ fontSize: 12, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                 >
                   {meetingQuery.data ? 'עדכן פגישה' : 'הוסף פרטים'}
                 </button>
               )}
             </div>
             {meetingQuery.isLoading ? (
-              <div className="h-10 animate-pulse bg-gray-100 rounded-lg" />
+              <div className="animate-pulse" style={{ height: 40, background: 'var(--surface-3)', borderRadius: 6 }} />
             ) : meetingQuery.data ? (
-              <div className="text-sm text-gray-700 space-y-1">
-                <p>
-                  <span className="text-gray-500 ml-1">תאריך:</span>
+              <div style={{ fontSize: 13, color: 'var(--ink-2)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div>
+                  <span style={{ color: 'var(--ink-3)' }}>תאריך: </span>
                   {new Date(meetingQuery.data.start_time).toLocaleDateString('he-IL', {
                     weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
                     timeZone: 'Asia/Jerusalem',
                   })}
-                </p>
-                <p>
-                  <span className="text-gray-500 ml-1">שעה:</span>
+                </div>
+                <div>
+                  <span style={{ color: 'var(--ink-3)' }}>שעה: </span>
                   {new Date(meetingQuery.data.start_time).toLocaleTimeString('he-IL', {
                     hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
                   })}
-                </p>
+                </div>
                 {meetingQuery.data.event_type && (
-                  <p>
-                    <span className="text-gray-500 ml-1">סוג:</span>
+                  <div>
+                    <span style={{ color: 'var(--ink-3)' }}>סוג: </span>
                     {{ first_meeting: 'פגישה ראשונה', follow_up: 'מעקב', consultation: 'ייעוץ' }[meetingQuery.data.event_type] || meetingQuery.data.event_type}
-                  </p>
+                  </div>
                 )}
                 {meetingQuery.data.notes && (
-                  <p className="text-gray-500">{meetingQuery.data.notes}</p>
+                  <div style={{ color: 'var(--ink-3)' }}>{meetingQuery.data.notes}</div>
                 )}
               </div>
             ) : (
-              <p className="text-sm text-gray-400">לא הוזנו פרטי פגישה עדיין.</p>
+              <p style={{ fontSize: 13, color: 'var(--ink-4)' }}>לא הוזנו פרטי פגישה עדיין.</p>
             )}
           </div>
 
-          {/* B) Intake form */}
+          {/* Intake form */}
           <LeadIntakeForm leadId={lead.id} />
 
-          {/* C) Action buttons — only when meeting is still pending outcome */}
+          {/* Action buttons */}
           {!isMeetingHeld && (
-            <div className="pt-2 space-y-3 border-t border-gray-100">
-              {/* Convert to client */}
+            <div style={{ paddingTop: 14, borderTop: '1px solid var(--hairline)', marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <button
                 type="button"
                 onClick={handleConvert}
                 disabled={converting}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 transition-colors disabled:opacity-60"
+                className="crm-btn crm-btn--primary"
+                style={{ width: '100%', justifyContent: 'center', padding: '10px 16px' }}
               >
                 {converting ? 'ממיר...' : 'התהליך התחיל — הפוך ללקוח'}
               </button>
 
-              {/* Mark as meeting held (no conversion) */}
               {!confirmMeetingHeld ? (
                 <button
                   type="button"
                   onClick={() => setConfirmMeetingHeld(true)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors"
+                  className="crm-btn"
+                  style={{ width: '100%', justifyContent: 'center', padding: '10px 16px' }}
                 >
                   פגישה התקיימה — לא המשיך
                 </button>
               ) : (
-                <div className="rounded-xl border border-gray-200 p-3 space-y-3 bg-gray-50">
-                  <p className="text-sm text-gray-700 text-center">לסמן פגישה זו כלא הומרה?</p>
-                  <div className="flex gap-2">
+                <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '12px 14px' }}>
+                  <p style={{ fontSize: 13, color: 'var(--ink-2)', textAlign: 'center', marginBottom: 10 }}>לסמן פגישה זו כלא הומרה?</p>
+                  <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       type="button"
                       onClick={async () => {
@@ -448,14 +448,16 @@ export default function LeadDetail() {
                           queryClient.invalidateQueries({ queryKey: ['leads'] });
                         } catch {}
                       }}
-                      className="flex-1 py-2 rounded-xl bg-gray-700 text-white text-sm font-semibold hover:bg-gray-800 transition-colors"
+                      className="crm-btn"
+                      style={{ flex: 1, justifyContent: 'center', background: 'var(--ink-1)', color: '#fff', border: 'none' }}
                     >
                       אישור
                     </button>
                     <button
                       type="button"
                       onClick={() => setConfirmMeetingHeld(false)}
-                      className="flex-1 py-2 rounded-xl border border-gray-300 text-sm text-gray-600 hover:bg-white transition-colors"
+                      className="crm-btn"
+                      style={{ flex: 1, justifyContent: 'center' }}
                     >
                       ביטול
                     </button>
@@ -464,16 +466,18 @@ export default function LeadDetail() {
               )}
 
               {convertError && (
-                <p className="text-sm text-red-600">{convertError}</p>
+                <p style={{ fontSize: 13, color: 'var(--red-ink)' }}>{convertError}</p>
               )}
             </div>
           )}
         </div>
       )}
 
-      {/* ── Section 3: Inline editable fields ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-600 mb-2">פרטי ליד</h2>
+      {/* ── Section: Lead details ── */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+          פרטי ליד
+        </div>
 
         <InlineField
           label="שם מלא"
@@ -497,12 +501,12 @@ export default function LeadDetail() {
           onSave={(v) => save({ source: v })}
         />
 
-        {/* Follow-up date with overdue indicator */}
-        <div className="flex items-start gap-3 py-3 border-b border-gray-100">
-          <span className="text-sm font-medium text-gray-500 w-28 flex-shrink-0 mt-1 text-right">
+        {/* Follow-up date */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--hairline)' }}>
+          <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, paddingTop: 2, textAlign: 'right' }}>
             תאריך מעקב
           </span>
-          <div className="flex-1">
+          <div style={{ flex: 1 }}>
             <FollowUpInlineField
               value={lead.follow_up_date}
               isOverdue={isOverdue}
@@ -519,81 +523,76 @@ export default function LeadDetail() {
         />
 
         {saveError && (
-          <p className="text-sm text-red-600 mt-2">{saveError}</p>
+          <p style={{ fontSize: 13, color: 'var(--red-ink)', marginTop: 8 }}>{saveError}</p>
         )}
       </div>
 
-      {/* ── Section 4: WhatsApp ── */}
-      {lead.phone && (
-        <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-gray-600 mb-3">שליחת הודעה</h2>
-          <WhatsAppDropdown clientId={lead.id} phone={lead.phone} />
+      {/* ── Section: Conversion ── */}
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
+          המרה ללקוח
         </div>
-      )}
-
-      {/* ── Section 5: Conversion ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-        <h2 className="text-sm font-semibold text-gray-600 mb-3">המרה ללקוח</h2>
 
         {isTerminal ? (
-          <div className="space-y-2">
-            <p className="text-sm text-green-700 font-medium">הליד הפך ללקוח.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontSize: 13, color: 'var(--green-ink)', fontWeight: 500 }}>הליד הפך ללקוח.</p>
             {convertedClient && (
               <Link
                 to={`/clients/${convertedClient.id}`}
-                className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                style={{ fontSize: 13, color: 'var(--blue)', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
               >
-                <span>עבור לעמוד הלקוח</span>
-                <span>←</span>
+                עבור לעמוד הלקוח ←
               </Link>
             )}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
               type="button"
               onClick={handleConvert}
               disabled={converting}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-60"
+              className="crm-btn crm-btn--primary"
+              style={{ alignSelf: 'flex-start' }}
             >
-              <span>הפוך ללקוח</span>
-              <span>←</span>
+              {converting ? 'ממיר...' : 'הפוך ללקוח ←'}
             </button>
             {convertError && (
-              <p className="text-sm text-red-600">{convertError}</p>
+              <p style={{ fontSize: 13, color: 'var(--red-ink)' }}>{convertError}</p>
             )}
           </div>
         )}
       </div>
 
       {/* ── Delete lead ── */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+      <div className="card" style={{ marginBottom: 12 }}>
         {!confirmDelete ? (
           <button
             type="button"
             onClick={() => setConfirmDelete(true)}
-            className="text-sm text-red-500 hover:text-red-700 transition-colors"
+            style={{ fontSize: 13, color: 'var(--red-ink)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
             מחק ליד
           </button>
         ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-gray-700">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--ink-2)' }}>
               האם למחוק את <strong>{lead.full_name}</strong>? פעולה זו אינה הפיכה.
             </p>
-            <div className="flex gap-2">
+            <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
                 onClick={() => deleteMutation.mutate()}
                 disabled={deleteMutation.isPending}
-                className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-60"
+                className="crm-btn"
+                style={{ flex: 1, justifyContent: 'center', background: 'var(--red-soft)', color: 'var(--red-ink)', border: '1px solid var(--red-soft)' }}
               >
                 {deleteMutation.isPending ? 'מוחק...' : 'מחק לצמיתות'}
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmDelete(false)}
-                className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                className="crm-btn"
+                style={{ flex: 1, justifyContent: 'center' }}
               >
                 ביטול
               </button>
@@ -601,6 +600,7 @@ export default function LeadDetail() {
           </div>
         )}
       </div>
+
       {/* ── Meeting schedule modal ── */}
       {meetingModalOpen && lead && (
         <MeetingScheduleModal
@@ -623,7 +623,6 @@ export default function LeadDetail() {
 
 function FollowUpInlineField({ value, isOverdue, onSave }) {
   const [editing, setEditing] = useState(false);
-  // Convert ISO date string (with time) to YYYY-MM-DD for date input
   const dateValue = value ? value.slice(0, 10) : '';
   const [draft, setDraft] = useState(dateValue);
 
@@ -648,23 +647,26 @@ function FollowUpInlineField({ value, isOverdue, onSave }) {
       onBlur={commit}
       onKeyDown={(e) => e.key === 'Enter' && commit()}
       dir="ltr"
-      className="rounded-lg border border-indigo-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      className="field-input"
     />
   ) : (
     <span
       onClick={handleOpen}
-      className={[
-        'cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5 text-sm block',
-        isOverdue ? 'text-red-600 font-medium' : 'text-gray-800',
-      ].join(' ')}
+      style={{
+        cursor: 'pointer', fontSize: 13.5, display: 'block', padding: '2px 4px', borderRadius: 4,
+        color: isOverdue ? 'var(--red-ink)' : 'var(--ink-1)',
+        fontWeight: isOverdue ? 500 : 400,
+      }}
+      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
+      onMouseLeave={(e) => e.currentTarget.style.background = ''}
     >
       {displayLabel ? (
         <>
           {displayLabel}
-          {isOverdue && <span className="mr-1 text-xs">(באיחור)</span>}
+          {isOverdue && <span style={{ marginRight: 4, fontSize: 11 }}>(באיחור)</span>}
         </>
       ) : (
-        <span className="text-gray-400">—</span>
+        <span style={{ color: 'var(--ink-4)' }}>—</span>
       )}
     </span>
   );

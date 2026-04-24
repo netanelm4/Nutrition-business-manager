@@ -27,31 +27,53 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">ניהול לקוחות</h1>
-          <p className="text-sm text-gray-400 mt-1">תזונה קלינית</p>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--canvas)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+      dir="rtl"
+    >
+      <div
+        className="card"
+        style={{ width: '100%', maxWidth: 360, padding: '36px 32px' }}
+      >
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--ink-1)', marginBottom: 4 }}>
+            ניהול לקוחות
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--ink-3)' }}>תזונה קלינית</p>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">סיסמה</label>
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>סיסמה</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="הזן סיסמה"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="field-input"
+              style={{ width: '100%' }}
               autoFocus
             />
           </div>
+
           {error && (
-            <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
+            <p style={{ fontSize: 13, color: 'var(--red-ink)', background: 'var(--red-soft)', padding: '8px 12px', borderRadius: 8 }}>
+              {error}
+            </p>
           )}
+
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors disabled:opacity-60"
+            className="crm-btn crm-btn--primary"
+            style={{ width: '100%', justifyContent: 'center', padding: '10px 16px', marginTop: 4 }}
           >
             {loading ? 'מתחבר...' : 'כניסה'}
           </button>

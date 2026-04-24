@@ -17,7 +17,7 @@ function MarkdownText({ text }) {
   const blocks = text.split(/\n\n+/);
 
   return (
-    <div className="space-y-1.5 text-sm leading-relaxed">
+    <div style={{ fontSize: 13, lineHeight: 1.6, display: 'flex', flexDirection: 'column', gap: 6 }}>
       {blocks.map((block, bi) => {
         const lines = block.split('\n').filter(Boolean);
         if (lines.length === 0) return null;
@@ -27,7 +27,7 @@ function MarkdownText({ text }) {
 
         if (isUnordered) {
           return (
-            <ul key={bi} className="list-disc pr-4 space-y-0.5">
+            <ul key={bi} style={{ paddingRight: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {lines.map((l, li) => (
                 <li key={li}>{parseBold(l.replace(/^\s*[-•*]\s*/, ''))}</li>
               ))}
@@ -37,7 +37,7 @@ function MarkdownText({ text }) {
 
         if (isOrdered) {
           return (
-            <ol key={bi} className="list-decimal pr-4 space-y-0.5">
+            <ol key={bi} style={{ paddingRight: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {lines.map((l, li) => (
                 <li key={li}>{parseBold(l.replace(/^\s*\d+\.\s*/, ''))}</li>
               ))}
@@ -46,7 +46,7 @@ function MarkdownText({ text }) {
         }
 
         return (
-          <p key={bi}>
+          <p key={bi} style={{ margin: 0 }}>
             {lines.map((line, li) => (
               <span key={li}>
                 {parseBold(line)}
@@ -64,12 +64,12 @@ function MarkdownText({ text }) {
 
 function LoadingDots() {
   return (
-    <div className="flex gap-1.5 items-center py-0.5 px-1">
+    <div style={{ display: 'flex', gap: 5, alignItems: 'center', padding: '2px 4px' }}>
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"
-          style={{ animationDelay: `${i * 0.15}s` }}
+          className="animate-bounce"
+          style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ink-3)', display: 'inline-block', animationDelay: `${i * 0.15}s` }}
         />
       ))}
     </div>
@@ -159,13 +159,14 @@ export default function AIAssistant({ isOpen, onClose }) {
 
   return (
     <>
-      {/* Mobile overlay — behind panel, closes on tap */}
+      {/* Mobile overlay */}
       <div
-        className="fixed inset-0 bg-black/30 z-[999] md:hidden transition-opacity duration-250"
         style={{
-          opacity:        isOpen ? 1 : 0,
-          pointerEvents:  isOpen ? 'auto' : 'none',
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 999,
+          opacity: isOpen ? 1 : 0, pointerEvents: isOpen ? 'auto' : 'none',
+          transition: 'opacity 0.25s',
         }}
+        className="md:hidden"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -173,29 +174,33 @@ export default function AIAssistant({ isOpen, onClose }) {
       {/* Panel */}
       <div
         dir="rtl"
-        className="fixed top-0 bottom-0 right-0 z-[1000] flex flex-col bg-white"
         style={{
-          width:      'min(380px, 100vw)',
-          borderLeft: '0.5px solid #E5E7EB',
-          boxShadow:  isOpen ? '-4px 0 32px rgba(0,0,0,0.12)' : 'none',
-          transform:  isOpen ? 'translateX(0)' : 'translateX(100%)',
+          position: 'fixed', top: 0, bottom: 0, right: 0, zIndex: 1000,
+          width: 'min(380px, 100vw)',
+          display: 'flex', flexDirection: 'column',
+          background: 'var(--surface-1)',
+          borderLeft: '1px solid var(--line)',
+          boxShadow: isOpen ? '-4px 0 32px rgba(0,0,0,0.10)' : 'none',
+          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
           transition: 'transform 0.25s ease',
         }}
         aria-label="עוזר AI"
         role="complementary"
       >
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 flex-shrink-0">
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: '1px solid var(--hairline)', flexShrink: 0 }}>
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">עוזר AI</h2>
-            <p className="text-xs text-gray-400 mt-0.5">מחובר למערכת | {todayLabel}</p>
+            <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink-1)', margin: 0 }}>עוזר AI</h2>
+            <p style={{ fontSize: 11.5, color: 'var(--ink-3)', margin: '2px 0 0' }}>מחובר למערכת | {todayLabel}</p>
           </div>
-          <div className="flex items-center gap-1">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             {history.length > 0 && (
               <button
                 type="button"
                 onClick={() => setHistory([])}
-                className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors"
+                style={{ fontSize: 12, color: 'var(--ink-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = ''}
               >
                 נקה שיחה
               </button>
@@ -203,7 +208,7 @@ export default function AIAssistant({ isOpen, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors text-xl leading-none"
+              style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--ink-3)', lineHeight: 1 }}
               aria-label="סגור"
             >
               ×
@@ -211,28 +216,33 @@ export default function AIAssistant({ isOpen, onClose }) {
           </div>
         </div>
 
-        {/* ── Chat area ──────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        {/* Chat area */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px' }}>
           {history.length === 0 && !isLoading ? (
-            /* Welcome state */
-            <div className="flex flex-col items-center justify-center h-full gap-5 text-center px-2">
-              <div className="text-5xl">✨</div>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 20, textAlign: 'center', padding: '0 8px' }}>
+              <div style={{ fontSize: 40 }}>✨</div>
               <div>
-                <p className="font-semibold text-gray-800 text-base">שלום נתנאל</p>
-                <p className="text-sm text-gray-500 mt-2 leading-relaxed">
+                <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink-1)', margin: 0 }}>שלום נתנאל</p>
+                <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 8, lineHeight: 1.6 }}>
                   אני מחובר למערכת שלך ומכיר את כל הלקוחות,<br />
                   הלידים והמשימות שלך.
                 </p>
-                <p className="text-sm text-gray-500 mt-1">איך אוכל לעזור?</p>
+                <p style={{ fontSize: 13, color: 'var(--ink-3)', margin: '4px 0 0' }}>איך אוכל לעזור?</p>
               </div>
-              {/* Quick chips */}
-              <div className="flex flex-col gap-2 w-full mt-1">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 4 }}>
                 {QUICK_CHIPS.map((chip) => (
                   <button
                     key={chip}
                     type="button"
                     onClick={() => sendMessage(chip)}
-                    className="text-sm text-right px-4 py-2.5 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors text-gray-700 hover:text-indigo-700"
+                    style={{
+                      fontSize: 13, textAlign: 'right', padding: '10px 14px',
+                      borderRadius: 10, border: '1px solid var(--line)',
+                      background: 'var(--surface-1)', color: 'var(--ink-2)',
+                      cursor: 'pointer', transition: 'border-color 0.15s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--blue)'; e.currentTarget.style.background = 'var(--blue-soft)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.background = 'var(--surface-1)'; }}
                   >
                     {chip}
                   </button>
@@ -240,45 +250,30 @@ export default function AIAssistant({ isOpen, onClose }) {
               </div>
             </div>
           ) : (
-            /* Conversation */
-            <div className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {history.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex ${msg.role === 'user' ? 'justify-start' : 'justify-end'}`}
-                >
+                <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-start' : 'flex-end' }}>
                   <div
-                    className={`px-3.5 py-2.5 ${
-                      msg.role === 'user'
-                        ? 'text-white'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
                     style={{
-                      maxWidth:     msg.role === 'user' ? '80%' : '90%',
-                      borderRadius: msg.role === 'user'
-                        ? '16px 16px 4px 16px'
-                        : '16px 16px 16px 4px',
-                      background: msg.role === 'user' ? '#567DBF' : undefined,
+                      padding: '10px 14px',
+                      maxWidth: msg.role === 'user' ? '80%' : '90%',
+                      borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                      background: msg.role === 'user' ? 'var(--blue)' : 'var(--surface-2)',
+                      color: msg.role === 'user' ? '#fff' : 'var(--ink-1)',
                     }}
                   >
                     {msg.role === 'assistant' ? (
                       <MarkdownText text={msg.content} />
                     ) : (
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {msg.content}
-                      </p>
+                      <p style={{ fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap', margin: 0 }}>{msg.content}</p>
                     )}
                   </div>
                 </div>
               ))}
 
-              {/* Loading indicator */}
               {isLoading && (
-                <div className="flex justify-end">
-                  <div
-                    className="bg-gray-100"
-                    style={{ borderRadius: '16px 16px 16px 4px', padding: '10px 14px' }}
-                  >
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ background: 'var(--surface-2)', borderRadius: '14px 14px 14px 4px', padding: '10px 14px' }}>
                     <LoadingDots />
                   </div>
                 </div>
@@ -289,9 +284,9 @@ export default function AIAssistant({ isOpen, onClose }) {
           )}
         </div>
 
-        {/* ── Input area ─────────────────────────────────────────────────── */}
-        <div className="flex-shrink-0 border-t border-gray-200 px-3 py-3">
-          <div className="flex items-end gap-2">
+        {/* Input area */}
+        <div style={{ flexShrink: 0, borderTop: '1px solid var(--hairline)', padding: '10px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <textarea
               ref={textareaRef}
               value={inputText}
@@ -301,23 +296,34 @@ export default function AIAssistant({ isOpen, onClose }) {
               disabled={isLoading}
               rows={1}
               dir="rtl"
-              className="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2.5 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-50 overflow-hidden"
-              style={{ maxHeight: 96 }}
+              style={{
+                flex: 1, resize: 'none', borderRadius: 10, border: '1px solid var(--line)',
+                padding: '8px 12px', fontSize: 13, background: 'var(--surface-2)',
+                color: 'var(--ink-1)', outline: 'none', maxHeight: 96, overflow: 'hidden',
+                fontFamily: 'inherit',
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = 'var(--blue)'; e.currentTarget.style.background = 'var(--surface-1)'; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = 'var(--line)'; e.currentTarget.style.background = 'var(--surface-2)'; }}
             />
             <button
               type="button"
               onClick={() => sendMessage(inputText)}
               disabled={!inputText.trim() || isLoading}
-              className="flex-shrink-0 w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                flexShrink: 0, width: 36, height: 36, borderRadius: 10,
+                background: 'var(--blue)', color: '#fff', border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                opacity: (!inputText.trim() || isLoading) ? 0.4 : 1,
+                transition: 'opacity 0.15s',
+              }}
               aria-label="שלח"
             >
-              {/* Send arrow icon */}
-              <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
               </svg>
             </button>
           </div>
-          <p className="text-xs text-gray-300 mt-1.5 text-center">
+          <p style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 6, textAlign: 'center' }}>
             Enter לשליחה · Shift+Enter לשורה חדשה
           </p>
         </div>

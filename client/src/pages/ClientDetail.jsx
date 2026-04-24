@@ -983,9 +983,9 @@ export default function ClientDetail() {
 
   if (isLoading) {
     return (
-      <div className="p-4 md:p-6 space-y-4 max-w-3xl mx-auto">
+      <div className="crm-page" style={{ maxWidth: 1000 }}>
         {[1, 2, 3].map((i) => (
-          <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-40" />
+          <div key={i} className="animate-pulse rounded-xl" style={{ height: 140, background: 'var(--surface-3)', marginBottom: 14 }} />
         ))}
       </div>
     );
@@ -993,94 +993,152 @@ export default function ClientDetail() {
 
   if (clientError || !client) {
     return (
-      <div className="p-4 md:p-6 max-w-3xl mx-auto">
-        <p className="text-red-500 text-sm">שגיאה בטעינת פרטי הלקוח.</p>
-        <Link to="/clients" className="text-indigo-600 text-sm mt-2 block hover:underline">
-          חזרה לרשימת הלקוחות
-        </Link>
+      <div className="crm-page" style={{ maxWidth: 1000 }}>
+        <p style={{ color: 'var(--red-ink)', fontSize: 13 }}>שגיאה בטעינת פרטי הלקוח.</p>
+        <Link to="/clients" className="back" style={{ marginTop: 8 }}>חזרה לרשימת המטופלים</Link>
       </div>
     );
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-3xl mx-auto">
-      {/* Back link */}
-      <Link to="/clients" className="text-sm text-indigo-600 hover:underline flex items-center gap-1">
-        <span>→</span>
-        <span>חזרה לרשימת הלקוחות</span>
+    <div className="crm-page" style={{ maxWidth: 1100 }}>
+      {/* Back */}
+      <Link to="/clients" className="back">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+        חזרה לכל המטופלים
       </Link>
 
-      {/* Section 1 — Profile */}
-      <ClientProfile client={client} sessions={sessions} onDelete={() => deleteMutation.mutate()} />
-
-      {/* Section 2 — Process Summary (ended clients only) */}
-      {client.status === 'ended' && (
-        <ProcessSummarySection clientId={id} clientPhone={client.phone} />
-      )}
-
-      {/* Section 3 — AI Summary */}
-      <AISummarySection clientId={id} sessions={sessions} />
-
-      {/* Section 4 — Session timeline */}
-      <section>
-        <h2 className="text-base font-semibold text-gray-700 mb-3">ציר זמן פגישות</h2>
-        <SessionTimeline client={client} sessions={sessions} />
-      </section>
-
-      {/* Section 5 — Session history */}
-      <section>
-        <h2 className="text-base font-semibold text-gray-700 mb-3">היסטוריית פגישות</h2>
-        {sessions.length === 0 && !sessionsLoading && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6 text-center">
-            <p className="text-gray-500 text-sm mb-1">עדיין לא נרשמו פגישות</p>
-            <p className="text-xs text-gray-400">לחץ על אחד מחלונות הפגישה כדי לתעד את הפגישה הראשונה</p>
+      {/* Page head */}
+      <div className="page-head">
+        <div>
+          <div className="page-title">{client.full_name}</div>
+          <div className="page-sub">
+            {client.goal && <>{client.goal} · </>}
+            מטופל מאז {client.start_date ? new Date(client.start_date).toLocaleDateString('he-IL') : '—'}
           </div>
-        )}
-        <SessionHistory client={client} sessions={sessions} onSessionSaved={handleSessionSaved} />
-      </section>
+        </div>
+        <div className="page-actions">
+          {client.phone && (
+            <a
+              href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="crm-btn"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              WhatsApp
+            </a>
+          )}
+          <WhatsAppDropdown clientId={client.id} phone={client.phone} />
+        </div>
+      </div>
 
-      {/* Section 4 — Payment tracking */}
-      <PaymentsSection client={client} />
+      {/* Two-column detail grid */}
+      <div className="detail">
+        {/* Left rail */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <ClientProfile client={client} sessions={sessions} onDelete={() => deleteMutation.mutate()} />
 
-      {/* Section 5 — WhatsApp log */}
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
-        <button onClick={() => setLogOpen(v => !v)} className="flex items-center justify-between w-full">
-          <h2 className="text-base font-semibold text-gray-700">היסטוריית הודעות</h2>
-          <span>{logOpen ? '▲' : '▼'}</span>
-        </button>
+          {/* AI Summary compact */}
+          <AISummarySection clientId={id} sessions={sessions} />
 
-        {logOpen && (
-          <div className="mt-4">
-            {logLoading ? (
-              <div className="animate-pulse bg-gray-200 rounded h-10 w-full" />
-            ) : whatsappLog.length === 0 ? (
-              <p className="text-sm text-gray-400">אין הודעות שנשלחו עדיין.</p>
-            ) : (
-              <ul>
-                {whatsappLog.map((entry) => (
-                  <li key={entry.id} className="border-b border-gray-100 py-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        {entry.template_name ?? 'שליחה ישירה'}
-                      </span>
-                      <span className="text-xs text-gray-400 flex-shrink-0">
-                        {formatDateHebrew(entry.sent_at)}
-                      </span>
-                    </div>
-                    {entry.rendered_message && (
-                      <p className="text-sm text-gray-500 mt-0.5">
-                        {entry.rendered_message.length > 80
-                          ? entry.rendered_message.slice(0, 80) + '…'
-                          : entry.rendered_message}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+          {/* Process summary for ended clients */}
+          {client.status === 'ended' && (
+            <ProcessSummarySection clientId={id} clientPhone={client.phone} />
+          )}
+        </div>
+
+        {/* Main content with tabs */}
+        <section className="card" style={{ padding: 0 }}>
+          <div className="detail-tabs">
+            {[
+              { id: 'timeline',  label: 'ציר זמן',       count: (client.sessions_recorded ?? []).length },
+              { id: 'sessions',  label: 'פגישות',         count: sessions.length },
+              { id: 'payments',  label: 'תשלומים' },
+              { id: 'whatsapp',  label: 'הודעות' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                className={logOpen && t.id === 'whatsapp' ? 'is-active' : (!logOpen && t.id !== 'whatsapp' && (() => {
+                  const active = sessionsLoading ? 'sessions' : 'timeline';
+                  return t.id === active;
+                })()) ? 'is-active' : ''}
+                onClick={() => {
+                  if (t.id === 'whatsapp') setLogOpen(true);
+                  else setLogOpen(false);
+                }}
+              >
+                {t.label}
+                {t.count !== undefined && <span className="count">{t.count}</span>}
+              </button>
+            ))}
           </div>
-        )}
-      </section>
+
+          {!logOpen && (
+            <div style={{ padding: '18px 20px' }}>
+              {/* Session timeline */}
+              <div style={{ marginBottom: 20 }}>
+                <div className="t-eyebrow" style={{ marginBottom: 10 }}>ציר זמן</div>
+                <SessionTimeline client={client} sessions={sessions} />
+              </div>
+
+              {/* Session history */}
+              <div style={{ marginBottom: 20 }}>
+                <div className="t-eyebrow" style={{ marginBottom: 10 }}>פגישות מפורטות</div>
+                {sessions.length === 0 && !sessionsLoading && (
+                  <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', padding: '24px 0' }}>
+                    עדיין לא נרשמו פגישות
+                  </p>
+                )}
+                <SessionHistory client={client} sessions={sessions} onSessionSaved={handleSessionSaved} />
+              </div>
+
+              {/* Payments */}
+              <div>
+                <div className="t-eyebrow" style={{ marginBottom: 10 }}>תשלומים</div>
+                <PaymentsSection client={client} />
+              </div>
+            </div>
+          )}
+
+          {logOpen && (
+            <div style={{ padding: '18px 20px' }}>
+              <div className="t-eyebrow" style={{ marginBottom: 10 }}>היסטוריית הודעות WhatsApp</div>
+              {logLoading ? (
+                <div className="animate-pulse rounded" style={{ height: 40, background: 'var(--surface-3)' }} />
+              ) : whatsappLog.length === 0 ? (
+                <p style={{ fontSize: 13, color: 'var(--ink-3)' }}>אין הודעות שנשלחו עדיין.</p>
+              ) : (
+                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                  {whatsappLog.map((entry) => (
+                    <li key={entry.id} style={{ borderBottom: '1px solid var(--hairline)', padding: '10px 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)' }}>
+                          {entry.template_name ?? 'שליחה ישירה'}
+                        </span>
+                        <span style={{ fontSize: 12, color: 'var(--ink-4)', flexShrink: 0 }}>
+                          {formatDateHebrew(entry.sent_at)}
+                        </span>
+                      </div>
+                      {entry.rendered_message && (
+                        <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
+                          {entry.rendered_message.length > 100
+                            ? entry.rendered_message.slice(0, 100) + '…'
+                            : entry.rendered_message}
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

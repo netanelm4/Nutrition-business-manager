@@ -15,12 +15,12 @@ const TRIGGER_LABELS = {
 };
 
 const TRIGGER_COLORS = {
-  session_reminder: 'bg-blue-100 text-blue-700',
-  welcome: 'bg-green-100 text-green-700',
-  weekly_checkin: 'bg-purple-100 text-purple-700',
-  menu_sent: 'bg-orange-100 text-orange-700',
-  process_ending: 'bg-red-100 text-red-700',
-  custom: 'bg-gray-100 text-gray-600',
+  session_reminder: 'chip--blue',
+  welcome: 'chip--green',
+  weekly_checkin: 'chip--blue',
+  menu_sent: 'chip--amber',
+  process_ending: 'chip--red',
+  custom: '',
 };
 
 const TRIGGER_OPTIONS = Object.keys(TRIGGER_LABELS);
@@ -29,7 +29,7 @@ function highlightVars(text) {
   if (!text) return '';
   return text.split(/(\{\{[^}]+\}\})/).map((part, i) =>
     /^\{\{/.test(part)
-      ? <span key={i} className="font-bold text-blue-600">{part}</span>
+      ? <span key={i} className="var-chip">{part}</span>
       : part
   );
 }
@@ -44,8 +44,8 @@ function previewRender(body) {
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
-function Skeleton({ className = '' }) {
-  return <div className={`animate-pulse bg-gray-200 rounded-xl ${className}`} />;
+function Skeleton() {
+  return <div className="animate-pulse" style={{ height: 120, borderRadius: 12, background: 'var(--surface-3)' }} />;
 }
 
 // ── Toggle Switch ─────────────────────────────────────────────────────────────
@@ -55,16 +55,20 @@ function ToggleSwitch({ checked, onChange }) {
     <button
       type="button"
       onClick={onChange}
-      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 ${
-        checked ? 'bg-indigo-600' : 'bg-gray-300'
-      }`}
+      style={{
+        position: 'relative', display: 'inline-flex', height: 22, width: 40,
+        alignItems: 'center', borderRadius: 11, border: 'none', cursor: 'pointer',
+        background: checked ? 'var(--blue)' : 'var(--line)', transition: 'background 0.2s',
+        flexShrink: 0,
+      }}
       aria-pressed={checked}
     >
-      <span
-        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-          checked ? 'translate-x-1' : 'translate-x-6'
-        }`}
-      />
+      <span style={{
+        display: 'inline-block', height: 16, width: 16, borderRadius: '50%', background: '#fff',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        transform: checked ? 'translateX(4px)' : 'translateX(20px)',
+        transition: 'transform 0.2s',
+      }} />
     </button>
   );
 }
@@ -83,76 +87,37 @@ function TemplateCard({ template, onEdit, onToggle, onDelete }) {
     }
   }
 
-  const badgeClass = TRIGGER_COLORS[template.trigger_event] ?? 'bg-gray-100 text-gray-600';
+  const chipClass = TRIGGER_COLORS[template.trigger_event] ?? '';
   const triggerLabel = TRIGGER_LABELS[template.trigger_event] ?? template.trigger_event;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+    <div className="card" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {/* Top row */}
-      <div className="flex items-center gap-3">
-        <span className="font-semibold text-gray-900 flex-1">{template.name}</span>
-        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${badgeClass}`}>
-          {triggerLabel}
-        </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink-1)', flex: 1 }}>{template.name}</span>
+        <span className={`chip ${chipClass}`}>{triggerLabel}</span>
       </div>
 
-      {/* Body text with variable highlighting */}
-      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+      {/* Body text */}
+      <p style={{ fontSize: 13, color: 'var(--ink-2)', whiteSpace: 'pre-wrap', lineHeight: 1.55 }}>
         {highlightVars(template.body_template)}
       </p>
 
       {/* Bottom row */}
-      <div className="flex items-center gap-3 pt-1">
-        {/* Active toggle */}
-        <div className="flex items-center gap-2">
-          <ToggleSwitch
-            checked={template.is_active === 1}
-            onChange={() => onToggle(template)}
-          />
-          <span className="text-xs text-gray-500">
-            {template.is_active === 1 ? 'פעיל' : 'לא פעיל'}
-          </span>
-        </div>
-
-        <div className="flex-1" />
-
-        {/* Edit button */}
-        <button
-          type="button"
-          onClick={() => onEdit(template)}
-          className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
-        >
-          עריכה
-        </button>
-
-        {/* Delete button — only for custom templates */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingTop: 2 }}>
+        <ToggleSwitch checked={template.is_active === 1} onChange={() => onToggle(template)} />
+        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{template.is_active === 1 ? 'פעיל' : 'לא פעיל'}</span>
+        <div style={{ flex: 1 }} />
+        <button type="button" onClick={() => onEdit(template)} className="crm-btn crm-btn--sm">עריכה</button>
         {template.is_custom === 1 && (
           confirmDelete ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-red-600">האם למחוק את התבנית?</span>
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                className="text-sm px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
-              >
-                אישור
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                className="text-sm px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                ביטול
-              </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, color: 'var(--red-ink)' }}>האם למחוק את התבנית?</span>
+              <button type="button" onClick={handleDeleteClick} className="crm-btn crm-btn--sm" style={{ background: 'var(--red-soft)', color: 'var(--red-ink)', border: 'none' }}>אישור</button>
+              <button type="button" onClick={() => setConfirmDelete(false)} className="crm-btn crm-btn--sm">ביטול</button>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={handleDeleteClick}
-              className="text-sm px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-            >
-              מחיקה
-            </button>
+            <button type="button" onClick={handleDeleteClick} className="crm-btn crm-btn--sm" style={{ color: 'var(--red-ink)', borderColor: 'var(--red-soft)' }}>מחיקה</button>
           )
         )}
       </div>
@@ -197,39 +162,22 @@ function TemplateModal({ template, onClose, onSaved }) {
   const previewText = previewRender(bodyTemplate);
 
   return (
-    <Modal
-      title={isAdd ? 'תבנית חדשה' : 'עריכת תבנית'}
-      onClose={onClose}
-      size="xl"
-    >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">שם התבנית</label>
-          <input
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-            placeholder="שם התבנית"
-          />
+    <Modal title={isAdd ? 'תבנית חדשה' : 'עריכת תבנית'} onClose={onClose} size="xl">
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>שם התבנית</label>
+          <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="field-input" style={{ width: '100%' }} placeholder="שם התבנית" />
         </div>
 
-        {/* Trigger event */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">אירוע</label>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>אירוע</label>
           {triggerLocked ? (
-            <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">
+            <div style={{ fontSize: 13, color: 'var(--ink-3)', background: 'var(--surface-2)', borderRadius: 8, padding: '8px 12px', border: '1px solid var(--line)' }}>
               {TRIGGER_LABELS[template.trigger_event] ?? template.trigger_event}
-              <span className="text-xs text-gray-400 mr-2">(לא ניתן לשינוי)</span>
+              <span style={{ fontSize: 11.5, color: 'var(--ink-4)', marginRight: 8 }}>(לא ניתן לשינוי)</span>
             </div>
           ) : (
-            <select
-              value={triggerEvent}
-              onChange={(e) => setTriggerEvent(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-            >
+            <select value={triggerEvent} onChange={(e) => setTriggerEvent(e.target.value)} className="field-input" style={{ width: '100%' }}>
               {TRIGGER_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>{TRIGGER_LABELS[opt]}</option>
               ))}
@@ -237,59 +185,33 @@ function TemplateModal({ template, onClose, onSaved }) {
           )}
         </div>
 
-        {/* Body + Live preview side by side on md+ */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Textarea */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">תוכן ההודעה</label>
-            <textarea
-              rows={6}
-              value={bodyTemplate}
-              onChange={(e) => setBodyTemplate(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
-              placeholder="כתוב את תוכן ההודעה כאן... השתמש ב-{{client_name}}, {{date}}, {{time}} לפרטים דינאמיים"
-            />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>תוכן ההודעה</label>
+            <textarea rows={6} value={bodyTemplate} onChange={(e) => setBodyTemplate(e.target.value)} className="field-input" style={{ width: '100%', resize: 'none' }} placeholder="כתוב את תוכן ההודעה... {{client_name}}, {{date}}, {{time}}" />
           </div>
-
-          {/* Live preview */}
-          <div>
-            <p className="block text-sm font-medium text-gray-700 mb-1">תצוגה מקדימה</p>
-            <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 whitespace-pre-wrap min-h-[9rem]">
-              {previewText || <span className="text-gray-400 italic">הכנס תוכן כדי לראות תצוגה מקדימה</span>}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>תצוגה מקדימה</label>
+            <div className="msg-bubble" style={{ minHeight: 140, fontSize: 13, whiteSpace: 'pre-wrap' }}>
+              {previewText || <span style={{ color: 'var(--ink-4)', fontStyle: 'italic' }}>הכנס תוכן לתצוגה מקדימה</span>}
             </div>
           </div>
         </div>
 
-        {/* Active toggle */}
-        <div className="flex items-center gap-3">
-          <ToggleSwitch
-            checked={isActive}
-            onChange={() => setIsActive((v) => !v)}
-          />
-          <span className="text-sm text-gray-700">{isActive ? 'תבנית פעילה' : 'תבנית לא פעילה'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ToggleSwitch checked={isActive} onChange={() => setIsActive((v) => !v)} />
+          <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>{isActive ? 'תבנית פעילה' : 'תבנית לא פעילה'}</span>
         </div>
 
-        {/* Error */}
         {saveMutation.isError && (
-          <p className="text-sm text-red-600">שגיאה בשמירה: {saveMutation.error?.message}</p>
+          <p style={{ fontSize: 13, color: 'var(--red-ink)' }}>שגיאה בשמירה: {saveMutation.error?.message}</p>
         )}
 
-        {/* Actions */}
-        <div className="flex gap-3 pt-1">
-          <button
-            type="submit"
-            disabled={saveMutation.isPending}
-            className="flex-1 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-60"
-          >
+        <div style={{ display: 'flex', gap: 10, paddingTop: 4 }}>
+          <button type="submit" disabled={saveMutation.isPending} className="crm-btn crm-btn--primary" style={{ flex: 1, justifyContent: 'center' }}>
             {saveMutation.isPending ? 'שומר...' : isAdd ? 'יצירת תבנית' : 'שמירת שינויים'}
           </button>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition-colors"
-          >
-            ביטול
-          </button>
+          <button type="button" onClick={onClose} className="crm-btn">ביטול</button>
         </div>
       </form>
     </Modal>
@@ -339,55 +261,32 @@ export default function Templates() {
 
   return (
     <>
-      <div className="p-4 md:p-6 space-y-5 max-w-3xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-gray-900">תבניות הודעה</h1>
-          <button
-            type="button"
-            onClick={() => setEditTemplate(null)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors flex-shrink-0"
-          >
-            תבנית חדשה +
+      <div className="crm-page">
+        {/* Subhead */}
+        <div className="subhead">
+          <b style={{ fontSize: 14, color: 'var(--ink-1)' }}>תבניות הודעה</b>
+          <button type="button" onClick={() => setEditTemplate(null)} className="crm-btn crm-btn--primary">
+            + תבנית חדשה
           </button>
         </div>
 
-        {/* Loading */}
         {isLoading && (
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-36" />)}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[1, 2, 3].map((i) => <Skeleton key={i} />)}
           </div>
         )}
 
-        {/* Error */}
-        {isError && (
-          <p className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-3">
-            שגיאה בטעינת התבניות. אנא נסה שנית.
-          </p>
-        )}
+        {isError && <p style={{ fontSize: 13, color: 'var(--red-ink)', background: 'var(--red-soft)', borderRadius: 8, padding: '10px 14px' }}>שגיאה בטעינת התבניות. אנא נסה שנית.</p>}
+        {toggleError && <p style={{ fontSize: 13, color: 'var(--red-ink)' }}>{toggleError}</p>}
+        {deleteError && <p style={{ fontSize: 13, color: 'var(--red-ink)' }}>{deleteError}</p>}
 
-        {toggleError && (
-          <p className="text-red-500 text-sm">{toggleError}</p>
-        )}
-
-        {deleteError && (
-          <p className="text-red-500 text-sm">{deleteError}</p>
-        )}
-
-        {/* Template list */}
         {!isLoading && !isError && (
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {templates.length === 0 ? (
-              <p className="text-center text-gray-400 py-12">אין תבניות עדיין. לחץ על "תבנית חדשה +" להתחיל.</p>
+              <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', padding: '48px 0' }}>אין תבניות עדיין.</p>
             ) : (
               templates.map((t) => (
-                <TemplateCard
-                  key={t.id}
-                  template={t}
-                  onEdit={(tpl) => setEditTemplate(tpl)}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                />
+                <TemplateCard key={t.id} template={t} onEdit={(tpl) => setEditTemplate(tpl)} onToggle={handleToggle} onDelete={handleDelete} />
               ))
             )}
           </div>

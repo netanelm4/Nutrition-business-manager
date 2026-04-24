@@ -13,8 +13,7 @@ function moveItem(arr, index, dir) {
   return copy;
 }
 
-const inputClass =
-  'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent';
+const inputClass = 'field-input w-full';
 
 // ─── Dynamic item list (highlights or tasks) ──────────────────────────────────
 
@@ -35,22 +34,22 @@ function ItemList({ items, onChange, placeholder }) {
   }
 
   return (
-    <div className="space-y-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {items.map((item, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <div className="flex flex-col gap-0.5">
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <button
               type="button"
               onClick={() => move(i, -1)}
               disabled={i === 0}
-              className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-xs leading-none"
+              style={{ fontSize: 10, color: 'var(--ink-4)', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, opacity: i === 0 ? 0.3 : 1 }}
               title="העלה"
             >▲</button>
             <button
               type="button"
               onClick={() => move(i, 1)}
               disabled={i === items.length - 1}
-              className="text-gray-400 hover:text-gray-600 disabled:opacity-20 text-xs leading-none"
+              style={{ fontSize: 10, color: 'var(--ink-4)', background: 'none', border: 'none', cursor: 'pointer', lineHeight: 1, opacity: i === items.length - 1 ? 0.3 : 1 }}
               title="הורד"
             >▼</button>
           </div>
@@ -64,14 +63,14 @@ function ItemList({ items, onChange, placeholder }) {
           <button
             type="button"
             onClick={() => remove(i)}
-            className="text-gray-400 hover:text-red-500 transition-colors flex-shrink-0 text-lg leading-none"
+            style={{ color: 'var(--ink-3)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, lineHeight: 1, flexShrink: 0 }}
           >×</button>
         </div>
       ))}
       <button
         type="button"
         onClick={add}
-        className="text-sm text-indigo-600 hover:text-indigo-800 transition-colors"
+        style={{ fontSize: 13, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'right' }}
       >
         + הוסף פריט
       </button>
@@ -135,105 +134,52 @@ function ProtocolForm({ protocol, onSuccess }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      {/* Name */}
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700">שם הפרוטוקול *</label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="שם הפרוטוקול"
-          className={inputClass}
-        />
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }} noValidate>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>שם הפרוטוקול *</label>
+        <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="שם הפרוטוקול" className={inputClass} />
       </div>
 
-      {/* Description */}
-      <div className="flex flex-col gap-1">
-        <label className="text-sm font-medium text-gray-700">תיאור</label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={2}
-          placeholder="תיאור קצר של הפרוטוקול..."
-          className={inputClass}
-        />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>תיאור</label>
+        <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="תיאור קצר של הפרוטוקול..." className={inputClass} style={{ resize: 'none' }} />
       </div>
 
-      {/* Highlights */}
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-gray-700">דגשים קליניים</label>
-        <ItemList
-          items={highlights}
-          onChange={setHighlights}
-          placeholder="דגש קליני..."
-        />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>דגשים קליניים</label>
+        <ItemList items={highlights} onChange={setHighlights} placeholder="דגש קליני..." />
       </div>
 
-      {/* Tasks */}
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-medium text-gray-700">משימות ברירת מחדל</label>
-        <ItemList
-          items={tasks}
-          onChange={setTasks}
-          placeholder="משימה..."
-        />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>משימות ברירת מחדל</label>
+        <ItemList items={tasks} onChange={setTasks} placeholder="משימה..." />
       </div>
 
-      {/* Active toggle */}
-      <div className="flex items-center gap-3">
-        <input
-          type="checkbox"
-          id="proto-active"
-          checked={isActive}
-          onChange={(e) => setIsActive(e.target.checked)}
-          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
-        />
-        <label htmlFor="proto-active" className="text-sm text-gray-700">פרוטוקול פעיל</label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <input type="checkbox" id="proto-active" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} style={{ accentColor: 'var(--blue)', width: 15, height: 15 }} />
+        <label htmlFor="proto-active" style={{ fontSize: 13, color: 'var(--ink-2)', cursor: 'pointer' }}>פרוטוקול פעיל</label>
       </div>
 
-      {error && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+      {error && <p style={{ fontSize: 13, color: 'var(--red-ink)', background: 'var(--red-soft)', padding: '8px 12px', borderRadius: 8 }}>{error}</p>}
 
-      <button
-        type="submit"
-        disabled={saveMutation.isPending}
-        className="w-full py-2.5 rounded-xl bg-indigo-600 text-white font-semibold text-sm hover:bg-indigo-700 transition-colors disabled:opacity-60"
-      >
+      <button type="submit" disabled={saveMutation.isPending} className="crm-btn crm-btn--primary" style={{ width: '100%', justifyContent: 'center', padding: '10px 16px' }}>
         {saveMutation.isPending ? 'שומר...' : isEdit ? 'שמור שינויים' : 'צור פרוטוקול'}
       </button>
 
-      {/* Delete — only for custom protocols */}
       {isEdit && protocol.is_custom === 1 && (
-        <div className="pt-4 border-t border-gray-100">
+        <div style={{ paddingTop: 12, borderTop: '1px solid var(--hairline)' }}>
           {!confirmDelete ? (
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              className="text-sm text-red-500 hover:text-red-700 transition-colors"
-            >
+            <button type="button" onClick={() => setConfirmDelete(true)} style={{ fontSize: 13, color: 'var(--red-ink)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               מחק פרוטוקול
             </button>
           ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-gray-700">
-                האם למחוק את <strong>{protocol.name}</strong>? פעולה זו אינה הפיכה.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => deleteMutation.mutate()}
-                  disabled={deleteMutation.isPending}
-                  className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-60"
-                >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p style={{ fontSize: 13, color: 'var(--ink-2)' }}>האם למחוק את <strong>{protocol.name}</strong>? פעולה זו אינה הפיכה.</p>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending} className="crm-btn" style={{ flex: 1, justifyContent: 'center', background: 'var(--red-soft)', color: 'var(--red-ink)', border: 'none' }}>
                   {deleteMutation.isPending ? 'מוחק...' : 'מחק לצמיתות'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDelete(false)}
-                  className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  ביטול
-                </button>
+                <button type="button" onClick={() => setConfirmDelete(false)} className="crm-btn" style={{ flex: 1, justifyContent: 'center' }}>ביטול</button>
               </div>
             </div>
           )}
@@ -247,43 +193,29 @@ function ProtocolForm({ protocol, onSuccess }) {
 
 function ProtocolCard({ protocol, onEdit }) {
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <h3 className="font-semibold text-gray-900">{protocol.name}</h3>
+    <div className="card" style={{ padding: '16px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+            <h3 style={{ fontWeight: 600, fontSize: 14.5, color: 'var(--ink-1)', margin: 0 }}>{protocol.name}</h3>
             {protocol.is_custom === 0 ? (
-              <span className="text-xs bg-gray-100 text-gray-500 border border-gray-200 px-2 py-0.5 rounded-full">
-                ברירת מחדל
-              </span>
+              <span className="chip" style={{ fontSize: 11 }}>ברירת מחדל</span>
             ) : (
-              <span className="text-xs bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
-                מותאם אישית
-              </span>
+              <span className="chip chip--blue" style={{ fontSize: 11 }}>מותאם אישית</span>
             )}
             {protocol.is_active === 0 && (
-              <span className="text-xs bg-red-50 text-red-500 border border-red-200 px-2 py-0.5 rounded-full">
-                לא פעיל
-              </span>
+              <span className="chip chip--red" style={{ fontSize: 11 }}>לא פעיל</span>
             )}
           </div>
           {protocol.description && (
-            <p className="text-sm text-gray-500 mb-3">{protocol.description}</p>
+            <p style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 10 }}>{protocol.description}</p>
           )}
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
-              {protocol.highlights.length} דגשים
-            </span>
-            <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
-              {protocol.default_tasks.length} משימות
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="chip" style={{ fontSize: 11 }}>{protocol.highlights.length} דגשים</span>
+            <span className="chip" style={{ fontSize: 11 }}>{protocol.default_tasks.length} משימות</span>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => onEdit(protocol)}
-          className="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-        >
+        <button type="button" onClick={() => onEdit(protocol)} className="crm-btn crm-btn--sm" style={{ flexShrink: 0 }}>
           עריכה
         </button>
       </div>
@@ -318,35 +250,31 @@ export default function Protocols() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-3xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
+    <div className="crm-page">
+      {/* Subhead */}
+      <div className="subhead">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">ספריית פרוטוקולים</h1>
-          <p className="text-sm text-gray-400 mt-0.5">פרוטוקולים קליניים לטעינה בפגישה הראשונה</p>
+          <b style={{ fontSize: 14, color: 'var(--ink-1)' }}>ספריית פרוטוקולים</b>
+          <div style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>פרוטוקולים קליניים לטעינה בפגישה הראשונה</div>
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 transition-colors"
-        >
+        <button type="button" onClick={openCreate} className="crm-btn crm-btn--primary">
           + פרוטוקול חדש
         </button>
       </div>
 
       {/* Content */}
       {isLoading ? (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[1, 2, 3].map((i) => (
-            <div key={i} className="animate-pulse bg-gray-200 rounded-xl h-24" />
+            <div key={i} className="animate-pulse" style={{ height: 80, background: 'var(--surface-3)', borderRadius: 12 }} />
           ))}
         </div>
       ) : isError ? (
-        <p className="text-red-500 text-sm">שגיאה בטעינת הפרוטוקולים.</p>
+        <p style={{ fontSize: 13, color: 'var(--red-ink)' }}>שגיאה בטעינת הפרוטוקולים.</p>
       ) : protocols.length === 0 ? (
-        <p className="text-gray-400 text-sm text-center py-12">אין פרוטוקולים עדיין.</p>
+        <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', padding: '48px 0' }}>אין פרוטוקולים עדיין.</p>
       ) : (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {protocols.map((p) => (
             <ProtocolCard key={p.id} protocol={p} onEdit={openEdit} />
           ))}
