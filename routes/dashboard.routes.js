@@ -233,6 +233,22 @@ router.get('/', (req, res) => {
     // Sessions this week = upcoming client sessions + lead meetings this week
     const sessionsThisWeek = client_sessions.length + lead_meetings.length;
 
+    // ── 8. Client progress snapshot (for dashboard progress rail) ─────────
+    const AVATAR_COLORS = ['pink', 'blue', 'green', 'pink', 'blue', 'green'];
+    const clients_progress = activeClients.slice(0, 6).map((c, idx) => {
+      const sessions = sessionsByClient[c.id] || [];
+      const done     = sessions.filter((s) => s.session_date).length;
+      const total    = 6;
+      return {
+        client_id:   c.id,
+        client_name: c.full_name,
+        sessions_done: done,
+        sessions_total: total,
+        pct:   Math.round((done / total) * 100),
+        color: AVATAR_COLORS[idx % AVATAR_COLORS.length],
+      };
+    });
+
     return ok(res, {
       client_sessions,
       lead_meetings,
@@ -240,6 +256,7 @@ router.get('/', (req, res) => {
       frozen_leads,
       retention_alerts,
       unpaid_clients,
+      clients_progress,
       counters: {
         active_clients: activeCount,
         leads_this_month: leadsThisMonth,
