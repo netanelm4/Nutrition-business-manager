@@ -112,7 +112,7 @@
 .crm-drawer {
   position: fixed;
   top: 0; bottom: 0;
-  inset-inline-end: 0;
+  inset-inline-start: 0;
   width: min(280px, 85vw);
   z-index: 41;
   background: var(--surface);
