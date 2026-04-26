@@ -887,6 +887,32 @@
 }
 .field-input:focus { border-color: var(--blue); }
 
+/* ── Mobile bottom nav ───────────────────────────────────────────────────────── */
+.mobile-nav {
+  position: fixed; bottom: 0; right: 0; left: 0; z-index: 50;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.mobile-nav-item {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 8px 4px;
+  gap: 3px;
+  font-size: 10px; font-weight: 500;
+  color: var(--ink-3);
+  text-decoration: none;
+  border: none; background: none; cursor: pointer;
+  transition: color .12s;
+  font-family: inherit;
+}
+.mobile-nav-item.is-active { color: var(--blue); }
+.mobile-nav-item svg { width: 20px; height: 20px; }
+@media (min-width: 768px) {
+  .mobile-nav { display: none; }
+}
+
 /* ── Status chip with dot ────────────────────────────────────────────────────── */
 .status-chip {
   display: inline-flex; align-items: center; gap: 5px;

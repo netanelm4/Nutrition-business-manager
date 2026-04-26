@@ -121,38 +121,34 @@ export function DesktopSidebar({ onToggleAssistant }) {
 // ── Mobile bottom nav ─────────────────────────────────────────────────────────
 
 const MOBILE_NAV = [
-  { to: '/',          end: true,  icon: '📊', label: 'לוח בקרה'    },
-  { to: '/clients',   end: false, icon: '👤', label: 'מטופלים'     },
-  { to: '/leads',     end: false, icon: '📋', label: 'לידים'       },
-  { to: '/protocols', end: false, icon: '📂', label: 'פרוטוקולים'  },
-  { to: '/templates', end: false, icon: '💬', label: 'תבניות'      },
+  { to: '/',          end: true,  Icon: Icons.dash,      label: 'לוח בקרה'   },
+  { to: '/clients',   end: false, Icon: Icons.clients,   label: 'מטופלים'    },
+  { to: '/leads',     end: false, Icon: Icons.leads,     label: 'לידים'      },
+  { to: '/protocols', end: false, Icon: Icons.protocol,  label: 'פרוטוקולים' },
+  { to: '/templates', end: false, Icon: Icons.templates, label: 'תבניות'     },
 ];
 
 export function MobileNav({ onToggleAssistant }) {
   return (
-    <nav className="md:hidden fixed bottom-0 right-0 left-0 z-50 flex border-t" style={{ background: 'var(--surface)', borderColor: 'var(--line)' }}>
+    <nav className="mobile-nav" aria-label="ניווט תחתון">
       {MOBILE_NAV.map((item) => (
         <NavLink
           key={item.to}
           to={item.to}
           end={item.end}
-          className={({ isActive }) =>
-            `flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors ${
-              isActive ? 'text-indigo-600' : 'text-gray-500'
-            }`
-          }
+          className={({ isActive }) => `mobile-nav-item${isActive ? ' is-active' : ''}`}
         >
-          <span className="text-xl">{item.icon}</span>
+          <item.Icon />
           <span>{item.label}</span>
         </NavLink>
       ))}
       <button
         type="button"
         onClick={onToggleAssistant}
-        className="flex-1 flex flex-col items-center justify-center py-2 gap-0.5 text-xs font-medium transition-colors"
+        className="mobile-nav-item"
         style={{ color: 'var(--blue)' }}
       >
-        <span className="text-xl">✨</span>
+        <Icons.sparkle />
         <span>עוזר AI</span>
       </button>
     </nav>
