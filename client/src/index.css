@@ -70,8 +70,11 @@
 /* ── App shell layout ────────────────────────────────────────────────────────── */
 .crm-app {
   display: grid;
-  grid-template-columns: 1fr var(--sidebar-w);  /* RTL: sidebar on right */
+  grid-template-columns: 1fr;
   min-height: 100vh;
+}
+@media (min-width: 768px) {
+  .crm-app { grid-template-columns: 1fr var(--sidebar-w); }
 }
 .crm-main {
   min-width: 0;
@@ -87,10 +90,14 @@
   height: 100vh;
   background: var(--surface);
   border-inline-start: 1px solid var(--line);
-  display: flex; flex-direction: column;
+  display: none;
+  flex-direction: column;
   padding: 14px 12px;
   gap: 2px;
   overflow-y: auto;
+}
+@media (min-width: 768px) {
+  .crm-side { display: flex; }
 }
 .side-brand {
   display: flex; align-items: center; gap: 10px;

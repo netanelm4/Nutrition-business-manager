@@ -55,7 +55,7 @@ function NavItem({ to, end, Icon, label }) {
 
 export function DesktopSidebar({ onToggleAssistant }) {
   return (
-    <aside className="crm-side hidden md:flex">
+    <aside className="crm-side">
       {/* Brand */}
       <div className="side-brand">
         <div className="side-logo">נ</div>
