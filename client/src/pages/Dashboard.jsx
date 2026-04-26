@@ -341,7 +341,7 @@ function TasksCard() {
       <div className="card__head">
         <div>
           <div className="h-2" style={{ fontWeight: 600 }}>המשימות שלי היום</div>
-          <div className="t-sm t-muted" style={{ marginTop: 2 }}>
+          <div className="t-sm t-muted" style={{ marginTop: 5 }}>
             {isLoading ? todayLabel : `מטריצת אייזנהאואר · ${done} מתוך ${total} הושלמו`}
           </div>
         </div>
