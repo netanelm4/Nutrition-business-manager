@@ -578,7 +578,7 @@ function SessionsCard({ clientSessions, leadMeetings, isLoading, isError }) {
       <div className="card__head">
         <div>
           <div className="h-2" style={{ fontWeight: 600 }}>פגישות השבוע</div>
-          <div className="t-sm t-muted" style={{ marginTop: 2 }}>
+          <div className="t-sm t-muted" style={{ marginTop: 5 }}>
             {isLoading ? '...' : `${total} פגישות`}
           </div>
         </div>
@@ -734,7 +734,7 @@ function AlertsCard({ alerts, frozenLeads, retentionAlerts, unpaidClients, templ
       <div className="card__head">
         <div>
           <div className="h-2" style={{ fontWeight: 600 }}>התראות</div>
-          <div className="t-sm t-muted" style={{ marginTop: 2 }}>
+          <div className="t-sm t-muted" style={{ marginTop: 5 }}>
             {isLoading ? '...' : totalCount > 0 ? `${totalCount} פריטים דורשים טיפול` : 'הכל תקין'}
           </div>
         </div>
