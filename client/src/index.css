@@ -194,6 +194,7 @@
   height: var(--topbar-h);
   display: flex; align-items: center; gap: 12px;
   padding: 0 var(--pad);
+  padding-top: env(safe-area-inset-top, 0px);
   background: color-mix(in srgb, var(--canvas) 88%, transparent);
   backdrop-filter: saturate(160%) blur(8px);
   border-bottom: 1px solid var(--hairline);
@@ -911,6 +912,11 @@
 .mobile-nav-item svg { width: 20px; height: 20px; }
 @media (min-width: 768px) {
   .mobile-nav { display: none; }
+}
+@media (max-width: 767px) {
+  .crm-main > main {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* ── Status chip with dot ────────────────────────────────────────────────────── */
