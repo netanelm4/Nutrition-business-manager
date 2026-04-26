@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useLocation, NavLink } from 'react-router-dom';
-import { DesktopSidebar, MobileNav } from './Sidebar';
+import { DesktopSidebar, MobileNav, MobileDrawer } from './Sidebar';
 import GlobalSearch from '../search/GlobalSearch';
 import AIAssistant from '../assistant/AIAssistant';
 
@@ -52,6 +52,13 @@ function IcPlus() {
     </svg>
   );
 }
+function IcMenu() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 12h18M3 6h18M3 18h18"/>
+    </svg>
+  );
+}
 
 // ── Mobile search overlay ──────────────────────────────────────────────────────
 
@@ -78,6 +85,7 @@ function MobileSearchOverlay({ onClose }) {
 export default function AppShell() {
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [assistantOpen,    setAssistantOpen]    = useState(false);
+  const [drawerOpen,       setDrawerOpen]       = useState(false);
   const crumbs = useCrumbs();
 
   function toggleAssistant() { setAssistantOpen((v) => !v); }
@@ -116,6 +124,16 @@ export default function AppShell() {
               aria-label="חיפוש"
             >
               <IcSearch />
+            </button>
+
+            {/* Mobile menu trigger */}
+            <button
+              type="button"
+              className="crm-btn crm-btn--ghost crm-btn--icon md:hidden"
+              onClick={() => setDrawerOpen(true)}
+              aria-label="תפריט"
+            >
+              <IcMenu />
             </button>
 
             {/* Bell */}
@@ -160,6 +178,13 @@ export default function AppShell() {
 
       {/* ── Mobile nav ──────────────────────────────────────────────── */}
       <MobileNav onToggleAssistant={toggleAssistant} />
+
+      {/* ── Mobile drawer ───────────────────────────────────────────── */}
+      <MobileDrawer
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        onToggleAssistant={toggleAssistant}
+      />
 
       {/* ── AI Assistant panel ──────────────────────────────────────── */}
       <AIAssistant

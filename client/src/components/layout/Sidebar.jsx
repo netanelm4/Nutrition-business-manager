@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
 // ── Minimal inline SVG icon set ───────────────────────────────────────────────
@@ -155,5 +156,90 @@ export function MobileNav({ onToggleAssistant }) {
         <span>עוזר AI</span>
       </button>
     </nav>
+  );
+}
+
+// ── Mobile drawer (slides from right) ────────────────────────────────────────
+
+export function MobileDrawer({ isOpen, onClose, onToggleAssistant }) {
+  const location = useLocation();
+  // Close drawer on route change
+  const prevPath = useRef(location.pathname);
+  useEffect(() => {
+    if (prevPath.current !== location.pathname) {
+      prevPath.current = location.pathname;
+      onClose();
+    }
+  }, [location.pathname, onClose]);
+
+  return (
+    <>
+      <div
+        className={`crm-overlay${isOpen ? ' is-open' : ''}`}
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <aside
+        className={`crm-drawer${isOpen ? ' is-open' : ''}`}
+        role="dialog"
+        aria-modal="true"
+        aria-label="תפריט ניווט"
+      >
+        {/* Brand + close button */}
+        <div className="side-brand">
+          <div className="side-logo">נ</div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, letterSpacing: '-0.01em', lineHeight: 1.15 }}>
+              ניהול לקוחות
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>תזונה קלינית</div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ marginInlineStart: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--ink-3)', padding: 4 }}
+            aria-label="סגור תפריט"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Work section */}
+        <div className="side-sec">עבודה</div>
+        {WORK_NAV.map((item) => (
+          <NavItem key={item.to} {...item} />
+        ))}
+
+        {/* Tools section */}
+        <div className="side-sec">כלים</div>
+        {TOOLS_NAV.map((item) => (
+          <NavItem key={item.to} {...item} />
+        ))}
+
+        {/* AI Assistant */}
+        <div style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => { onToggleAssistant(); onClose(); }}
+            className="nav-item"
+            style={{ width: '100%', color: 'var(--blue)', fontWeight: 600 }}
+          >
+            <Icons.sparkle />
+            <span>עוזר AI</span>
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div className="side-foot">
+          <div className="av av--blue" style={{ width: 32, height: 32, fontSize: 12 }}>נמ</div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 600 }}>נתנאל מלכה</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>דיאטן קליני</div>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }
