@@ -27,7 +27,7 @@ const dailyTasksRouter   = require('./routes/daily-tasks.routes');
 const assistantRouter    = require('./routes/assistant.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
-const { loadStoredToken, syncCanceledEvents } = require('./services/google-calendar.service');
+const { loadStoredToken, syncCanceledEvents, pollNewBookings } = require('./services/google-calendar.service');
 
 // ─── Seed default data ────────────────────────────────────────────────────────
 runSeed(db);
@@ -121,4 +121,8 @@ app.listen(PORT, async () => {
 
   setTimeout(syncCanceledEvents, 15_000);
   setInterval(syncCanceledEvents, 30 * 60 * 1000);
+
+  // ── Google Calendar: poll for new bookings every 5 minutes ────────────────
+  setTimeout(pollNewBookings, 25_000);
+  setInterval(pollNewBookings, 5 * 60 * 1000);
 });

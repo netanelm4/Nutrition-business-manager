@@ -1,6 +1,40 @@
 const { google } = require('googleapis');
 const db = require('../database/db');
 
+// Last successful poll timestamp — initialized lazily to (now - 10 min) on first run
+let lastPollTime = null;
+
+// ── normalizePhone ────────────────────────────────────────────────────────────
+// Mirrors normalizePhoneForDB in calendly.routes.js — 05XXXXXXXXX format
+function normalizePhone(phone) {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('972') && digits.length >= 11) return '0' + digits.slice(3);
+  if (digits.startsWith('0')) return digits;
+  return digits;
+}
+
+// ── parseBookedBy ─────────────────────────────────────────────────────────────
+// Extracts name, email, phone from the "Booked by" block in event description.
+// Expected format:
+//   Booked by
+//   נתנאל מלכה
+//   lean.productdn@gmail.com
+//   0524013226
+function parseBookedBy(description) {
+  if (!description) return { name: '', email: '', phone: '' };
+  const lines = description.split('\n').map((l) => l.trim()).filter(Boolean);
+  const idx = lines.findIndex((l) => /^booked by$/i.test(l));
+  if (idx === -1) return { name: '', email: '', phone: '' };
+  const block = lines.slice(idx + 1, idx + 10);
+  const name  = block[0] || '';
+  const email = block.find((l) => l.includes('@')) || '';
+  const phone = block.find(
+    (l) => /^[\d\s\-()+]+$/.test(l) && l.replace(/\D/g, '').length >= 9
+  ) || '';
+  return { name, email, phone };
+}
+
 const SCOPES = ['https://www.googleapis.com/auth/calendar.events'];
 
 // ── Guard: skip all Google functionality if credentials not configured ─────────
@@ -214,6 +248,132 @@ async function syncCanceledEvents() {
   }
 }
 
+// ── pollNewBookings ───────────────────────────────────────────────────────────
+// Runs every 5 minutes. Fetches Google Calendar events updated since the last
+// poll, inserts new bookings into calendly_events, and matches them to clients.
+async function pollNewBookings() {
+  if (!googleEnabled || !isConnected()) return;
+
+  try {
+    const now   = new Date();
+    const since = lastPollTime || new Date(Date.now() - 10 * 60 * 1000);
+    lastPollTime = now;
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const res = await calendar.events.list({
+      calendarId:   'primary',
+      updatedMin:   since.toISOString(),
+      singleEvents: true,
+      orderBy:      'updated',
+      maxResults:   50,
+    });
+
+    const events = res.data.items || [];
+    let inserted = 0;
+
+    for (const event of events) {
+      if (event.status === 'cancelled') continue;
+      if (!event.start?.dateTime)       continue;
+
+      // Deduplication — skip if already stored
+      const existing = db.prepare(
+        'SELECT id FROM calendly_events WHERE google_event_id = ?'
+      ).get(event.id);
+      if (existing) continue;
+
+      // Extract contact info from "Booked by" block in description
+      const { name, email, phone } = parseBookedBy(event.description || '');
+
+      // Fall back to attendees array for email
+      const clientAttendee = (event.attendees || []).find((a) => !a.organizer && !a.self);
+      const resolvedEmail = email || clientAttendee?.email || '';
+      const resolvedName  = name  || clientAttendee?.displayName || '';
+      const resolvedPhone = normalizePhone(phone);
+
+      // Detect event type from summary
+      const summary = event.summary || '';
+      const event_type = /ראשונ|first/i.test(summary) ? 'first_meeting' : 'follow_up';
+
+      // Match client: email first, then phone
+      let client_id = null;
+      let lead_id   = null;
+
+      if (resolvedEmail) {
+        try {
+          const row = db.prepare(
+            "SELECT id FROM clients WHERE email = ? AND status != 'ended' LIMIT 1"
+          ).get(resolvedEmail);
+          if (row) client_id = row.id;
+        } catch { /* clients table may not have email column */ }
+      }
+      if (!client_id && resolvedPhone) {
+        const all = db.prepare("SELECT id, phone FROM clients WHERE status != 'ended'").all();
+        const match = all.find((c) => normalizePhone(c.phone) === resolvedPhone);
+        if (match) client_id = match.id;
+      }
+
+      // Fall back to leads
+      if (!client_id) {
+        if (resolvedEmail) {
+          try {
+            const row = db.prepare('SELECT id FROM leads WHERE email = ? LIMIT 1').get(resolvedEmail);
+            if (row) lead_id = row.id;
+          } catch { /* safe */ }
+        }
+        if (!lead_id && resolvedPhone) {
+          const all = db.prepare('SELECT id, phone FROM leads').all();
+          const match = all.find((l) => normalizePhone(l.phone) === resolvedPhone);
+          if (match) lead_id = match.id;
+        }
+      }
+
+      const start_time = event.start.dateTime;
+      const end_time   = event.end?.dateTime || '';
+
+      db.prepare(`
+        INSERT OR IGNORE INTO calendly_events
+          (id, client_id, lead_id, event_type, invitee_name, invitee_phone,
+           invitee_email, start_time, end_time, status, google_event_id, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 'google_calendar')
+      `).run(
+        event.id, client_id, lead_id, event_type,
+        resolvedName, resolvedPhone || null, resolvedEmail || null,
+        start_time, end_time, event.id,
+      );
+
+      // Auto-create session for matched clients booking a follow-up
+      if (client_id && event_type === 'follow_up') {
+        const nextWindow = db.prepare(`
+          SELECT w.session_number
+          FROM   session_windows w
+          LEFT JOIN sessions s
+            ON s.client_id = w.client_id AND s.session_number = w.session_number
+          WHERE  w.client_id = ? AND s.id IS NULL
+          ORDER  BY w.session_number ASC
+          LIMIT  1
+        `).get(client_id);
+
+        if (nextWindow) {
+          db.prepare(`
+            INSERT OR IGNORE INTO sessions (client_id, session_number, session_date, highlights)
+            VALUES (?, ?, ?, '')
+          `).run(client_id, nextWindow.session_number, start_time);
+          console.log(`[google-poll] Created session ${nextWindow.session_number} for client ${client_id}`);
+        }
+      }
+
+      inserted++;
+      console.log(`[google-poll] Inserted: ${resolvedName} (${event_type}) — ${resolvedPhone || resolvedEmail || 'no contact'} — ${start_time}`);
+    }
+
+    if (events.length > 0) {
+      console.log(`[google-poll] Checked ${events.length} event(s) since ${since.toISOString()}, inserted ${inserted}`);
+    }
+  } catch (err) {
+    console.error('[google-poll] pollNewBookings error:', err.message);
+  }
+}
+
 module.exports = {
   getAuthUrl,
   exchangeCode,
@@ -223,4 +383,5 @@ module.exports = {
   updateCalendarEvent,
   deleteCalendarEvent,
   syncCanceledEvents,
+  pollNewBookings,
 };
