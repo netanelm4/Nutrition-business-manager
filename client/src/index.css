@@ -4,38 +4,56 @@
 
 /* ── Design tokens ─────────────────────────────────────────────────────────── */
 :root {
-  --blue:   #567DBF;
-  --green:  #31B996;
-  --pink:   #F5DBEA;
-  --canvas: #fcf4f9;
+  /* Brand */
+  --blue:        #567DBF;
+  --blue-deep:   #3d5f99;
+  --blue-soft:   #e6edf8;
+  --blue-ink:    #2a4170;
+  --green:       #31B996;
+  --green-deep:  #259577;
+  --green-soft:  #d8f0e7;
+  --green-ink:   oklch(0.42 0.12 165);
+  --pink:        #F5DBEA;
+  --pink-deep:   #ecc4dc;
+  --pink-soft:   #fbe7f1;
+  --pink-ink:    oklch(0.38 0.08 0);
+
+  /* Canvas / surfaces */
+  --canvas:    #fcf4f9;
+  --bg-warm:   #fbeef4;
   --surface:   #ffffff;
   --surface-2: #fbf6f9;
   --surface-3: #f4ecf2;
 
-  --line:     oklch(0.92 0.008 340);
-  --line-2:   oklch(0.88 0.012 340);
-  --hairline: oklch(0.95 0.006 340);
+  /* Borders */
+  --line:        rgba(26, 26, 26, 0.08);
+  --line-2:      oklch(0.88 0.012 340);
+  --line-strong: rgba(26, 26, 26, 0.16);
+  --hairline:    oklch(0.95 0.006 340);
 
+  /* Ink */
   --ink-1: #1a1a1a;
-  --ink-2: oklch(0.35 0.01 320);
-  --ink-3: oklch(0.52 0.012 320);
-  --ink-4: oklch(0.68 0.01 320);
+  --ink-2: #3d3d3d;
+  --ink-3: #6b6b6b;
+  --ink-4: #a0a0a0;
 
-  --blue-soft:  oklch(0.94 0.03 255);
-  --blue-ink:   oklch(0.42 0.11 255);
-  --green-soft: oklch(0.94 0.05 165);
-  --green-ink:  oklch(0.42 0.12 165);
-  --pink-soft:  #F5DBEA;
-  --pink-ink:   oklch(0.38 0.08 0);
+  /* Semantic tints */
   --amber-soft: oklch(0.94 0.06 80);
   --amber-ink:  oklch(0.48 0.11 70);
   --red-soft:   oklch(0.94 0.04 20);
   --red-ink:    oklch(0.5 0.14 20);
 
-  --r-sm: 6px;
-  --r-md: 10px;
-  --r-lg: 14px;
-  --r-xl: 20px;
+  /* Radius */
+  --r-sm:       6px;
+  --r-md:       10px;
+  --r-lg:       18px;
+  --r-xl:       24px;
+  --r-pill:     999px;
+
+  /* Typography */
+  --font-sans:    'Heebo', 'Assistant', system-ui, -apple-system, sans-serif;
+  --font-display: 'Frank Ruhl Libre', 'Heebo', serif;
+  --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, monospace;
 
   --shadow-1:
     0 1px 2px oklch(0.3 0.02 320 / 0.04),
@@ -58,9 +76,9 @@
     margin: 0; padding: 0;
     background: var(--canvas);
     color: var(--ink-1);
-    font-family: 'Heebo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-family: var(--font-sans);
     font-size: 14px;
-    line-height: 1.5;
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     font-feature-settings: 'ss01', 'kern';
@@ -252,6 +270,8 @@
 .crm-btn--ghost:hover { background: var(--surface-3); }
 .crm-btn--sm { height: 26px; padding: 0 9px; font-size: 12px; border-radius: 8px; }
 .crm-btn--icon { width: 30px; padding: 0; justify-content: center; }
+.crm-btn--pill { border-radius: var(--r-pill); padding: 0 18px; }
+.crm-btn--pill.crm-btn--sm { padding: 0 13px; }
 
 /* ── Dashboard: Stats row ────────────────────────────────────────────────────── */
 .dash-stats {
@@ -309,6 +329,11 @@
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-1);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s;
+}
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-2);
 }
 .card__head {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
