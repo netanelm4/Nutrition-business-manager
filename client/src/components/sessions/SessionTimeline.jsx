@@ -6,8 +6,8 @@ import AlertBadge from '../ui/AlertBadge';
 import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
 
-// Calendly follow-up link for sending scheduling invites
-const FOLLOWUP_CALENDLY_URL = 'https://calendly.com/nm-nutritionist1/follow_up_meetings';
+// Google Calendar follow-up booking link for sending scheduling invites
+const FOLLOWUP_CALENDLY_URL = 'https://calendar.app.google/DEQrZpSKRYJ6BYuZ8';
 
 function normaliseForWA(phone) {
   const digits = (phone || '').replace(/\D/g, '');
