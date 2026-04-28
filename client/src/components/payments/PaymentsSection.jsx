@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { fetchPayments, createPayment, deletePayment } from '../../lib/api';
 import { formatDateHebrew } from '../../lib/dates';
-import WhatsAppDropdown from '../whatsapp/WhatsAppDropdown';
 
 const inputClass =
   'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent';
@@ -228,22 +227,13 @@ export default function PaymentsSection({ client, engagementId = null }) {
           </div>
         </form>
       ) : (
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setAddOpen(true)}
-            className="px-4 py-2 rounded-xl border-2 border-dashed border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition-colors"
-          >
-            + הוסף תשלום
-          </button>
-          <div className="flex-shrink-0">
-            <WhatsAppDropdown
-              clientId={client.id}
-              phone={client.phone}
-              defaultTriggerEvent="payment_reminder"
-            />
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => setAddOpen(true)}
+          className="px-4 py-2 rounded-xl border-2 border-dashed border-indigo-200 text-indigo-600 text-sm font-medium hover:bg-indigo-50 transition-colors"
+        >
+          + הוסף תשלום
+        </button>
       )}
     </section>
   );

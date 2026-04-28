@@ -783,49 +783,14 @@ function ProtocolAssignment({ client }) {
   );
 }
 
-function ClientProfile({ client, sessions, onDelete }) {
-  const [editOpen, setEditOpen] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-
+function ClientProfile({ client, sessions }) {
   const lastSession = sessions.length > 0
     ? sessions.reduce((a, b) => (a.session_number > b.session_number ? a : b))
     : null;
   const lastWeight = lastSession?.weight ?? null;
 
   return (
-    <>
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
-        {/* Top row */}
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div>
-            <h2 className="text-xl font-bold text-gray-900">{client.full_name}</h2>
-            {client.phone && (
-              <a
-                href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-gray-500 hover:text-green-600 transition-colors"
-                dir="ltr"
-              >
-                {client.phone}
-              </a>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium">
-              {CLIENT_STATUS_LABEL[client.status] ?? client.status}
-            </span>
-            <WhatsAppDropdown clientId={client.id} phone={client.phone} />
-            <button
-              type="button"
-              onClick={() => setEditOpen(true)}
-              className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-            >
-              עריכה
-            </button>
-          </div>
-        </div>
-
+    <div className="bg-white rounded-xl border border-gray-200 p-5">
         {/* Profile fields grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
           <ProfileField label="גיל" value={client.age} />
@@ -889,48 +854,7 @@ function ClientProfile({ client, sessions, onDelete }) {
 
         {/* Menu status */}
         <MenuSentStatus client={client} />
-      </div>
-
-      {editOpen && (
-        <Modal title="עריכת לקוח" onClose={() => { setEditOpen(false); setConfirmDelete(false); }}>
-          <ClientForm client={client} onSuccess={() => setEditOpen(false)} />
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            {!confirmDelete ? (
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(true)}
-                className="text-sm text-red-500 hover:text-red-700 transition-colors"
-              >
-                מחק לקוח
-              </button>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-gray-700">
-                  האם למחוק את <strong>{client.full_name}</strong>? פעולה זו תמחק את כל הפגישות
-                  וההיסטוריה שלו ולא ניתן לשחזרה.
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={onDelete}
-                    className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors"
-                  >
-                    מחק לצמיתות
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDelete(false)}
-                    className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    ביטול
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
-    </>
+    </div>
   );
 }
 
@@ -939,6 +863,7 @@ function ClientProfile({ client, sessions, onDelete }) {
 function EngagementSelector({ engagements, selectedId, onSelect, onNew }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--hairline)', flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>תהליך:</span>
       {engagements.map((e) => (
         <button
           key={e.id}
@@ -1093,7 +1018,9 @@ export default function ClientDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [logOpen, setLogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('timeline');
+  const [editOpen, setEditOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [selectedEngagementId, setSelectedEngagementId] = useState(null);
   const [newEngagementOpen, setNewEngagementOpen] = useState(false);
 
@@ -1137,7 +1064,7 @@ export default function ClientDetail() {
   const { data: whatsappLog = [], isLoading: logLoading } = useQuery({
     queryKey: ['whatsapp-log', id],
     queryFn: () => fetchWhatsAppLog(id),
-    enabled: logOpen,
+    enabled: activeTab === 'messages',
   });
 
   const isLoading = clientLoading || sessionsLoading;
@@ -1186,29 +1113,13 @@ export default function ClientDetail() {
             מטופל מאז {client.start_date ? new Date(client.start_date).toLocaleDateString('he-IL') : '—'}
           </div>
         </div>
-        <div className="page-actions">
-          {client.phone && (
-            <a
-              href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="crm-btn"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
-              WhatsApp
-            </a>
-          )}
-          <WhatsAppDropdown clientId={client.id} phone={client.phone} />
-        </div>
       </div>
 
       {/* Two-column detail grid */}
       <div className="detail">
         {/* Left rail */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <ClientProfile client={client} sessions={sessions} onDelete={() => deleteMutation.mutate()} />
+          <ClientProfile client={client} sessions={sessions} />
 
           {/* AI Summary compact */}
           <AISummarySection clientId={id} sessions={sessions} />
@@ -1221,6 +1132,39 @@ export default function ClientDetail() {
 
         {/* Main content with tabs */}
         <section className="card" style={{ padding: 0 }}>
+          {/* Card header: name, date, status, actions */}
+          <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink-1)', lineHeight: 1.2 }}>{client.full_name}</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
+                מטופל מאז {client.start_date ? new Date(client.start_date).toLocaleDateString('he-IL') : '—'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+              <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium">
+                {CLIENT_STATUS_LABEL[client.status] ?? client.status}
+              </span>
+              {client.phone && (
+                <a
+                  href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="crm-btn crm-btn--sm"
+                >
+                  וואטסאפ
+                </a>
+              )}
+              <WhatsAppDropdown clientId={client.id} phone={client.phone} />
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="crm-btn crm-btn--sm"
+              >
+                עריכה
+              </button>
+            </div>
+          </div>
+
           {/* Engagement selector */}
           <EngagementSelector
             engagements={engagements}
@@ -1239,23 +1183,57 @@ export default function ClientDetail() {
             />
           )}
 
+          {editOpen && (
+            <Modal title="עריכת לקוח" onClose={() => { setEditOpen(false); setConfirmDelete(false); }}>
+              <ClientForm client={client} onSuccess={() => setEditOpen(false)} />
+              <div className="mt-6 pt-4 border-t border-gray-100">
+                {!confirmDelete ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(true)}
+                    className="text-sm text-red-500 hover:text-red-700 transition-colors"
+                  >
+                    מחק לקוח
+                  </button>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-700">
+                      האם למחוק את <strong>{client.full_name}</strong>? פעולה זו תמחק את כל הפגישות
+                      וההיסטוריה שלו ולא ניתן לשחזרה.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => deleteMutation.mutate()}
+                        className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors"
+                      >
+                        מחק לצמיתות
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(false)}
+                        className="flex-1 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        ביטול
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Modal>
+          )}
+
           <div className="detail-tabs">
             {[
-              { id: 'timeline',  label: 'ציר זמן',       count: (client.sessions_recorded ?? []).length },
-              { id: 'sessions',  label: 'פגישות',         count: sessions.length },
+              { id: 'timeline',  label: 'ציר זמן' },
+              { id: 'sessions',  label: 'פגישות', count: filteredSessions.length },
               { id: 'payments',  label: 'תשלומים' },
-              { id: 'whatsapp',  label: 'הודעות' },
+              { id: 'messages',  label: 'הודעות' },
             ].map((t) => (
               <button
                 key={t.id}
-                className={logOpen && t.id === 'whatsapp' ? 'is-active' : (!logOpen && t.id !== 'whatsapp' && (() => {
-                  const active = sessionsLoading ? 'sessions' : 'timeline';
-                  return t.id === active;
-                })()) ? 'is-active' : ''}
-                onClick={() => {
-                  if (t.id === 'whatsapp') setLogOpen(true);
-                  else setLogOpen(false);
-                }}
+                className={activeTab === t.id ? 'is-active' : ''}
+                onClick={() => setActiveTab(t.id)}
               >
                 {t.label}
                 {t.count !== undefined && <span className="count">{t.count}</span>}
@@ -1263,65 +1241,59 @@ export default function ClientDetail() {
             ))}
           </div>
 
-          {!logOpen && (
-            <div style={{ padding: '18px 20px' }}>
-              {/* Session timeline */}
-              <div style={{ marginBottom: 20 }}>
-                <div className="t-eyebrow" style={{ marginBottom: 10 }}>ציר זמן</div>
-                <SessionTimeline client={client} sessions={filteredSessions} />
-              </div>
+          <div style={{ padding: '18px 20px' }}>
+            {activeTab === 'timeline' && (
+              <SessionTimeline client={client} sessions={filteredSessions} />
+            )}
 
-              {/* Session history */}
-              <div style={{ marginBottom: 20 }}>
-                <div className="t-eyebrow" style={{ marginBottom: 10 }}>פגישות מפורטות</div>
+            {activeTab === 'sessions' && (
+              <>
                 {sessions.length === 0 && !sessionsLoading && (
                   <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', padding: '24px 0' }}>
                     עדיין לא נרשמו פגישות
                   </p>
                 )}
                 <SessionHistory client={client} sessions={filteredSessions} onSessionSaved={handleSessionSaved} />
-              </div>
+              </>
+            )}
 
-              {/* Payments */}
-              <div>
-                <div className="t-eyebrow" style={{ marginBottom: 10 }}>תשלומים</div>
-                <PaymentsSection client={client} engagementId={effectiveEngagementId} />
-              </div>
-            </div>
-          )}
+            {activeTab === 'payments' && (
+              <PaymentsSection client={client} engagementId={effectiveEngagementId} />
+            )}
 
-          {logOpen && (
-            <div style={{ padding: '18px 20px' }}>
-              <div className="t-eyebrow" style={{ marginBottom: 10 }}>היסטוריית הודעות WhatsApp</div>
-              {logLoading ? (
-                <div className="animate-pulse rounded" style={{ height: 40, background: 'var(--surface-3)' }} />
-              ) : whatsappLog.length === 0 ? (
-                <p style={{ fontSize: 13, color: 'var(--ink-3)' }}>אין הודעות שנשלחו עדיין.</p>
-              ) : (
-                <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                  {whatsappLog.map((entry) => (
-                    <li key={entry.id} style={{ borderBottom: '1px solid var(--hairline)', padding: '10px 0' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)' }}>
-                          {entry.template_name ?? 'שליחה ישירה'}
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--ink-4)', flexShrink: 0 }}>
-                          {formatDateHebrew(entry.sent_at)}
-                        </span>
-                      </div>
-                      {entry.rendered_message && (
-                        <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
-                          {entry.rendered_message.length > 100
-                            ? entry.rendered_message.slice(0, 100) + '…'
-                            : entry.rendered_message}
-                        </p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          )}
+            {activeTab === 'messages' && (
+              <>
+                <div className="t-eyebrow" style={{ marginBottom: 10 }}>היסטוריית הודעות WhatsApp</div>
+                {logLoading ? (
+                  <div className="animate-pulse rounded" style={{ height: 40, background: 'var(--surface-3)' }} />
+                ) : whatsappLog.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--ink-3)' }}>אין הודעות שנשלחו עדיין.</p>
+                ) : (
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                    {whatsappLog.map((entry) => (
+                      <li key={entry.id} style={{ borderBottom: '1px solid var(--hairline)', padding: '10px 0' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)' }}>
+                            {entry.template_name ?? 'שליחה ישירה'}
+                          </span>
+                          <span style={{ fontSize: 12, color: 'var(--ink-4)', flexShrink: 0 }}>
+                            {formatDateHebrew(entry.sent_at)}
+                          </span>
+                        </div>
+                        {entry.rendered_message && (
+                          <p style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
+                            {entry.rendered_message.length > 100
+                              ? entry.rendered_message.slice(0, 100) + '…'
+                              : entry.rendered_message}
+                          </p>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
         </section>
       </div>
     </div>
