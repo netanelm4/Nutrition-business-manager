@@ -1016,4 +1016,37 @@ function carryOverIncompleteTasks(database) {
 
 carryOverIncompleteTasks(db);
 
+// ── Migrate leads: add email column + google_calendar source value ────────────
+// SQLite cannot ALTER CHECK constraints, so we recreate the table.
+// Guard: skip if the schema already includes 'google_calendar'.
+try {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='leads'").get();
+  if (row && !row.sql.includes('google_calendar')) {
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec(`
+      CREATE TABLE leads_new (
+        id                INTEGER  PRIMARY KEY AUTOINCREMENT,
+        full_name         TEXT     NOT NULL,
+        phone             TEXT,
+        email             TEXT,
+        source            TEXT     CHECK (source IN ('landing_page', 'referral', 'other', 'google_calendar')),
+        status            TEXT     NOT NULL DEFAULT 'new'
+                                   CHECK (status IN ('new', 'contacted', 'meeting_scheduled', 'became_client', 'not_relevant')),
+        notes             TEXT,
+        follow_up_date    TEXT,
+        created_at        TEXT     NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        status_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO leads_new (id, full_name, phone, source, status, notes, follow_up_date, created_at)
+        SELECT id, full_name, phone, source, status, notes, follow_up_date, created_at FROM leads;
+      DROP TABLE leads;
+      ALTER TABLE leads_new RENAME TO leads;
+    `);
+    db.exec('PRAGMA foreign_keys = ON');
+    console.log('[migration] leads table recreated: added email + google_calendar source');
+  }
+} catch (err) {
+  console.error('[migration] leads table recreation failed:', err.message);
+}
+
 module.exports = db;

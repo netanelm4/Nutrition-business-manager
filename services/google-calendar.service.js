@@ -359,7 +359,26 @@ async function pollNewBookings() {
         }
       }
 
-      if (!client_id && !lead_id) console.log('[poll] no client/lead match — inserting unlinked');
+      // Auto-create lead for unmatched first_meeting bookings
+      if (!client_id && !lead_id && event_type === 'first_meeting') {
+        if (resolvedName || resolvedEmail || resolvedPhone) {
+          const r = db.prepare(
+            'INSERT INTO leads (full_name, phone, email, source, status) VALUES (?, ?, ?, ?, ?)'
+          ).run(
+            resolvedName || 'לא ידוע',
+            resolvedPhone || null,
+            resolvedEmail || null,
+            'google_calendar',
+            'meeting_scheduled',
+          );
+          lead_id = r.lastInsertRowid;
+          console.log(`[poll] CREATED LEAD: ${resolvedName} — ${resolvedEmail} — ${resolvedPhone}`);
+        } else {
+          console.log('[poll] no client/lead match and no contact info — inserting unlinked');
+        }
+      } else if (!client_id && !lead_id) {
+        console.log('[poll] no client/lead match — inserting unlinked');
+      }
 
       const start_time = event.start.dateTime;
       const end_time   = event.end?.dateTime || '';
