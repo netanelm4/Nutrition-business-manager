@@ -1049,4 +1049,53 @@ try {
   console.error('[migration] leads table recreation failed:', err.message);
 }
 
+// ── Engagements: step 1 migration ────────────────────────────────────────────
+
+// 1. Create engagements table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS engagements (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id    INTEGER NOT NULL REFERENCES clients(id),
+      number       INTEGER NOT NULL DEFAULT 1,
+      status       TEXT    NOT NULL DEFAULT 'active'
+                           CHECK (status IN ('active', 'completed')),
+      goals        TEXT,
+      package_name TEXT,
+      price        REAL,
+      started_at   TEXT,
+      ended_at     TEXT,
+      created_at   TEXT DEFAULT (datetime('now'))
+    )
+  `);
+} catch (err) {
+  console.error('[migration] engagements table creation failed:', err.message);
+}
+
+// 2. Add engagement_id to sessions, payments, calendly_events
+try {
+  db.exec('ALTER TABLE sessions ADD COLUMN engagement_id INTEGER');
+} catch { /* column already exists */ }
+
+try {
+  db.exec('ALTER TABLE payments ADD COLUMN engagement_id INTEGER');
+} catch { /* column already exists */ }
+
+try {
+  db.exec('ALTER TABLE calendly_events ADD COLUMN engagement_id INTEGER');
+} catch { /* column already exists */ }
+
+// 3. Auto-create engagement #1 for every existing client that has none
+try {
+  db.exec(`
+    INSERT INTO engagements (client_id, number, status, started_at)
+    SELECT id, 1, 'active', created_at FROM clients
+    WHERE id NOT IN (SELECT client_id FROM engagements)
+  `);
+  const count = db.prepare('SELECT COUNT(*) AS n FROM engagements').get().n;
+  if (count > 0) console.log(`[migration] engagements seeded: ${count} total row(s)`);
+} catch (err) {
+  console.error('[migration] engagements seed failed:', err.message);
+}
+
 module.exports = db;
