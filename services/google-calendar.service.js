@@ -263,17 +263,12 @@ async function syncCanceledEvents() {
 // Runs every 5 minutes. Fetches Google Calendar events updated since the last
 // poll, inserts new bookings into calendly_events, and matches them to clients.
 async function pollNewBookings() {
-  console.log('[poll] running at', new Date().toISOString());
-  console.log('[poll] lastPollTime:', lastPollTime);
-
-  if (!googleEnabled) { console.log('[poll] SKIP: google not enabled'); return; }
-  if (!isConnected())  { console.log('[poll] SKIP: not connected (no refresh token)'); return; }
+  if (!googleEnabled || !isConnected()) return;
 
   try {
     const now   = new Date();
     const since = lastPollTime || new Date(Date.now() - 10 * 60 * 1000);
     lastPollTime = now;
-    console.log('[poll] querying events updated since:', since.toISOString());
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
     const res = await calendar.events.list({
@@ -285,46 +280,30 @@ async function pollNewBookings() {
     });
 
     const events = res.data.items || [];
-    console.log('[poll] events found:', events.length);
     let inserted = 0;
 
     for (const event of events) {
-      console.log(`[poll] event: id=${event.id} summary="${event.summary}" status=${event.status} start=${event.start?.dateTime || event.start?.date || 'none'}`);
-      console.log(`[poll] description: ${JSON.stringify(event.description || '')}`);
-
-      if (event.status === 'cancelled') {
-        console.log('[poll] SKIP: cancelled');
-        continue;
-      }
-      if (!event.start?.dateTime) {
-        console.log('[poll] SKIP: no dateTime (all-day or task)');
-        continue;
-      }
+      if (event.status === 'cancelled') continue;
+      if (!event.start?.dateTime) continue;
 
       // Deduplication — skip if already stored
       const existing = db.prepare(
         'SELECT id FROM calendly_events WHERE google_event_id = ?'
       ).get(event.id);
-      if (existing) {
-        console.log('[poll] SKIP: already in DB');
-        continue;
-      }
+      if (existing) continue;
 
       // Extract contact info from "Booked by" block in description
       const { name, email, phone } = parseBookedBy(event.description || '');
-      console.log(`[poll] parsed — name="${name}" email="${email}" phone="${phone}"`);
 
       // Fall back to attendees array for email
       const clientAttendee = (event.attendees || []).find((a) => !a.organizer && !a.self);
       const resolvedEmail = email || clientAttendee?.email || '';
       const resolvedName  = name  || clientAttendee?.displayName || '';
       const resolvedPhone = normalizePhone(phone);
-      console.log(`[poll] resolved — name="${resolvedName}" email="${resolvedEmail}" phone="${resolvedPhone}"`);
 
       // Detect event type from summary
       const summary = event.summary || '';
       const event_type = /ראשונ|first/i.test(summary) ? 'first_meeting' : 'follow_up';
-      console.log(`[poll] event_type: ${event_type}`);
 
       // Match client: email first, then phone
       let client_id = null;
@@ -335,13 +314,13 @@ async function pollNewBookings() {
           const row = db.prepare(
             "SELECT id FROM clients WHERE email = ? AND status != 'ended' LIMIT 1"
           ).get(resolvedEmail);
-          if (row) { client_id = row.id; console.log(`[poll] matched client by email: id=${client_id}`); }
+          if (row) { client_id = row.id; }
         } catch { /* clients table may not have email column */ }
       }
       if (!client_id && resolvedPhone) {
         const all = db.prepare("SELECT id, phone FROM clients WHERE status != 'ended'").all();
         const match = all.find((c) => normalizePhone(c.phone) === resolvedPhone);
-        if (match) { client_id = match.id; console.log(`[poll] matched client by phone: id=${client_id}`); }
+        if (match) { client_id = match.id; }
       }
 
       // Fall back to leads
@@ -349,13 +328,13 @@ async function pollNewBookings() {
         if (resolvedEmail) {
           try {
             const row = db.prepare('SELECT id FROM leads WHERE email = ? LIMIT 1').get(resolvedEmail);
-            if (row) { lead_id = row.id; console.log(`[poll] matched lead by email: id=${lead_id}`); }
+            if (row) { lead_id = row.id; }
           } catch { /* safe */ }
         }
         if (!lead_id && resolvedPhone) {
           const all = db.prepare('SELECT id, phone FROM leads').all();
           const match = all.find((l) => normalizePhone(l.phone) === resolvedPhone);
-          if (match) { lead_id = match.id; console.log(`[poll] matched lead by phone: id=${lead_id}`); }
+          if (match) { lead_id = match.id; }
         }
       }
 
@@ -373,11 +352,7 @@ async function pollNewBookings() {
           );
           lead_id = r.lastInsertRowid;
           console.log(`[poll] CREATED LEAD: ${resolvedName} — ${resolvedEmail} — ${resolvedPhone}`);
-        } else {
-          console.log('[poll] no client/lead match and no contact info — inserting unlinked');
         }
-      } else if (!client_id && !lead_id) {
-        console.log('[poll] no client/lead match — inserting unlinked');
       }
 
       const engRow = client_id
