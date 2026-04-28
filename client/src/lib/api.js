@@ -102,6 +102,13 @@ export const fetchPayments = (clientId) => request('GET', `/clients/${clientId}/
 export const createPayment = (clientId, data) => request('POST', `/clients/${clientId}/payments`, data);
 export const deletePayment = (paymentId) => request('DELETE', `/payments/${paymentId}`);
 
+// ── Google Calendar ───────────────────────────────────────────────────────────
+export const fetchGoogleAuthUrl    = () => request('GET',    '/google/auth-url').then((d) => d.url);
+export const fetchGoogleStatus     = () => request('GET',    '/google/status');
+export const disconnectGoogle      = () => request('DELETE', '/google/disconnect');
+export const syncGoogleCalendar    = () => request('POST',   '/google/sync');
+export const pollGoogleCalendar    = () => request('POST',   '/google/poll-now');
+
 // ── Calendly ──────────────────────────────────────────────────────────────────
 export const fetchCalendlyConfig    = () => request('GET',  '/calendly/config');
 export const fetchCalendlyUpcoming  = () => request('GET',  '/calendly/upcoming');
@@ -176,12 +183,6 @@ export const repairAIAssessments = () => request('POST', '/admin/repair-ai-asses
 // ── AI Assistant ──────────────────────────────────────────────────────────────
 export const chatWithAssistant = (message, history) =>
   request('POST', '/assistant/chat', { message, history });
-
-// ── Google Calendar ───────────────────────────────────────────────────────────
-export const fetchGoogleAuthUrl = () => request('GET', '/google/auth-url').then((d) => d.url);
-export const fetchGoogleStatus  = () => request('GET', '/google/status');
-export const disconnectGoogle   = () => request('DELETE', '/google/disconnect');
-export const syncGoogleCalendar = () => request('POST', '/google/sync');
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const checkHealth = (password) =>

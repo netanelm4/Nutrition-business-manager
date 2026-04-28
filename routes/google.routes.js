@@ -5,6 +5,7 @@ const {
   exchangeCode,
   isConnected,
   syncCanceledEvents,
+  pollNewBookings,
 } = require('../services/google-calendar.service');
 const db = require('../database/db');
 
@@ -75,6 +76,20 @@ router.post('/sync', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[POST /google/sync]', err);
     return res.status(500).json({ success: false, error: 'Sync failed.' });
+  }
+});
+
+// ── POST /api/google/poll-now (auth required) ─────────────────────────────────
+
+router.post('/poll-now', requireAuth, async (req, res) => {
+  try {
+    const before = db.prepare("SELECT COUNT(*) AS n FROM calendly_events WHERE source = 'google_calendar'").get().n;
+    await pollNewBookings();
+    const after  = db.prepare("SELECT COUNT(*) AS n FROM calendly_events WHERE source = 'google_calendar'").get().n;
+    return res.json({ success: true, data: { inserted: after - before } });
+  } catch (err) {
+    console.error('[POST /google/poll-now]', err);
+    return res.status(500).json({ success: false, error: 'Poll failed.' });
   }
 });
 

@@ -12,6 +12,7 @@ import {
   fetchGoogleStatus,
   disconnectGoogle,
   syncGoogleCalendar,
+  pollGoogleCalendar,
 } from '../lib/api';
 import { formatDateHebrew, formatTimeHebrew } from '../lib/dates';
 
@@ -234,6 +235,15 @@ export default function CalendlySettings() {
     onError: () => showToast('שגיאה בסנכרון'),
   });
 
+  const pollMutation = useMutation({
+    mutationFn: pollGoogleCalendar,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['calendlyUpcoming'] });
+      showToast(data.inserted > 0 ? `נוספו ${data.inserted} פגישות חדשות` : 'אין פגישות חדשות');
+    },
+    onError: () => showToast('שגיאה בבדיקת פגישות'),
+  });
+
   async function handleGoogleConnect() {
     setGoogleConnecting(true);
     try {
@@ -310,6 +320,9 @@ export default function CalendlySettings() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => pollMutation.mutate()} disabled={pollMutation.isPending} className="crm-btn crm-btn--sm crm-btn--primary">
+                {pollMutation.isPending ? 'בודק...' : 'בדוק פגישות חדשות'}
+              </button>
               <button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="crm-btn crm-btn--sm" style={{ color: 'var(--blue)', borderColor: 'var(--blue-soft)' }}>
                 {syncMutation.isPending ? 'מסנכרן...' : 'סנכרן עכשיו'}
               </button>
