@@ -64,6 +64,10 @@ router.post('/clients/:id/payments', (req, res) => {
     const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
     if (!client) return fail(res, 404, 'Client not found.');
 
+    const activeEng = db.prepare(
+      "SELECT id FROM engagements WHERE client_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1"
+    ).get(Number(req.params.id));
+
     const { amount, paid_at, note } = req.body;
     if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
       return fail(res, 400, 'amount must be a positive number.');
@@ -72,13 +76,14 @@ router.post('/clients/:id/payments', (req, res) => {
 
     const result = db
       .prepare(
-        'INSERT INTO payments (client_id, amount, paid_at, note) VALUES (@client_id, @amount, @paid_at, @note)'
+        'INSERT INTO payments (client_id, amount, paid_at, note, engagement_id) VALUES (@client_id, @amount, @paid_at, @note, @engagement_id)'
       )
       .run({
         client_id: Number(req.params.id),
         amount: Number(amount),
         paid_at,
         note: note || null,
+        engagement_id: activeEng?.id ?? null,
       });
 
     syncPaymentStatus(req.params.id);

@@ -380,18 +380,23 @@ async function pollNewBookings() {
         console.log('[poll] no client/lead match — inserting unlinked');
       }
 
+      const engRow = client_id
+        ? db.prepare("SELECT id FROM engagements WHERE client_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1").get(client_id)
+        : null;
+      const engagement_id = engRow?.id ?? null;
+
       const start_time = event.start.dateTime;
       const end_time   = event.end?.dateTime || '';
 
       db.prepare(`
         INSERT OR IGNORE INTO calendly_events
           (id, client_id, lead_id, event_type, invitee_name, invitee_phone,
-           invitee_email, start_time, end_time, status, google_event_id, source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 'google_calendar')
+           invitee_email, start_time, end_time, status, google_event_id, source, engagement_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 'google_calendar', ?)
       `).run(
         event.id, client_id, lead_id, event_type,
         resolvedName, resolvedPhone || null, resolvedEmail || null,
-        start_time, end_time, event.id,
+        start_time, end_time, event.id, engagement_id,
       );
 
       // Auto-create session for matched clients booking a follow-up
@@ -408,9 +413,9 @@ async function pollNewBookings() {
 
         if (nextWindow) {
           db.prepare(`
-            INSERT OR IGNORE INTO sessions (client_id, session_number, session_date, highlights)
-            VALUES (?, ?, ?, '')
-          `).run(client_id, nextWindow.session_number, start_time);
+            INSERT OR IGNORE INTO sessions (client_id, session_number, session_date, highlights, engagement_id)
+            VALUES (?, ?, ?, '', ?)
+          `).run(client_id, nextWindow.session_number, start_time, engagement_id);
           console.log(`[google-poll] Created session ${nextWindow.session_number} for client ${client_id}`);
         }
       }

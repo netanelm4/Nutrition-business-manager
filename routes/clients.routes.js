@@ -387,6 +387,10 @@ router.post('/:id/sessions', (req, res) => {
     const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
     if (!client) return fail(res, 404, 'Client not found.');
 
+    const activeEng = db.prepare(
+      "SELECT id FROM engagements WHERE client_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1"
+    ).get(Number(req.params.id));
+
     const existing = db
       .prepare('SELECT * FROM sessions WHERE client_id = ? ORDER BY session_number')
       .all(req.params.id);
@@ -421,9 +425,9 @@ router.post('/:id/sessions', (req, res) => {
 
     const result = db.prepare(`
       INSERT INTO sessions
-        (client_id, session_number, session_date, weight, highlights, ai_insights, ai_flags, tasks)
+        (client_id, session_number, session_date, weight, highlights, ai_insights, ai_flags, tasks, engagement_id)
       VALUES
-        (@client_id, @session_number, @session_date, @weight, @highlights, @ai_insights, @ai_flags, @tasks)
+        (@client_id, @session_number, @session_date, @weight, @highlights, @ai_insights, @ai_flags, @tasks, @engagement_id)
     `).run({
       client_id: Number(req.params.id),
       session_number: nextNumber,
@@ -433,6 +437,7 @@ router.post('/:id/sessions', (req, res) => {
       ai_insights: JSON.stringify(savedInsights),
       ai_flags: JSON.stringify(savedFlags),
       tasks: JSON.stringify(carriedTasks),
+      engagement_id: activeEng?.id ?? null,
     });
 
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(result.lastInsertRowid);
@@ -470,6 +475,11 @@ router.post('/:id/protocol-tasks', (req, res) => {
     const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId);
     if (!client) return fail(res, 404, 'Client not found.');
 
+    const ptActiveEng = db.prepare(
+      "SELECT id FROM engagements WHERE client_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1"
+    ).get(clientId);
+    const ptEngagementId = ptActiveEng?.id ?? null;
+
     const { tasks: newTasks, session_number: requestedNumber } = req.body;
     if (!Array.isArray(newTasks) || newTasks.length === 0) {
       return fail(res, 400, 'tasks array is required and must not be empty.');
@@ -505,9 +515,9 @@ router.post('/:id/protocol-tasks', (req, res) => {
 
       const sessionDate = window?.expected_date ?? null;
       db.prepare(`
-        INSERT INTO sessions (client_id, session_number, session_date, highlights, ai_insights, ai_flags, tasks)
-        VALUES (?, ?, ?, '', '[]', '[]', ?)
-      `).run(clientId, targetNum, sessionDate, JSON.stringify(taskObjects));
+        INSERT INTO sessions (client_id, session_number, session_date, highlights, ai_insights, ai_flags, tasks, engagement_id)
+        VALUES (?, ?, ?, '', '[]', '[]', ?, ?)
+      `).run(clientId, targetNum, sessionDate, JSON.stringify(taskObjects), ptEngagementId);
 
       return ok(res, { session_number: targetNum, tasks_added: taskObjects.length });
     }
@@ -548,9 +558,9 @@ router.post('/:id/protocol-tasks', (req, res) => {
     }
 
     db.prepare(`
-      INSERT INTO sessions (client_id, session_number, session_date, highlights, ai_insights, ai_flags, tasks)
-      VALUES (?, ?, ?, '', '[]', '[]', ?)
-    `).run(clientId, nextWindow.session_number, nextWindow.expected_date, JSON.stringify(taskObjects));
+      INSERT INTO sessions (client_id, session_number, session_date, highlights, ai_insights, ai_flags, tasks, engagement_id)
+      VALUES (?, ?, ?, '', '[]', '[]', ?, ?)
+    `).run(clientId, nextWindow.session_number, nextWindow.expected_date, JSON.stringify(taskObjects), ptEngagementId);
 
     return ok(res, { session_number: nextWindow.session_number, tasks_added: taskObjects.length });
   } catch (err) {
