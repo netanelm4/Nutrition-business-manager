@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -934,6 +934,159 @@ function ClientProfile({ client, sessions, onDelete }) {
   );
 }
 
+// ─── Engagement selector ──────────────────────────────────────────────────────
+
+function EngagementSelector({ engagements, selectedId, onSelect, onNew }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderBottom: '1px solid var(--hairline)', flexWrap: 'wrap' }}>
+      {engagements.map((e) => (
+        <button
+          key={e.id}
+          type="button"
+          onClick={() => onSelect(e.id)}
+          className={`crm-btn crm-btn--sm${e.id === selectedId ? ' crm-btn--primary' : ''}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        >
+          תהליך {e.number}
+          {e.status === 'completed' && (
+            <span style={{ fontSize: 10, background: 'rgba(0,0,0,0.08)', borderRadius: 4, padding: '1px 5px', fontWeight: 500 }}>
+              הסתיים
+            </span>
+          )}
+        </button>
+      ))}
+      <button
+        type="button"
+        onClick={onNew}
+        className="crm-btn crm-btn--sm"
+        style={{ color: 'var(--blue)', borderStyle: 'dashed' }}
+      >
+        + תהליך חדש
+      </button>
+    </div>
+  );
+}
+
+// ─── New engagement modal ─────────────────────────────────────────────────────
+
+function NewEngagementModal({ clientId, activeEngagement, onClose }) {
+  const queryClient = useQueryClient();
+  const [form, setForm] = useState({
+    goals: '', package_name: '', price: '', started_at: new Date().toISOString().slice(0, 10),
+  });
+  const [closeActive, setCloseActive] = useState(false);
+  const [error, setError] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const newEng = await createEngagement(clientId, {
+        goals:        form.goals.trim()        || null,
+        package_name: form.package_name.trim() || null,
+        price:        form.price               ? Number(form.price) : null,
+        started_at:   form.started_at          || null,
+      });
+      if (closeActive && activeEngagement) {
+        await closeEngagement(activeEngagement.id);
+      }
+      return newEng;
+    },
+    onSuccess: (newEng) => {
+      queryClient.invalidateQueries({ queryKey: ['engagements', String(clientId)] });
+      onClose(newEng.id);
+    },
+    onError: (err) => setError(err.message || 'שגיאה ביצירת תהליך'),
+  });
+
+  const inputStyle = {
+    width: '100%', fontSize: 13, borderRadius: 8,
+    border: '1px solid var(--hairline)', padding: '7px 10px',
+    outline: 'none', background: 'var(--surface-1)',
+  };
+
+  return (
+    <Modal title="תהליך טיפול חדש" onClose={() => onClose(null)}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <label style={{ fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }}>יעדים</label>
+          <textarea
+            value={form.goals}
+            onChange={(e) => setForm((f) => ({ ...f, goals: e.target.value }))}
+            rows={3}
+            style={{ ...inputStyle, resize: 'vertical' }}
+            placeholder="מה הלקוח רוצה להשיג בתהליך זה?"
+          />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }}>שם חבילה</label>
+            <input
+              type="text"
+              value={form.package_name}
+              onChange={(e) => setForm((f) => ({ ...f, package_name: e.target.value }))}
+              style={inputStyle}
+              placeholder="חבילה בסיסית..."
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }}>מחיר (₪)</label>
+            <input
+              type="number"
+              min="0"
+              value={form.price}
+              onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+              style={inputStyle}
+              placeholder="0"
+            />
+          </div>
+        </div>
+        <div>
+          <label style={{ fontSize: 12, color: 'var(--ink-3)', display: 'block', marginBottom: 4 }}>תאריך התחלה</label>
+          <input
+            type="date"
+            value={form.started_at}
+            onChange={(e) => setForm((f) => ({ ...f, started_at: e.target.value }))}
+            style={{ ...inputStyle, width: 'auto' }}
+            dir="ltr"
+          />
+        </div>
+
+        {activeEngagement && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)', cursor: 'pointer', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={closeActive}
+              onChange={(e) => setCloseActive(e.target.checked)}
+            />
+            סגור את תהליך {activeEngagement.number} הנוכחי
+          </label>
+        )}
+
+        {error && <p style={{ fontSize: 12, color: 'var(--red-ink)', margin: 0 }}>{error}</p>}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+            className="crm-btn crm-btn--primary"
+            style={{ flex: 1 }}
+          >
+            {mutation.isPending ? 'יוצר...' : 'צור תהליך'}
+          </button>
+          <button
+            type="button"
+            onClick={() => onClose(null)}
+            className="crm-btn"
+            style={{ flex: 1 }}
+          >
+            ביטול
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ClientDetail() {
@@ -941,6 +1094,8 @@ export default function ClientDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [logOpen, setLogOpen] = useState(false);
+  const [selectedEngagementId, setSelectedEngagementId] = useState(null);
+  const [newEngagementOpen, setNewEngagementOpen] = useState(false);
 
   const deleteMutation = useMutation({
     mutationFn: () => deleteClient(id),
@@ -973,6 +1128,12 @@ export default function ClientDetail() {
     enabled: !!client,
   });
 
+  const { data: engagements = [] } = useQuery({
+    queryKey: ['engagements', id],
+    queryFn: () => fetchEngagements(id),
+    enabled: !!client,
+  });
+
   const { data: whatsappLog = [], isLoading: logLoading } = useQuery({
     queryKey: ['whatsapp-log', id],
     queryFn: () => fetchWhatsAppLog(id),
@@ -980,6 +1141,12 @@ export default function ClientDetail() {
   });
 
   const isLoading = clientLoading || sessionsLoading;
+
+  const effectiveEngagementId = selectedEngagementId ?? engagements[0]?.id ?? null;
+  const filteredSessions = sessions.filter(
+    (s) => s.engagement_id === effectiveEngagementId || s.engagement_id == null
+  );
+  const activeEngagement = engagements.find((e) => e.status === 'active') ?? null;
 
   if (isLoading) {
     return (
@@ -1054,6 +1221,24 @@ export default function ClientDetail() {
 
         {/* Main content with tabs */}
         <section className="card" style={{ padding: 0 }}>
+          {/* Engagement selector */}
+          <EngagementSelector
+            engagements={engagements}
+            selectedId={effectiveEngagementId}
+            onSelect={setSelectedEngagementId}
+            onNew={() => setNewEngagementOpen(true)}
+          />
+          {newEngagementOpen && (
+            <NewEngagementModal
+              clientId={id}
+              activeEngagement={activeEngagement}
+              onClose={(newId) => {
+                setNewEngagementOpen(false);
+                if (newId) setSelectedEngagementId(newId);
+              }}
+            />
+          )}
+
           <div className="detail-tabs">
             {[
               { id: 'timeline',  label: 'ציר זמן',       count: (client.sessions_recorded ?? []).length },
@@ -1083,7 +1268,7 @@ export default function ClientDetail() {
               {/* Session timeline */}
               <div style={{ marginBottom: 20 }}>
                 <div className="t-eyebrow" style={{ marginBottom: 10 }}>ציר זמן</div>
-                <SessionTimeline client={client} sessions={sessions} />
+                <SessionTimeline client={client} sessions={filteredSessions} />
               </div>
 
               {/* Session history */}
@@ -1094,13 +1279,13 @@ export default function ClientDetail() {
                     עדיין לא נרשמו פגישות
                   </p>
                 )}
-                <SessionHistory client={client} sessions={sessions} onSessionSaved={handleSessionSaved} />
+                <SessionHistory client={client} sessions={filteredSessions} onSessionSaved={handleSessionSaved} />
               </div>
 
               {/* Payments */}
               <div>
                 <div className="t-eyebrow" style={{ marginBottom: 10 }}>תשלומים</div>
-                <PaymentsSection client={client} />
+                <PaymentsSection client={client} engagementId={effectiveEngagementId} />
               </div>
             </div>
           )}

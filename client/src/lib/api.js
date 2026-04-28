@@ -177,6 +177,11 @@ export const updateDailyTask = (id, data)  => request('PUT',    `/daily-tasks/${
 export const deleteDailyTask = (id)        => request('DELETE', `/daily-tasks/${id}`);
 export const runAIScan       = ()          => request('POST',   '/daily-tasks/ai-scan');
 
+// ── Engagements ───────────────────────────────────────────────────────────────
+export const fetchEngagements  = (clientId)        => request('GET',  `/engagements/client/${clientId}`);
+export const createEngagement  = (clientId, data)  => request('POST', `/engagements/client/${clientId}`, data);
+export const closeEngagement   = (id)              => request('POST', `/engagements/${id}/close`);
+
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const repairAIAssessments = () => request('POST', '/admin/repair-ai-assessments');
 

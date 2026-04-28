@@ -35,7 +35,7 @@ function ProgressBar({ paid, total }) {
   );
 }
 
-export default function PaymentsSection({ client }) {
+export default function PaymentsSection({ client, engagementId = null }) {
   const queryClient = useQueryClient();
   const [addOpen, setAddOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -51,7 +51,10 @@ export default function PaymentsSection({ client }) {
     queryFn: () => fetchPayments(client.id),
   });
 
-  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+  const displayed = engagementId != null
+    ? payments.filter((p) => p.engagement_id === engagementId || p.engagement_id == null)
+    : payments;
+  const totalPaid = displayed.reduce((sum, p) => sum + p.amount, 0);
   const packagePrice = client.package_price || 0;
   const paymentStatus = client.payment_status || 'unpaid';
 
@@ -119,11 +122,11 @@ export default function PaymentsSection({ client }) {
       {/* Payments list */}
       {isLoading ? (
         <div className="animate-pulse bg-gray-100 h-12 rounded-lg" />
-      ) : payments.length === 0 ? (
+      ) : displayed.length === 0 ? (
         <p className="text-sm text-gray-400">אין תשלומים רשומים עדיין.</p>
       ) : (
         <ul className="divide-y divide-gray-100">
-          {payments.map((p) => (
+          {displayed.map((p) => (
             <li key={p.id} className="py-2.5 flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <span className="text-sm font-semibold text-gray-900">
