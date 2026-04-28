@@ -16,22 +16,33 @@ function normalizePhone(phone) {
 
 // ── parseBookedBy ─────────────────────────────────────────────────────────────
 // Extracts name, email, phone from the "Booked by" block in event description.
-// Expected format:
-//   Booked by
-//   נתנאל מלכה
-//   lean.productdn@gmail.com
-//   0524013226
+// Handles: HTML tags (<b>Booked by</b>), RTL/LTR unicode marks, and markdown
+// email links ([addr](mailto:addr)).
 function parseBookedBy(description) {
   if (!description) return { name: '', email: '', phone: '' };
-  const lines = description.split('\n').map((l) => l.trim()).filter(Boolean);
+
+  // 1. Strip HTML tags
+  const noHtml = description.replace(/<[^>]+>/g, '');
+
+  // 2. Strip RTL/LTR unicode directional control characters
+  const plain = noHtml.replace(/[‎‏‪‫‬]/g, '');
+
+  const lines = plain.split('\n').map((l) => l.trim()).filter(Boolean);
   const idx = lines.findIndex((l) => /^booked by$/i.test(l));
   if (idx === -1) return { name: '', email: '', phone: '' };
+
   const block = lines.slice(idx + 1, idx + 10);
   const name  = block[0] || '';
-  const email = block.find((l) => l.includes('@')) || '';
+
+  // 3. Extract email — handles [text](mailto:addr) or plain addr@domain
+  const emailLine = block.find((l) => l.includes('@')) || '';
+  const markdownMatch = emailLine.match(/\[.*?\]\(mailto:([^)]+)\)/);
+  const email = markdownMatch ? markdownMatch[1] : emailLine;
+
   const phone = block.find(
     (l) => /^[\d\s\-()+]+$/.test(l) && l.replace(/\D/g, '').length >= 9
   ) || '';
+
   return { name, email, phone };
 }
 
