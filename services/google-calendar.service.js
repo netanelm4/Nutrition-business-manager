@@ -284,6 +284,9 @@ async function pollNewBookings() {
 
     for (const event of events) {
       if (event.status === 'cancelled') continue;
+      if (!event.description || !event.description.includes('Booked by')) {
+        continue; // not a booking from our appointment scheduling links
+      }
       if (!event.start?.dateTime) continue;
 
       // Deduplication — skip if already stored
