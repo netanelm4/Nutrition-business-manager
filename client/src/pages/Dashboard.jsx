@@ -77,27 +77,6 @@ function StatCard({ label, value, sub, subColor }) {
   );
 }
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
-
-function Tabs({ tabs, active, onChange }) {
-  return (
-    <div className="tabs" role="tablist">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          role="tab"
-          aria-selected={active === t.id}
-          className={`tab-btn${active === t.id ? ' is-active' : ''}`}
-          onClick={() => onChange(t.id)}
-        >
-          {t.label}
-          {t.count != null && <span className="tab-count">{t.count}</span>}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 // ─── Tasks card ───────────────────────────────────────────────────────────────
 
 const QUAD_LABELS = { q1: 'דחוף וחשוב', q2: 'חשוב', q3: 'דחוף', q4: 'שגרה' };
@@ -116,14 +95,11 @@ function TaskRow({ task, onToggle, onDelete }) {
       </button>
 
       <div className="task-title">
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ wordBreak: 'break-word' }}>
           {task.text}
         </span>
         {task.source === 'ai' && (
-          <span className="chip chip--blue" style={{ fontSize: 10.5, height: 18, padding: '0 6px' }}>AI</span>
-        )}
-        {!!task.carried_over && (
-          <span style={{ fontSize: 11.5, color: 'var(--ink-4)', fontWeight: 400 }}>עבר מאתמול</span>
+          <span className="chip chip--blue" style={{ fontSize: 10.5, height: 18, padding: '0 6px', flexShrink: 0 }}>AI</span>
         )}
       </div>
 
@@ -142,7 +118,6 @@ function TaskRow({ task, onToggle, onDelete }) {
       </div>
 
       <div className="task-meta" style={{ gap: 8 }}>
-        <span className={`quad-pill quad-${quad}`}>{QUAD_LABELS[quad]}</span>
         <button
           type="button"
           onClick={() => onDelete(task.id)}
@@ -234,11 +209,19 @@ function AddTaskForm({ onAdd, onClose, clients }) {
   );
 }
 
+const TASK_CATEGORIES = [
+  { id: 'q1',      label: 'דחוף וחשוב',  accentColor: 'var(--red-ink)' },
+  { id: 'q3',      label: 'דחוף',         accentColor: 'oklch(0.62 0.14 55)' },
+  { id: 'q2',      label: 'חשוב',         accentColor: 'var(--blue)' },
+  { id: 'q4',      label: 'שגרה',         accentColor: 'var(--ink-3)' },
+  { id: 'carried', label: 'עבר מאתמול',   accentColor: 'var(--ink-3)' },
+];
+
 function TasksCard() {
   const queryClient = useQueryClient();
-  const [tab,     setTab]     = useState('all');
-  const [addOpen, setAddOpen] = useState(false);
-  const [aiToast, setAiToast] = useState(null);
+  const [openCategory, setOpenCategory] = useState(null);
+  const [addOpen,      setAddOpen]      = useState(false);
+  const [aiToast,      setAiToast]      = useState(null);
 
   const { data: tasksData, isLoading } = useQuery({
     queryKey: ['daily-tasks'],
@@ -280,20 +263,15 @@ function TasksCard() {
   const q4        = tasksData?.q4        ?? [];
   const completed = tasksData?.completed ?? [];
   const all       = [...q1, ...q2, ...q3, ...q4];
+  const carried   = all.filter((t) => t.carried_over);
   const done      = completed.length;
-  const total     = all.length + done;
 
-  // Order: הכל / דחוף וחשוב / דחוף / חשוב / שגרה
-  const tabs = [
-    { id: 'all', label: 'הכל',        count: all.length },
-    { id: 'q1',  label: 'דחוף וחשוב', count: q1.length  },
-    { id: 'q3',  label: 'דחוף',       count: q3.length  },
-    { id: 'q2',  label: 'חשוב',       count: q2.length  },
-    { id: 'q4',  label: 'שגרה',       count: q4.length  },
-  ];
+  const categoryTasks = { q1, q2, q3, q4, carried };
 
-  const taskMap = { all, q1, q2, q3, q4 };
-  const visible = tab === 'all' ? all : (taskMap[tab] || []);
+  function toggleCategory(id) {
+    if (!categoryTasks[id]?.length) return;
+    setOpenCategory((prev) => (prev === id ? null : id));
+  }
 
   const todayLabel = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -303,10 +281,9 @@ function TasksCard() {
         <div>
           <div className="h-2" style={{ fontWeight: 600 }}>משימות שלי היום</div>
           <div className="t-sm t-muted" style={{ marginTop: 5 }}>
-            {isLoading ? todayLabel : `מטריצת אייזנהאואר · ${done} מתוך ${total} הושלמו`}
+            {isLoading ? todayLabel : `${all.length} משימות · ${done} הושלמו`}
           </div>
         </div>
-        <Tabs tabs={tabs} active={tab} onChange={setTab} />
       </div>
 
       {aiToast !== null && (
@@ -328,27 +305,78 @@ function TasksCard() {
         />
       )}
 
-      <div className="card__body">
+      <div className="card__body" style={{ padding: 0 }}>
         {isLoading ? (
           <div style={{ padding: '10px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1, 2, 3].map((i) => <Skel key={i} style={{ height: 36 }} />)}
-          </div>
-        ) : visible.length === 0 ? (
-          <div style={{ padding: '24px 18px', textAlign: 'center', color: 'var(--ink-4)', fontSize: 13 }}>
-            אין משימות בקטגוריה זו
+            {[1, 2, 3].map((i) => <Skel key={i} style={{ height: 40 }} />)}
           </div>
         ) : (
-          visible.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              onToggle={(t) => toggleMutation.mutate({ id: t.id, completed: !t.completed })}
-              onDelete={(id) => deleteMutation.mutate(id)}
-            />
-          ))
+          TASK_CATEGORIES.map(({ id, label, accentColor }) => {
+            const tasks   = categoryTasks[id] ?? [];
+            const isEmpty = tasks.length === 0;
+            const isOpen  = openCategory === id;
+
+            return (
+              <div key={id}>
+                {/* Accordion header */}
+                <button
+                  type="button"
+                  onClick={() => toggleCategory(id)}
+                  disabled={isEmpty}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    width: '100%', padding: '11px 18px',
+                    background: isOpen ? 'var(--surface-2)' : 'transparent',
+                    border: 'none', borderBottom: '1px solid var(--hairline)',
+                    cursor: isEmpty ? 'default' : 'pointer',
+                    direction: 'rtl', textAlign: 'right',
+                  }}
+                >
+                  <span style={{ fontWeight: 600, fontSize: 13, color: isEmpty ? 'var(--ink-4)' : 'var(--ink-1)' }}>
+                    {label}
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700,
+                      minWidth: 20, textAlign: 'center',
+                      padding: '2px 8px', borderRadius: 100,
+                      background: isEmpty ? 'var(--surface-3)' : isOpen ? accentColor : 'var(--surface-3)',
+                      color: isEmpty ? 'var(--ink-4)' : isOpen ? '#fff' : 'var(--ink-2)',
+                      transition: 'background 0.15s, color 0.15s',
+                    }}>
+                      {tasks.length}
+                    </span>
+                    <svg
+                      width="13" height="13" viewBox="0 0 24 24" fill="none"
+                      stroke={isEmpty ? 'var(--ink-4)' : 'var(--ink-2)'}
+                      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ transform: isOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', flexShrink: 0 }}
+                      aria-hidden="true"
+                    >
+                      <path d="m9 6 6 6-6 6"/>
+                    </svg>
+                  </div>
+                </button>
+
+                {/* Expanded task list */}
+                {isOpen && (
+                  <div style={{ background: 'var(--surface-1)', borderBottom: '2px solid var(--hairline)' }}>
+                    {tasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        onToggle={(t) => toggleMutation.mutate({ id: t.id, completed: !t.completed })}
+                        onDelete={(id) => deleteMutation.mutate(id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
         )}
 
-        {tab === 'all' && done > 0 && (
+        {done > 0 && (
           <div style={{
             padding: '8px 18px',
             borderTop: '1px solid var(--hairline)',
