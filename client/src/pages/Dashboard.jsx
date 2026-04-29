@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -7,7 +7,6 @@ import {
   fetchClients,
 } from '../lib/api';
 import { formatDateHebrew, formatTimeHebrew, relativeLabel } from '../lib/dates';
-import EmptyState from '../components/ui/EmptyState';
 import { ALERT_STATE } from '../constants/statuses';
 
 // ─── Inline SVG icons ─────────────────────────────────────────────────────────
@@ -32,27 +31,6 @@ const IcSparkle= (p) => <Ic {...p}><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2
 const IcSnow   = (p) => <Ic {...p}><path d="M12 2v20M2 12h20M4.93 4.93l14.14 14.14M19.07 4.93 4.93 19.07"/></Ic>;
 const IcFlag   = (p) => <Ic {...p}><path d="M4 22V4M4 15h11l-2-4 2-4H4"/></Ic>;
 
-// ─── Sparkline SVG ────────────────────────────────────────────────────────────
-
-function Sparkline({ points, color = '#567DBF' }) {
-  const w = 68, h = 24, p = 2;
-  const max = Math.max(...points), min = Math.min(...points);
-  const range = max - min || 1;
-  const step  = (w - p * 2) / (points.length - 1);
-  const d = points.map((v, i) => {
-    const x = p + i * step;
-    const y = h - p - ((v - min) / range) * (h - p * 2);
-    return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-  const area = `${d} L${p + (points.length - 1) * step},${h - p} L${p},${h - p} Z`;
-  return (
-    <svg className="stat-spark" viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-      <path d={area} fill={color} fillOpacity="0.08"/>
-      <path d={d} stroke={color} strokeWidth="1.4" fill="none" strokeLinecap="round"/>
-    </svg>
-  );
-}
-
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function Skel({ style }) {
@@ -69,7 +47,7 @@ function Skel({ style }) {
 const AV_CLASSES = ['av--blue', 'av--green', 'av--pink', 'av--blue', 'av--green'];
 
 function Av({ name = '', size = 26 }) {
-  const parts   = name.trim().split(/\s+/).filter(Boolean);
+  const parts    = name.trim().split(/\s+/).filter(Boolean);
   const initials = parts.length >= 2 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || '?').slice(0, 2);
   const ci       = name.charCodeAt(0) % AV_CLASSES.length;
   return (
@@ -85,23 +63,16 @@ function Av({ name = '', size = 26 }) {
 
 // ─── Stats row ────────────────────────────────────────────────────────────────
 
-const STAT_SPARKS = {
-  clients:  [5, 6, 7, 7, 8, 8, 9],
-  sessions: [2, 3, 2, 4, 3, 5, 4],
-  tasks:    [4, 6, 5, 7, 6, 8, 7],
-  leads:    [1, 2, 2, 3, 3, 4, 3],
-};
-
-function StatCard({ label, value, delta, dir, sub, spark, color = '#567DBF' }) {
+function StatCard({ label, value, sub, subColor }) {
   return (
     <div className="stat-card">
       <div className="stat-label">{label}</div>
       <div className="stat-value t-mono">{value ?? '—'}</div>
-      <div className="stat-delta">
-        {delta && <span className={dir === 'up' ? 'up' : dir === 'down' ? 'down' : ''}>{delta}</span>}
-        {sub   && <span style={{ color: 'var(--ink-4)' }}>· {sub}</span>}
-      </div>
-      <Sparkline points={spark} color={color} />
+      {sub && (
+        <div className="stat-delta">
+          <span style={{ color: subColor ?? 'var(--ink-3)' }}>{sub}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -129,13 +100,12 @@ function Tabs({ tabs, active, onChange }) {
 
 // ─── Tasks card ───────────────────────────────────────────────────────────────
 
-const QUAD_LABELS = { q1: 'דחוף', q2: 'חשוב', q3: 'דחוף', q4: 'שגרה' };
+const QUAD_LABELS = { q1: 'דחוף וחשוב', q2: 'חשוב', q3: 'דחוף', q4: 'שגרה' };
 
 function TaskRow({ task, onToggle, onDelete }) {
   const quad = `q${task.quadrant}`;
   return (
     <div className={`task-row${task.completed ? ' is-done' : ''}`}>
-      {/* Checkbox */}
       <button
         type="button"
         className={`check-box${task.completed ? ' is-on' : ''}`}
@@ -145,7 +115,6 @@ function TaskRow({ task, onToggle, onDelete }) {
         {task.completed && <IcCheck size={11} sw={2.4}/>}
       </button>
 
-      {/* Title */}
       <div className="task-title">
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {task.text}
@@ -158,7 +127,6 @@ function TaskRow({ task, onToggle, onDelete }) {
         )}
       </div>
 
-      {/* Client */}
       <div className="task-meta">
         {task.client_id && task.client_name && (
           <Link
@@ -173,7 +141,6 @@ function TaskRow({ task, onToggle, onDelete }) {
         )}
       </div>
 
-      {/* Quad pill + delete */}
       <div className="task-meta" style={{ gap: 8 }}>
         <span className={`quad-pill quad-${quad}`}>{QUAD_LABELS[quad]}</span>
         <button
@@ -316,23 +283,17 @@ function TasksCard() {
   const done      = completed.length;
   const total     = all.length + done;
 
+  // Order: הכל / דחוף וחשוב / דחוף / חשוב / שגרה
   const tabs = [
-    { id: 'all', label: 'הכל',        count: all.length        },
-    { id: 'q1',  label: 'דחוף וחשוב', count: q1.length         },
-    { id: 'q2',  label: 'חשוב',       count: q2.length         },
-    { id: 'q3',  label: 'דחוף',       count: q3.length         },
-    { id: 'q4',  label: 'שגרה',       count: q4.length         },
+    { id: 'all', label: 'הכל',        count: all.length },
+    { id: 'q1',  label: 'דחוף וחשוב', count: q1.length  },
+    { id: 'q3',  label: 'דחוף',       count: q3.length  },
+    { id: 'q2',  label: 'חשוב',       count: q2.length  },
+    { id: 'q4',  label: 'שגרה',       count: q4.length  },
   ];
 
   const taskMap = { all, q1, q2, q3, q4 };
   const visible = tab === 'all' ? all : (taskMap[tab] || []);
-
-  function handleToggle(task) {
-    toggleMutation.mutate({ id: task.id, completed: !task.completed });
-  }
-  function handleDelete(id) {
-    deleteMutation.mutate(id);
-  }
 
   const todayLabel = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -340,7 +301,7 @@ function TasksCard() {
     <section className="card">
       <div className="card__head">
         <div>
-          <div className="h-2" style={{ fontWeight: 600 }}>המשימות שלי היום</div>
+          <div className="h-2" style={{ fontWeight: 600 }}>משימות שלי היום</div>
           <div className="t-sm t-muted" style={{ marginTop: 5 }}>
             {isLoading ? todayLabel : `מטריצת אייזנהאואר · ${done} מתוך ${total} הושלמו`}
           </div>
@@ -378,11 +339,15 @@ function TasksCard() {
           </div>
         ) : (
           visible.map((task) => (
-            <TaskRow key={task.id} task={task} onToggle={handleToggle} onDelete={handleDelete} />
+            <TaskRow
+              key={task.id}
+              task={task}
+              onToggle={(t) => toggleMutation.mutate({ id: t.id, completed: !t.completed })}
+              onDelete={(id) => deleteMutation.mutate(id)}
+            />
           ))
         )}
 
-        {/* Completed tasks (collapsed by default via the tab) */}
         {tab === 'all' && done > 0 && (
           <div style={{
             padding: '8px 18px',
@@ -424,6 +389,8 @@ function TasksCard() {
 
 // ─── Progress card ────────────────────────────────────────────────────────────
 
+const BAR_COLORS = ['var(--blue)', 'var(--green)', 'oklch(0.65 0.16 295)'];
+
 function ProgressCard({ clients, isLoading }) {
   if (isLoading) {
     return (
@@ -432,7 +399,7 @@ function ProgressCard({ clients, isLoading }) {
           <div className="h-2" style={{ fontWeight: 600 }}>התקדמות מטופלים</div>
         </div>
         <div className="card__body" style={{ padding: '10px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {[1, 2, 3].map((i) => <Skel key={i} style={{ height: 44 }} />)}
+          {[1, 2, 3].map((i) => <Skel key={i} style={{ height: 50 }} />)}
         </div>
       </section>
     );
@@ -452,34 +419,29 @@ function ProgressCard({ clients, isLoading }) {
         </Link>
       </div>
       <div className="card__body">
-        {clients.map((r) => {
-          const colorClass = r.pct >= 75 ? 'var(--green)' : r.pct >= 50 ? 'var(--blue)' : 'oklch(0.72 0.13 70)';
+        {clients.map((r, idx) => {
+          const barColor = BAR_COLORS[idx % BAR_COLORS.length];
           return (
             <Link
               key={r.client_id}
               to={`/clients/${r.client_id}`}
-              className="task-row"
-              style={{ gridTemplateColumns: '36px 1fr 50px 38px', textDecoration: 'none' }}
+              style={{ display: 'block', padding: '10px 18px', textDecoration: 'none', borderBottom: '1px solid var(--hairline)' }}
             >
-              <Av name={r.client_name} size={34} />
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.client_name}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <Av name={r.client_name} size={28} />
+                  <span style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {r.client_name}
+                  </span>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>
+                <span style={{ fontSize: 12, color: 'var(--ink-3)', flexShrink: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                   {r.sessions_done} / {r.sessions_total} פגישות
-                </div>
+                  {' · '}
+                  <span style={{ color: barColor, fontWeight: 600 }}>{r.pct}%</span>
+                </span>
               </div>
-              <div style={{
-                fontSize: 11.5, fontWeight: 600,
-                color: colorClass,
-                fontVariantNumeric: 'tabular-nums',
-                textAlign: 'end',
-              }}>
-                {r.pct}%
-              </div>
-              <div className="prog-ring" style={{ '--p': r.pct, '--c': colorClass }}>
-                <span>{r.pct}</span>
+              <div style={{ marginTop: 6, height: 4, background: 'var(--surface-3)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${r.pct}%`, background: barColor, borderRadius: 2, transition: 'width 0.4s ease' }} />
               </div>
             </Link>
           );
@@ -504,18 +466,17 @@ const STATE_CHIP = {
 };
 
 function ClientSessRow({ item }) {
-  const state     = resolveState(item);
+  const state = resolveState(item);
   const { bg, color, label } = STATE_CHIP[state];
-  const date      = formatDateHebrew(item.expected_date);
   return (
-    <Link to={`/clients/${item.client_id}`} className="sess-row" style={{ textDecoration: 'none' }}>
-      <div className="sess-time">
-        <span className="sess-hh">{date.split(' ')[0]}</span>
-        <span className="sess-mm">{date.split(' ').slice(1).join(' ')}</span>
-      </div>
+    <Link
+      to={`/clients/${item.client_id}`}
+      className="sess-row"
+      style={{ textDecoration: 'none', gridTemplateColumns: '30px 1fr auto' }}
+    >
+      <Av name={item.client_name} size={30} />
       <div className="sess-body">
         <div className="sess-who">
-          <Av name={item.client_name} size={22} />
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.client_name}</span>
           <span className="chip" style={{ background: bg, color, borderColor: 'transparent', height: 20, fontSize: 10.5 }}>
             {label}
@@ -524,10 +485,11 @@ function ClientSessRow({ item }) {
         <div className="sess-det">
           פגישה {item.session_number} מתוך 6
           {item.manually_overridden && <span title="תאריך עודכן ידנית" style={{ color: 'var(--amber-ink)' }}>✱</span>}
-          <span>{relativeLabel(item.expected_date)}</span>
         </div>
       </div>
-      <div/>
+      <div style={{ fontSize: 11, color: 'var(--ink-4)', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        {formatDateHebrew(item.expected_date)}
+      </div>
     </Link>
   );
 }
@@ -563,15 +525,49 @@ function LeadSessRow({ item }) {
   );
 }
 
-function SessionsCard({ clientSessions, leadMeetings, isLoading, isError }) {
-  const sortOrder = (item) => {
-    const s = resolveState(item);
-    if (s === ALERT_STATE.RED)    return 0;
-    if (s === ALERT_STATE.YELLOW) return 1;
-    return 2;
+// Group meetings by relative day label
+const DAY_KEYS   = ['yesterday', 'today', 'tomorrow', 'week'];
+const DAY_LABELS = { yesterday: 'אתמול', today: 'היום', tomorrow: 'מחר', week: 'השבוע' };
+
+function groupByDay(clientSessions, leadMeetings) {
+  const now       = new Date();
+  const todayStr  = now.toISOString().slice(0, 10);
+  const d         = (offset) => {
+    const d = new Date(now); d.setDate(now.getDate() + offset);
+    return d.toISOString().slice(0, 10);
   };
-  const sorted = [...(clientSessions ?? [])].sort((a, b) => sortOrder(a) - sortOrder(b));
-  const total  = sorted.length + (leadMeetings?.length ?? 0);
+  const yStr = d(-1), tStr = todayStr, tmStr = d(1);
+
+  function bucket(dateStr) {
+    if (dateStr === yStr)  return 'yesterday';
+    if (dateStr === tStr)  return 'today';
+    if (dateStr === tmStr) return 'tomorrow';
+    return 'week';
+  }
+
+  const groups = { yesterday: [], today: [], tomorrow: [], week: [] };
+
+  for (const item of (clientSessions ?? [])) {
+    groups[bucket(item.expected_date)]?.push({ ...item, _type: 'client' });
+  }
+  for (const item of (leadMeetings ?? [])) {
+    groups[bucket(item.start_time.slice(0, 10))]?.push({ ...item, _type: 'lead' });
+  }
+
+  DAY_KEYS.forEach((k) => {
+    groups[k].sort((a, b) => {
+      const aD = a._type === 'lead' ? a.start_time : a.expected_date;
+      const bD = b._type === 'lead' ? b.start_time : b.expected_date;
+      return aD.localeCompare(bD);
+    });
+  });
+
+  return groups;
+}
+
+function SessionsCard({ clientSessions, leadMeetings, isLoading, isError }) {
+  const total  = (clientSessions?.length ?? 0) + (leadMeetings?.length ?? 0);
+  const groups = groupByDay(clientSessions, leadMeetings);
 
   return (
     <section className="card">
@@ -599,14 +595,31 @@ function SessionsCard({ clientSessions, leadMeetings, isLoading, isError }) {
             אין פגישות השבוע
           </div>
         ) : (
-          <>
-            {sorted.map((item, i) => (
-              <ClientSessRow key={`${item.client_id}-${item.session_number}-${i}`} item={item} />
-            ))}
-            {leadMeetings?.map((item) => (
-              <LeadSessRow key={item.event_id} item={item} />
-            ))}
-          </>
+          DAY_KEYS.map((key) => {
+            const items = groups[key];
+            if (!items.length) return null;
+            return (
+              <div key={key}>
+                <div style={{
+                  padding: '5px 18px 4px',
+                  fontSize: 11, fontWeight: 600,
+                  color: key === 'today' ? 'var(--blue-ink)' : 'var(--ink-4)',
+                  background: key === 'today' ? 'var(--blue-soft)' : 'var(--surface-2)',
+                  borderBottom: '1px solid var(--hairline)',
+                  borderTop: '1px solid var(--hairline)',
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase',
+                }}>
+                  {DAY_LABELS[key]}
+                </div>
+                {items.map((item, i) =>
+                  item._type === 'lead'
+                    ? <LeadSessRow key={item.event_id} item={item} />
+                    : <ClientSessRow key={`${item.client_id}-${item.session_number}-${i}`} item={item} />
+                )}
+              </div>
+            );
+          })
         )}
       </div>
     </section>
@@ -812,11 +825,20 @@ export default function Dashboard() {
     queryFn:  fetchTemplates,
   });
 
-  // Greeting
   const hour     = new Date().getHours();
   const greeting = hour < 12 ? 'בוקר טוב' : hour < 17 ? 'צהריים טובים' : 'ערב טוב';
 
-  const counters = dashboard?.counters;
+  const todayStr      = new Date().toISOString().slice(0, 10);
+  const todayLong     = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
+  const todayMeetings = (dashboard?.lead_meetings ?? []).filter(
+    (m) => m.start_time?.slice(0, 10) === todayStr
+  ).length;
+
+  const counters    = dashboard?.counters;
+  const totalAlerts = (dashboard?.alerts?.length ?? 0)
+    + (dashboard?.unpaid_clients?.length ?? 0)
+    + (dashboard?.frozen_leads?.length ?? 0)
+    + (dashboard?.retention_alerts?.length ?? 0);
 
   return (
     <div className="crm-page">
@@ -826,15 +848,18 @@ export default function Dashboard() {
         <div>
           <div className="page-title">{greeting}, נתנאל</div>
           <div className="page-sub">
-            {counters
-              ? `${counters.active_clients} מטופלים פעילים · ${counters.sessions_this_week} פגישות השבוע`
-              : 'טוען נתונים...'}
+            {todayLong}
+            {counters && ` · ${counters.active_clients} מטופלים פעילים · ${todayMeetings} פגישות היום`}
           </div>
         </div>
         <div className="page-actions">
+          <Link to="/ai" className="crm-btn" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <IcSparkle size={12} />
+            עוזר AI
+          </Link>
           <Link to="/calendly" className="crm-btn crm-btn--primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-            קבע פגישה
+            קבע פגישה +
           </Link>
         </div>
       </div>
@@ -842,7 +867,7 @@ export default function Dashboard() {
       {/* ── Stats row ────────────────────────────────────────────────── */}
       <div className="dash-stats">
         {isLoading ? (
-          [1, 2, 3, 4].map((i) => <Skel key={i} style={{ height: 90 }} />)
+          [1, 2, 3, 4].map((i) => <Skel key={i} style={{ height: 80 }} />)
         ) : isError ? (
           <p style={{ gridColumn: '1 / -1', color: 'var(--red-ink)', fontSize: 13 }}>שגיאה בטעינת נתונים</p>
         ) : (
@@ -850,30 +875,26 @@ export default function Dashboard() {
             <StatCard
               label="מטופלים פעילים"
               value={counters.active_clients}
-              delta="+2 החודש" dir="up"
-              spark={STAT_SPARKS.clients}
-              color="#567DBF"
+              sub={counters.new_clients_this_month > 0 ? `+${counters.new_clients_this_month} החודש` : null}
+              subColor="var(--blue)"
+            />
+            <StatCard
+              label="לידים חדשים החודש"
+              value={counters.leads_this_month}
+              sub={counters.leads_this_month > 0 ? 'פעילים' : null}
+              subColor="var(--green)"
             />
             <StatCard
               label="פגישות השבוע"
               value={counters.sessions_this_week}
-              delta={`${counters.sessions_this_week} קבועות`} dir="neutral"
-              spark={STAT_SPARKS.sessions}
-              color="#31B996"
-            />
-            <StatCard
-              label="לידים החודש"
-              value={counters.leads_this_month}
-              delta={counters.leads_this_month > 0 ? 'פעילים' : 'אין חדשים'} dir={counters.leads_this_month > 0 ? 'up' : 'neutral'}
-              spark={STAT_SPARKS.leads}
-              color="#9B59B6"
+              sub={counters.sessions_this_week > 0 ? `${counters.sessions_this_week} קבועות` : null}
+              subColor="oklch(0.65 0.14 55)"
             />
             <StatCard
               label="התראות פתוחות"
-              value={(dashboard.alerts?.length ?? 0) + (dashboard.unpaid_clients?.length ?? 0)}
-              delta={(dashboard.alerts?.length ?? 0) > 0 ? 'דורשות טיפול' : 'הכל תקין'} dir={(dashboard.alerts?.length ?? 0) > 0 ? 'down' : 'up'}
-              spark={STAT_SPARKS.tasks}
-              color="#E24B4A"
+              value={totalAlerts}
+              sub={totalAlerts > 0 ? 'דורשות טיפול' : 'הכל תקין'}
+              subColor={totalAlerts > 0 ? 'oklch(0.6 0.18 295)' : 'var(--green)'}
             />
           </>
         )}
@@ -882,23 +903,9 @@ export default function Dashboard() {
       {/* ── Main grid ────────────────────────────────────────────────── */}
       <div className="dash-grid">
 
-        {/* Left column: Tasks + Progress */}
+        {/* Left column: Tasks (top) + Alerts (bottom) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <TasksCard />
-          <ProgressCard
-            clients={dashboard?.clients_progress}
-            isLoading={isLoading}
-          />
-        </div>
-
-        {/* Right column: Sessions + Alerts */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <SessionsCard
-            clientSessions={dashboard?.client_sessions}
-            leadMeetings={dashboard?.lead_meetings}
-            isLoading={isLoading}
-            isError={isError}
-          />
           <AlertsCard
             alerts={dashboard?.alerts ?? []}
             frozenLeads={dashboard?.frozen_leads}
@@ -908,6 +915,21 @@ export default function Dashboard() {
             isLoading={isLoading}
             isError={isError}
           />
+          <AdminRepairButton />
+        </div>
+
+        {/* Right column: Sessions (top) + Progress (bottom) */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <SessionsCard
+            clientSessions={dashboard?.client_sessions}
+            leadMeetings={dashboard?.lead_meetings}
+            isLoading={isLoading}
+            isError={isError}
+          />
+          <ProgressCard
+            clients={dashboard?.clients_progress}
+            isLoading={isLoading}
+          />
           {!isLoading && !isError && counters?.active_clients === 0 && (
             <div className="card" style={{ padding: '24px', textAlign: 'center' }}>
               <p style={{ color: 'var(--ink-3)', fontSize: 13, margin: '0 0 12px' }}>עדיין אין מטופלים פעילים</p>
@@ -916,7 +938,6 @@ export default function Dashboard() {
               </Link>
             </div>
           )}
-          <AdminRepairButton />
         </div>
       </div>
     </div>
