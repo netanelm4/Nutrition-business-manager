@@ -9,6 +9,7 @@ import LeadDetail from './pages/LeadDetail';
 import Templates from './pages/Templates';
 import Protocols from './pages/Protocols';
 import CalendlySettings from './pages/CalendlySettings';
+import FoodBank from './pages/FoodBank';
 import Login from './pages/Login';
 
 export default function App() {
@@ -30,6 +31,7 @@ export default function App() {
           <Route path="templates" element={<Templates />} />
           <Route path="protocols" element={<Protocols />} />
           <Route path="calendly" element={<CalendlySettings />} />
+          <Route path="food-bank" element={<FoodBank />} />
         </Route>
       </Routes>
     </BrowserRouter>

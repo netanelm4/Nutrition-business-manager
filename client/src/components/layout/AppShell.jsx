@@ -13,6 +13,7 @@ const PATH_LABELS = {
   '/calendly':   ['עבודה', 'פגישות'],
   '/protocols':  ['כלים', 'פרוטוקולים'],
   '/templates':  ['כלים', 'תבניות WhatsApp'],
+  '/food-bank':  ['כלים', 'מאגר מזון'],
 };
 
 function useCrumbs() {
