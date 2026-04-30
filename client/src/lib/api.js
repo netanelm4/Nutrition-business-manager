@@ -189,6 +189,13 @@ export const repairAIAssessments = () => request('POST', '/admin/repair-ai-asses
 export const chatWithAssistant = (message, history) =>
   request('POST', '/assistant/chat', { message, history });
 
+// ── Food Bank ─────────────────────────────────────────────────────────────────
+export const fetchFoodCategories = ()             => request('GET',    '/food-bank/categories');
+export const fetchFoodItems      = (categoryId)   => request('GET',    `/food-bank/items/${categoryId}`);
+export const createFoodItem      = (data)         => request('POST',   '/food-bank/items', data);
+export const updateFoodItem      = (id, data)     => request('PUT',    `/food-bank/items/${id}`, data);
+export const deleteFoodItem      = (id)           => request('DELETE', `/food-bank/items/${id}`);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const checkHealth = (password) =>
   fetch('/api/health', {

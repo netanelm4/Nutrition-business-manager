@@ -26,6 +26,7 @@ const googleRouter     = require('./routes/google.routes');
 const dailyTasksRouter      = require('./routes/daily-tasks.routes');
 const assistantRouter       = require('./routes/assistant.routes');
 const engagementsRouter     = require('./routes/engagements.routes');
+const foodBankRouter        = require('./routes/food-bank.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
 const { loadStoredToken, syncCanceledEvents, pollNewBookings } = require('./services/google-calendar.service');
@@ -72,6 +73,7 @@ app.use('/api',                  aiSummaryRouter);
 app.use('/api/daily-tasks',      dailyTasksRouter);
 app.use('/api/assistant',        assistantRouter);
 app.use('/api/engagements',      engagementsRouter);
+app.use('/api/food-bank',        foodBankRouter);
 
 // Session sub-routes are mounted on the clients router (/:id/sessions, /:id/windows)
 // Direct session access (/api/sessions/:id) is mounted here for GET/PUT/POST insights
