@@ -1098,4 +1098,262 @@ try {
   console.error('[migration] engagements seed failed:', err.message);
 }
 
+// ── Food database: food_categories and food_items ─────────────────────────────
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS food_categories (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      nutrient_type TEXT    NOT NULL CHECK (nutrient_type IN ('protein','carb','fat','vegetable','fruit')),
+      name_he       TEXT    NOT NULL UNIQUE,
+      sort_order    INTEGER DEFAULT 0,
+      created_at    TEXT    DEFAULT (datetime('now'))
+    )
+  `);
+} catch { /* Table already exists — safe to ignore */ }
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS food_items (
+      id                        INTEGER PRIMARY KEY AUTOINCREMENT,
+      category_id               INTEGER NOT NULL REFERENCES food_categories(id),
+      name_he                   TEXT    NOT NULL,
+      portion_description       TEXT,
+      portion_grams             REAL,
+      calories_per_half_portion REAL,
+      protein_grams             REAL,
+      notes                     TEXT,
+      is_active                 INTEGER DEFAULT 1,
+      sort_order                INTEGER DEFAULT 0,
+      created_at                TEXT    DEFAULT (datetime('now')),
+      UNIQUE(category_id, name_he)
+    )
+  `);
+} catch { /* Table already exists — safe to ignore */ }
+
+// Seed categories (idempotent — INSERT OR IGNORE on UNIQUE name_he)
+try {
+  const insertCat = db.prepare(
+    'INSERT OR IGNORE INTO food_categories (nutrient_type, name_he, sort_order) VALUES (?, ?, ?)'
+  );
+  db.transaction(() => {
+    insertCat.run('protein',   'חלבון מהחי — ביצים ומוצרי חלב',  1);
+    insertCat.run('protein',   'חלבון מהחי — דגים',                2);
+    insertCat.run('protein',   'חלבון מהחי — עוף ובשר',            3);
+    insertCat.run('protein',   'חלבון מהצומח — קטניות',            4);
+    insertCat.run('protein',   'חלבון מהצומח — אחר',               5);
+    insertCat.run('carb',      'דגנים ולחמים',                      6);
+    insertCat.run('carb',      'קטניות (פחמימה)',                   7);
+    insertCat.run('carb',      'ירקות עמילניים',                    8);
+    insertCat.run('fat',       'שמנים וממרחים',                     9);
+    insertCat.run('fat',       'אגוזים וזרעים',                    10);
+    insertCat.run('fat',       'פירות שמנים',                      11);
+    insertCat.run('vegetable', 'ירקות',                             12);
+    insertCat.run('fruit',     'פירות',                             13);
+  })();
+} catch (err) {
+  console.error('[migration] food_categories seed failed:', err.message);
+}
+
+// Seed food items (idempotent — INSERT OR IGNORE on UNIQUE(category_id, name_he))
+try {
+  const insertItem = db.prepare(`
+    INSERT OR IGNORE INTO food_items
+      (category_id, name_he, portion_description, portion_grams,
+       calories_per_half_portion, protein_grams, notes)
+    VALUES ((SELECT id FROM food_categories WHERE name_he = ?), ?, ?, ?, ?, ?, ?)
+  `);
+
+  db.transaction(() => {
+    // ── חלבון מהחי — ביצים ומוצרי חלב ─────────────────────────────────────
+    const d = 'חלבון מהחי — ביצים ומוצרי חלב';
+    insertItem.run(d, 'ביצה',               '1 ביצה בינונית',  50,  70,  6, null);
+    insertItem.run(d, 'ביצה גדולה',         '1 ביצה גדולה',    60,  85,  7, null);
+    insertItem.run(d, 'קוטג׳ 3%',           '2 כפות',         100,  95, 12, null);
+    insertItem.run(d, 'גבינה לבנה 5%',      '2 כפות',         100, 100, 10, null);
+    insertItem.run(d, 'גבינה לבנה 9%',      '2 כפות',         100, 130,  9, null);
+    insertItem.run(d, 'גבינה צהובה 9%',     '1 פרוסה',         20,  50,  6, null);
+    insertItem.run(d, 'גבינה צהובה 15%',    '1 פרוסה',         20,  60,  5, null);
+    insertItem.run(d, 'גבינה צהובה 28%',    '1 פרוסה',         20,  75,  5, null);
+    insertItem.run(d, 'גבינה בולגרית 5%',   '3 כפות',          60,  65,  8, null);
+    insertItem.run(d, 'גבינת עזים 5%',      '2 כפות',          40,  60,  7, null);
+    insertItem.run(d, 'גבינת ריקוטה',       '3 כפות',          60,  80,  7, null);
+    insertItem.run(d, 'גבינת פטה',          '30 גרם',          30,  75,  5, null);
+    insertItem.run(d, 'יוגורט יווני 0%',    '3/4 כוס',        150,  85, 15, null);
+    insertItem.run(d, 'יוגורט יווני 2%',    '3/4 כוס',        150, 110, 12, null);
+    insertItem.run(d, 'יוגורט ביו עד 3%',   '1 גביע',         150,  90,  7, null);
+    insertItem.run(d, 'שמנת חמוצה 15%',     '2 כפות',          30,  45,  1, 'כמות חלבון נמוכה');
+    insertItem.run(d, 'מעדן חלבון',         '1 יחידה',        200, 140, 20, '= מנה שלמה');
+    insertItem.run(d, 'משקה חלבון',         '1 בקבוק',        250, 130, 25, '= מנה שלמה ויותר');
+
+    // ── חלבון מהחי — דגים ──────────────────────────────────────────────────
+    const fi = 'חלבון מהחי — דגים';
+    insertItem.run(fi, 'פילה דג לבן (לברק/מושט/דניס)', '1 פילה',    100,  90, 18, null);
+    insertItem.run(fi, 'פילה סלמון',                   '1/2 פילה',   80, 130, 16, null);
+    insertItem.run(fi, 'טונה במים',                    '1/2 פחית',   60,  60, 14, null);
+    insertItem.run(fi, 'טונה בשמן',                    '1/2 פחית',   60, 115, 12, null);
+    insertItem.run(fi, 'סלמון מעושן',                  '2 פרוסות',   40,  65,  9, null);
+    insertItem.run(fi, 'הליבוט',                       '1 פילה',    100,  90, 18, null);
+    insertItem.run(fi, 'בקלה',                         '1 פילה',    100,  80, 18, null);
+    insertItem.run(fi, 'דג מוסר ים',                   '1 פילה',    100,  95, 18, null);
+    insertItem.run(fi, 'פלמידה',                       '1 פילה',    100, 145, 22, null);
+    insertItem.run(fi, 'שרימפס',                       '10 יחידות', 100,  85, 18, null);
+
+    // ── חלבון מהחי — עוף ובשר ──────────────────────────────────────────────
+    const m = 'חלבון מהחי — עוף ובשר';
+    insertItem.run(m, 'חזה עוף',          '1-2 חתיכות',  100, 110, 22, 'לאחר בישול');
+    insertItem.run(m, 'פרגית',            '1-2 חתיכות',  100, 130, 18, 'לאחר בישול');
+    insertItem.run(m, 'שניצל עוף',        '1 חתיכה',      80, 155, 14, null);
+    insertItem.run(m, 'קציצות עוף',       '4-5 קציצות',  100, 150, 16, null);
+    insertItem.run(m, 'כרע עוף ללא עור',  '1 כרע',       100, 120, 19, null);
+    insertItem.run(m, 'בשר בקר טחון',     '100 גרם',     100, 215, 17, 'לפני בישול, 15% שומן');
+    insertItem.run(m, 'סטייק אנטריקוט',   '150-200 גרם', 150, 280, 28, null);
+    insertItem.run(m, 'פילה בקר',         '150 גרם',     150, 240, 30, null);
+    insertItem.run(m, 'פסטרמה דלת שומן',  '4-5 פרוסות',   60,  65, 10, null);
+    insertItem.run(m, 'קורנביף',          '4-5 פרוסות',   60,  80, 11, null);
+    insertItem.run(m, 'נקניקיות עוף',     '2 יחידות',     80, 140, 10, null);
+
+    // ── חלבון מהצומח — קטניות ───────────────────────────────────────────────
+    const pl = 'חלבון מהצומח — קטניות';
+    insertItem.run(pl, 'עדשים כתומות מבושלות',  '1/2 כוס', 100, 115,  9, null);
+    insertItem.run(pl, 'עדשים ירוקות מבושלות',  '1/2 כוס', 100, 115,  9, null);
+    insertItem.run(pl, 'שעועית לבנה מבושלת',    '1/2 כוס', 100, 125,  9, null);
+    insertItem.run(pl, 'שעועית שחורה מבושלת',   '1/2 כוס', 100, 130,  9, null);
+    insertItem.run(pl, 'חומוס מבושל',           '1/2 כוס', 100, 160,  9, null);
+    insertItem.run(pl, 'אפונה מבושלת',          '1/2 כוס',  80,  65,  4, null);
+    insertItem.run(pl, 'פול מבושל',             '1/2 כוס', 100, 110,  8, null);
+    insertItem.run(pl, 'סויה מבושלת',           '1/2 כוס',  90, 150, 14, null);
+
+    // ── חלבון מהצומח — אחר ──────────────────────────────────────────────────
+    const po = 'חלבון מהצומח — אחר';
+    insertItem.run(po, 'טופו רגיל', '100 גרם', 100,  75,  8, null);
+    insertItem.run(po, 'טופו קשה',  '100 גרם', 100,  85, 10, null);
+    insertItem.run(po, 'טמפה',      '80 גרם',   80, 160, 15, null);
+    insertItem.run(po, 'סייטן',     '80 גרם',   80, 140, 25, null);
+    insertItem.run(po, 'אדממה',     '1/2 כוס',  80, 100,  9, null);
+
+    // ── דגנים ולחמים ────────────────────────────────────────────────────────
+    const g = 'דגנים ולחמים';
+    insertItem.run(g, 'אורז לבן מבושל',      '8 כפות',      100, 130, 3, null);
+    insertItem.run(g, 'אורז מלא מבושל',      '8 כפות',      100, 110, 3, null);
+    insertItem.run(g, 'קינואה מבושלת',       '8 כפות',      100, 120, 4, null);
+    insertItem.run(g, 'בורגול מבושל',        '10 כפות',     100,  85, 3, null);
+    insertItem.run(g, 'קוסקוס מבושל',        '10 כפות',     100, 110, 4, null);
+    insertItem.run(g, 'פסטה מבושלת',         '6-7 כפות',    100, 155, 6, null);
+    insertItem.run(g, 'אטריות אורז מבושלות', '7 כפות',      100, 110, 2, null);
+    insertItem.run(g, 'פתיתים מבושלים',      '6 כפות',      100, 130, 4, null);
+    insertItem.run(g, 'שיבולת שועל',         '4 כפות יבש',   40, 150, 5, null);
+    insertItem.run(g, 'לחם מלא',             '1 פרוסה',      30,  75, 4, null);
+    insertItem.run(g, 'לחם קל',              '2 פרוסות',     40,  80, 4, null);
+    insertItem.run(g, 'חלה',                 '1 פרוסה',      30,  80, 3, null);
+    insertItem.run(g, 'פיתה כוסמין',         '1 קטנה',       60, 150, 5, null);
+    insertItem.run(g, 'לחמניה מלאה',         '1 יחידה',      60, 155, 5, null);
+    insertItem.run(g, 'טורטייה',             '1 יחידה',      30,  90, 3, null);
+    insertItem.run(g, 'קרקר מלאים',          '3 יחידות',     30, 115, 3, null);
+    insertItem.run(g, 'פריכיות אורז',        '3 יחידות',     30, 110, 2, null);
+    insertItem.run(g, 'ברנפלקס',             '2 כפות',       20,  70, 2, null);
+    insertItem.run(g, 'גרנולה ללא סוכר',     '2 כפות',       25, 100, 3, null);
+
+    // ── ירקות עמילניים ──────────────────────────────────────────────────────
+    const sv = 'ירקות עמילניים';
+    insertItem.run(sv, 'תפוח אדמה אפוי',  '1-2 יחידות בינוניות', 150, 130, 3, null);
+    insertItem.run(sv, 'תפוח אדמה מבושל', '1-2 יחידות',          150, 115, 3, null);
+    insertItem.run(sv, 'בטטה אפויה',       '1/2 יחידה',           100,  85, 2, null);
+    insertItem.run(sv, 'תירס',             '1 קלח בינוני',        100,  95, 3, null);
+    insertItem.run(sv, 'דלעת מבושלת',      '1 כוס',               150,  70, 2, null);
+
+    // ── שמנים וממרחים ────────────────────────────────────────────────────────
+    const oi = 'שמנים וממרחים';
+    insertItem.run(oi, 'שמן זית',           '1/2 כף',   7,  60, 0, null);
+    insertItem.run(oi, 'שמן קוקוס',         '1/2 כף',   7,  60, 0, null);
+    insertItem.run(oi, 'חמאה',              '1 כפית',   5,  35, 0, null);
+    insertItem.run(oi, 'טחינה גולמית',      '2 כפיות', 10,  60, 2, null);
+    insertItem.run(oi, 'סלט טחינה מוכן',    '1 כף',    20,  60, 2, null);
+    insertItem.run(oi, 'חמאת בוטנים טבעית', '1 כף',    16,  95, 4, null);
+    insertItem.run(oi, 'חמאת שקדים',        '1 כף',    16,  95, 4, null);
+    insertItem.run(oi, 'גואקמולי',          '2 כפות',  30,  50, 1, null);
+
+    // ── אגוזים וזרעים ────────────────────────────────────────────────────────
+    const ns = 'אגוזים וזרעים';
+    insertItem.run(ns, 'שקדים',          '8 יחידות',  20, 115, 4, null);
+    insertItem.run(ns, 'אגוזי מלך',      '2 חצאים',   15, 100, 2, null);
+    insertItem.run(ns, 'קשיו',           '10 יחידות', 20, 110, 3, null);
+    insertItem.run(ns, 'פיסטוקים',       '20 יחידות', 20, 115, 4, null);
+    insertItem.run(ns, 'גרעיני חמנייה',  '2 כפות',    20, 115, 4, null);
+    insertItem.run(ns, 'זרעי צ׳יה',      '1 כף',      12,  58, 2, null);
+    insertItem.run(ns, 'גרעיני פשתן',    '1 כף',      12,  55, 2, null);
+    insertItem.run(ns, 'זרעי דלעת',      '2 כפות',    20, 115, 6, null);
+
+    // ── פירות שמנים ─────────────────────────────────────────────────────────
+    const ff = 'פירות שמנים';
+    insertItem.run(ff, 'אבוקדו',        '1/4 יחידה',  50,  80, 1, null);
+    insertItem.run(ff, 'קוקוס (טרי)',   '30 גרם',     30, 105, 1, null);
+    insertItem.run(ff, 'זיתים שחורים',  '10 יחידות',  40,  60, 0, null);
+    insertItem.run(ff, 'זיתים ירוקים',  '10 יחידות',  40,  55, 0, null);
+
+    // ── ירקות ───────────────────────────────────────────────────────────────
+    const v = 'ירקות';
+    insertItem.run(v, 'מלפפון',        '1 יחידה',    100,  15, 1, null);
+    insertItem.run(v, 'עגבנייה',       '1 יחידה',    100,  18, 1, null);
+    insertItem.run(v, 'עגבניות שרי',   '4-6 יחידות', 100,  18, 1, null);
+    insertItem.run(v, 'גמבה אדומה',    '1/2 יחידה',   75,  20, 1, null);
+    insertItem.run(v, 'גמבה ירוקה',    '1/2 יחידה',   75,  15, 1, null);
+    insertItem.run(v, 'גזר',           '1 יחידה',     80,  33, 1, null);
+    insertItem.run(v, 'קישוא',         '1 יחידה',    150,  25, 2, null);
+    insertItem.run(v, 'ברוקולי',       '3 פרחים',    100,  34, 3, null);
+    insertItem.run(v, 'כרובית',        '3 פרחים',    100,  25, 2, null);
+    insertItem.run(v, 'חסה/עלים',      'ללא הגבלה',  100,  15, 1, 'ללא הגבלה');
+    insertItem.run(v, 'תרד',           '1 כוס',       60,  15, 2, null);
+    insertItem.run(v, 'כרוב',          '1 כוס',       90,  25, 1, null);
+    insertItem.run(v, 'סלרי',          '2 גבעולים',   80,  13, 1, null);
+    insertItem.run(v, 'פטריות',        '1 כוס',       70,  15, 2, null);
+    insertItem.run(v, 'בצל',           '1 יחידה',    100,  40, 1, null);
+    insertItem.run(v, 'כרישה',         '1/2 יחידה',   70,  30, 1, null);
+    insertItem.run(v, 'שעועית ירוקה',  '100 גרם',    100,  30, 2, null);
+    insertItem.run(v, 'אספרגוס',       '5 גבעולים',   80,  18, 2, null);
+    insertItem.run(v, 'חציל',          '1/2 יחידה',  100,  25, 1, null);
+    insertItem.run(v, 'עלי מנגולד',    '1 כוס',       60,  10, 1, null);
+
+    // ── פירות ───────────────────────────────────────────────────────────────
+    const fr = 'פירות';
+    insertItem.run(fr, 'תפוח',             '1 קטן',      120,  60, 0, null);
+    insertItem.run(fr, 'בננה',             '1 יחידה',    100,  90, 1, null);
+    insertItem.run(fr, 'אגס',              '1 יחידה',    150,  85, 1, null);
+    insertItem.run(fr, 'אפרסק',            '1 יחידה',    150,  65, 1, null);
+    insertItem.run(fr, 'שזיף',             '2 קטנים',    100,  45, 1, null);
+    insertItem.run(fr, 'משמש',             '2 יחידות',    80,  40, 1, null);
+    insertItem.run(fr, 'תמר',              '1 יחידה',     25,  70, 0, null);
+    insertItem.run(fr, 'תותים',            '10 יחידות',  100,  30, 1, null);
+    insertItem.run(fr, 'ענבים',            '15 יחידות',   75,  50, 0, null);
+    insertItem.run(fr, 'דובדבנים',         '15 יחידות',   75,  48, 1, null);
+    insertItem.run(fr, 'קלמנטינה/מנדרינה','2 יחידות',   150,  65, 1, null);
+    insertItem.run(fr, 'תפוז',             '1 יחידה',    150,  70, 1, null);
+    insertItem.run(fr, 'אשכולית',          '1/2 יחידה',  120,  40, 1, null);
+    insertItem.run(fr, 'מנגו',             '1/2 יחידה',  150, 100, 1, null);
+    insertItem.run(fr, 'אננס',             '2 טבעות',    100,  50, 1, null);
+    insertItem.run(fr, 'אבטיח',            'פרוסה',      200,  60, 1, null);
+    insertItem.run(fr, 'מלון',             '2 פרוסות',   200,  65, 1, null);
+    insertItem.run(fr, 'קיווי',            '2 יחידות',   140,  85, 2, null);
+    insertItem.run(fr, 'רימון',            '1/2 יחידה',  100,  80, 1, null);
+    insertItem.run(fr, 'תאנה טרייה',       '2 יחידות',    80,  55, 1, null);
+    insertItem.run(fr, 'פסיפלורה',         '2 יחידות',    60,  50, 1, null);
+  })();
+} catch (err) {
+  console.error('[migration] food_items seed failed:', err.message);
+}
+
+// Log row counts per category after seeding
+try {
+  const counts = db.prepare(`
+    SELECT fc.name_he, COUNT(fi.id) AS item_count
+    FROM food_categories fc
+    LEFT JOIN food_items fi ON fi.category_id = fc.id
+    GROUP BY fc.id
+    ORDER BY fc.sort_order
+  `).all();
+  for (const row of counts) {
+    console.log(`[food-db] ${row.name_he}: ${row.item_count} פריטים`);
+  }
+} catch { /* non-fatal */ }
+
 module.exports = db;
