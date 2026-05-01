@@ -145,14 +145,12 @@ export default function FoodBank() {
   const { data: categories = [], isLoading: catsLoading } = useQuery({
     queryKey: ['food-categories'],
     queryFn: fetchFoodCategories,
-    select: (r) => r.data ?? [],
   });
 
   const { data: items = [], isLoading: itemsLoading } = useQuery({
     queryKey: ['food-items', selectedId],
     queryFn: () => fetchFoodItems(selectedId),
     enabled: !!selectedId,
-    select: (r) => r.data ?? [],
   });
 
   // ── Derived: grouped categories ──────────────────────────────────────────────
