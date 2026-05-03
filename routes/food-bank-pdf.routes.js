@@ -1,15 +1,15 @@
 const express = require('express');
 const puppeteer = require('puppeteer-core');
+const { execSync } = require('child_process');
 const db = require('../database/db');
 
 const router = express.Router();
 
-// Nix-installed chromium path on Railway; fallback for local macOS testing
-const CHROMIUM_PATH =
-  process.env.CHROMIUM_PATH ||
-  '/run/current-system/sw/bin/chromium' ||
-  '/usr/bin/chromium' ||
-  '/usr/bin/chromium-browser';
+// Resolve chromium path: explicit env var first, then PATH discovery (Railway nixpkg).
+function getChromiumPath() {
+  if (process.env.CHROMIUM_PATH) return process.env.CHROMIUM_PATH;
+  try { return execSync('which chromium').toString().trim(); } catch { return null; }
+}
 
 function fail(res, status, message) {
   return res.status(status).json({ success: false, error: message });
@@ -171,6 +171,9 @@ function buildHtml(categoryName, items) {
 // ── GET /api/food-bank/pdf/:categoryId ────────────────────────────────────────
 
 router.get('/pdf/:categoryId', async (req, res) => {
+  const chromiumPath = getChromiumPath();
+  if (!chromiumPath) return fail(res, 503, 'PDF generation is only available in production');
+
   let browser = null;
   try {
     const category = db
@@ -186,7 +189,7 @@ router.get('/pdf/:categoryId', async (req, res) => {
     const html = buildHtml(category.name_he, items);
 
     browser = await puppeteer.launch({
-      executablePath: CHROMIUM_PATH,
+      executablePath: chromiumPath,
       headless: true,
       args: [
         '--no-sandbox',
@@ -371,6 +374,9 @@ function buildMacroHtml(macroLabel, categories) {
 }
 
 router.get('/pdf/macro/:nutrientType', async (req, res) => {
+  const chromiumPath = getChromiumPath();
+  if (!chromiumPath) return fail(res, 503, 'PDF generation is only available in production');
+
   let browser = null;
   try {
     const { nutrientType } = req.params;
@@ -393,7 +399,7 @@ router.get('/pdf/macro/:nutrientType', async (req, res) => {
     const html = buildMacroHtml(macroLabel, categories);
 
     browser = await puppeteer.launch({
-      executablePath: CHROMIUM_PATH,
+      executablePath: chromiumPath,
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
     });

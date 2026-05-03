@@ -240,10 +240,12 @@ export default function FoodBank() {
   }
 
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError,   setPdfError]   = useState(null);
 
   async function handleExportPdf() {
     if ((!selectedId && !selectedMacro) || pdfLoading) return;
     setPdfLoading(true);
+    setPdfError(null);
     try {
       const url = selectedMacro
         ? `/api/food-bank/pdf/macro/${selectedMacro}`
@@ -255,7 +257,10 @@ export default function FoodBank() {
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${localStorage.getItem('auth_password') || ''}` },
       });
-      if (!res.ok) throw new Error('PDF generation failed');
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error || `שגיאה ${res.status}`);
+      }
       const blob = await res.blob();
       const objUrl = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -265,6 +270,7 @@ export default function FoodBank() {
       URL.revokeObjectURL(objUrl);
     } catch (err) {
       console.error('[exportPdf]', err);
+      setPdfError(err.message);
     } finally {
       setPdfLoading(false);
     }
@@ -292,23 +298,28 @@ export default function FoodBank() {
             )}
           </div>
           {(selectedId || selectedMacro) && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                className="crm-btn"
-                onClick={handleExportPdf}
-                disabled={pdfLoading}
-              >
-                {pdfLoading ? 'מייצא...' : 'ייצא PDF'}
-              </button>
-              {selectedId && !addOpen && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   type="button"
-                  className="crm-btn crm-btn--primary"
-                  onClick={() => { setAddOpen(true); setEditingId(null); setAddForm(EMPTY_FORM); }}
+                  className="crm-btn"
+                  onClick={handleExportPdf}
+                  disabled={pdfLoading}
                 >
-                  + הוסף פריט
+                  {pdfLoading ? 'מייצא...' : 'ייצא PDF'}
                 </button>
+                {selectedId && !addOpen && (
+                  <button
+                    type="button"
+                    className="crm-btn crm-btn--primary"
+                    onClick={() => { setAddOpen(true); setEditingId(null); setAddForm(EMPTY_FORM); }}
+                  >
+                    + הוסף פריט
+                  </button>
+                )}
+              </div>
+              {pdfError && (
+                <span style={{ fontSize: 12, color: 'var(--red, #dc2626)' }}>{pdfError}</span>
               )}
             </div>
           )}
