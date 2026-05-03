@@ -122,8 +122,6 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteToast, setDeleteToast] = useState(false);
 
-  const alertState = getSessionAlertState(session.session_number, windowAlerts);
-
   const deleteMutation = useMutation({
     mutationFn: () => deleteSession(session.id),
     onSuccess: () => {
@@ -164,17 +162,10 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <AlertBadge state={alertState} />
-            {session.status !== 'completed' && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); completeMutation.mutate(); }}
-                disabled={completeMutation.isPending}
-                className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-green-500 text-green-700 bg-transparent hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-default"
-              >
-                {completeMutation.isPending ? 'מעדכן...' : '✓ בוצעה'}
-              </button>
-            )}
+            <AlertBadge
+              state={session.status === 'completed' ? 'green' : 'yellow'}
+              label={session.status === 'completed' ? 'בוצעה' : 'ממתין'}
+            />
             <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
           </div>
         </button>
@@ -260,6 +251,16 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
                 >
                   מחק פגישה
                 </button>
+                {session.status !== 'completed' && (
+                  <button
+                    type="button"
+                    onClick={() => completeMutation.mutate()}
+                    disabled={completeMutation.isPending}
+                    className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors disabled:opacity-50 disabled:cursor-default"
+                  >
+                    {completeMutation.isPending ? 'מעדכן...' : '✓ סמן כבוצעה'}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="rounded-lg border border-red-200 bg-red-50 p-3 space-y-2">
