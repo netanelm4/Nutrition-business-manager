@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -1067,6 +1067,19 @@ export default function ClientDetail() {
     enabled: activeTab === 'messages',
   });
 
+  const { data: upcomingMeetings = [] } = useQuery({
+    queryKey: ['client-meetings', id],
+    queryFn: () => fetchClientMeetings(id),
+    enabled: !!client,
+  });
+
+  const completeMeetingMutation = useMutation({
+    mutationFn: (eventId) => completeCalendlyEvent(eventId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-meetings', id] });
+    },
+  });
+
   const isLoading = clientLoading || sessionsLoading;
 
   const effectiveEngagementId = selectedEngagementId ?? engagements[0]?.id ?? null;
@@ -1248,6 +1261,35 @@ export default function ClientDetail() {
 
             {activeTab === 'sessions' && (
               <>
+                {upcomingMeetings.length > 0 && (
+                  <div style={{ marginBottom: 20 }}>
+                    <div className="t-eyebrow" style={{ marginBottom: 10 }}>פגישות קרובות</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {upcomingMeetings.map((meeting) => {
+                        const dt = new Date(meeting.start_time);
+                        const dateStr = dt.toLocaleDateString('he-IL', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' });
+                        const timeStr = dt.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+                        const typeLabel = meeting.event_type === 'follow_up' ? 'מעקב' : meeting.event_type === 'first_meeting' ? 'פגישה ראשונה' : meeting.event_type;
+                        const isPending = completeMeetingMutation.isPending && completeMeetingMutation.variables === meeting.id;
+                        return (
+                          <div key={meeting.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-1)' }}>{typeLabel}</span>
+                              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{dateStr} • {timeStr}</span>
+                            </div>
+                            <button
+                              onClick={() => completeMeetingMutation.mutate(meeting.id)}
+                              disabled={isPending}
+                              style={{ fontSize: 12, fontWeight: 600, padding: '6px 12px', borderRadius: 6, border: '1px solid var(--green)', background: 'transparent', color: 'var(--green)', cursor: isPending ? 'default' : 'pointer', opacity: isPending ? 0.6 : 1 }}
+                            >
+                              {isPending ? 'מעדכן...' : '✓ פגישה בוצעה'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {sessions.length === 0 && !sessionsLoading && (
                   <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', padding: '24px 0' }}>
                     עדיין לא נרשמו פגישות

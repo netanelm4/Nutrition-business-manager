@@ -1,0 +1,39 @@
+[     557ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=12d39d7f:14336
+[     689ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:5173/:0
+[  102304ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/clients:0
+[  102307ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["clients"] @ http://localhost:5173/@vite/client:509
+[  102309ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/leads:0
+[  102310ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["leads"] @ http://localhost:5173/@vite/client:509
+[  102316ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/daily-tasks:0
+[  102317ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["daily-tasks"] @ http://localhost:5173/@vite/client:509
+[  102317ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/dashboard:0
+[  102317ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/templates:0
+[  102319ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["dashboard"] @ http://localhost:5173/@vite/client:509
+[  102319ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["templates"] @ http://localhost:5173/@vite/client:509
+[  102707ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=12d39d7f:14336
+[  102733ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:5173/:0
+[  140497ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/clients:0
+[  140498ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["clients"] @ http://localhost:5173/@vite/client:509
+[  140514ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/leads:0
+[  140514ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["leads"] @ http://localhost:5173/@vite/client:509
+[  140517ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/daily-tasks:0
+[  140518ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["daily-tasks"] @ http://localhost:5173/@vite/client:509
+[  140520ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/dashboard:0
+[  140520ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["dashboard"] @ http://localhost:5173/@vite/client:509
+[  140523ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/templates:0
+[  140524ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["templates"] @ http://localhost:5173/@vite/client:509
+[  140854ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=12d39d7f:14336
+[  140865ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:5173/:0
+[  179669ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=12d39d7f:14336
+[  179698ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/clients:0
+[  179698ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["clients"] @ http://localhost:5173/@vite/client:509
+[  179699ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/leads:0
+[  179700ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["leads"] @ http://localhost:5173/@vite/client:509
+[  179714ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/daily-tasks:0
+[  179715ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["daily-tasks"] @ http://localhost:5173/@vite/client:509
+[  179716ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/dashboard:0
+[  179716ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["dashboard"] @ http://localhost:5173/@vite/client:509
+[  179717ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://localhost:5173/api/templates:0
+[  179718ms] [ERROR] Query data cannot be undefined. Please make sure to return a value other than undefined from your query function. Affected query key: ["templates"] @ http://localhost:5173/@vite/client:509
+[  179963ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=12d39d7f:14336
+[  179970ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "new-password"): (More info: https://goo.gl/9p2vKq) %o @ http://localhost:5173/:0

@@ -1,0 +1,133 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - img "נתא | קליניקת תזונה" [ref=e4]
+    - heading "תזונה שמתאימה לחיים שלך — לא לחיים שאחרים ממציאים לך" [level=1] [ref=e5]:
+      - text: תזונה שמתאימה לחיים שלך —
+      - text: לא לחיים שאחרים ממציאים לך
+    - paragraph [ref=e6]:
+      - text: בלי הבטחות שווא, בלי קיצוניות.
+      - text: רק תהליך שפוי, מבוסס מחקר, שאפשר להחזיק לאורך זמן.
+    - link "אני רוצה להשאיר פרטים ↓" [ref=e7] [cursor=pointer]:
+      - /url: "#contact"
+  - generic [ref=e9]:
+    - heading "האני מאמין שלי" [level=2] [ref=e10]
+    - generic [ref=e11]:
+      - generic [ref=e12]:
+        - generic [ref=e13]: 🔬
+        - paragraph [ref=e14]: מבוסס מחקר — לא טרנדים
+        - paragraph [ref=e15]: כל המלצה שאתן לך נשענת על קונצנזוס מדעי עדכני, לא על אינסטגרם.
+      - generic [ref=e16]:
+        - generic [ref=e17]: ⚖️
+        - paragraph [ref=e18]: אין שחור ולבן בתזונה
+        - paragraph [ref=e19]: התחום מורכב, החיים מורכבים — והפתרון צריך להיות גמיש כמוהם.
+      - generic [ref=e20]:
+        - generic [ref=e21]: 🎯
+        - paragraph [ref=e22]: תהליך, לא קסם
+        - paragraph [ref=e23]: אני לא מבטיח תוצאות מהירות. אני מבטיח תהליך שאפשר לחיות איתו.
+      - generic [ref=e24]:
+        - generic [ref=e25]: 🤝
+        - paragraph [ref=e26]: מותאם לחיים שלך
+        - paragraph [ref=e27]: לו״ז, עבודה, משפחה — הכל נלקח בחשבון. לא תבנית אחת לכולם.
+  - generic [ref=e29]:
+    - heading "מה תקבל בתהליך" [level=2] [ref=e30]
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - paragraph [ref=e33]: "01"
+        - paragraph [ref=e34]: ליווי אמיתי ביומיום
+        - paragraph [ref=e35]:
+          - text: תמיכה בוואטסאפ, מעקב שקילות פעמיים בשבוע.
+          - text: אני איתך בין הפגישות, לא רק בהן.
+      - generic [ref=e36]:
+        - paragraph [ref=e37]: "02"
+        - paragraph [ref=e38]: תפריט שחי ונושם
+        - paragraph [ref=e39]:
+          - text: לא מסמך PDF שמעלה אבק.
+          - text: תפריט שמשתנה איתך ועם השגרה המשתנה שלך.
+      - generic [ref=e40]:
+        - paragraph [ref=e41]: "03"
+        - paragraph [ref=e42]: כלים לכל החיים
+        - paragraph [ref=e43]:
+          - text: כל מפגש כולל למידה — כדי שתצא עם הבנה,
+          - text: לא רק עם הוראות שלא תזכור.
+  - generic [ref=e45]:
+    - heading "איך זה עובד" [level=2] [ref=e46]
+    - paragraph [ref=e47]: ליווי אינטנסיבי של 3 חודשים + המשך דרך לפי הצורך שלך
+    - generic [ref=e48]:
+      - generic [ref=e49]:
+        - paragraph [ref=e50]: שלב 1
+        - paragraph [ref=e51]: פגישת היכרות עמוקה
+        - paragraph [ref=e52]: מתחילים בלהכיר אותך — השגרה, המטרות, ההיסטוריה. בונים את הבסיס לתהליך שיתאים לך בדיוק.
+      - generic [ref=e53]:
+        - paragraph [ref=e54]: שלב 2
+        - paragraph [ref=e55]: תפריט מותאם אישית
+        - paragraph [ref=e56]: תוך יומיים מהפגישה הראשונה — תפריט דינמי שמתחשב בלו״ז, בהעדפות ובמטרה שלך.
+      - generic [ref=e57]:
+        - paragraph [ref=e58]: שלב 3
+        - paragraph [ref=e59]: 6 מפגשים + מעקב צמוד
+        - paragraph [ref=e60]: כל שבועיים פגישה (פרונטלית או זום) + ווצאפ יומיומי. מעקב שקילות, התאמות שוטפות, למידה בכל מפגש.
+      - generic [ref=e61]:
+        - paragraph [ref=e62]: שלב 4
+        - paragraph [ref=e63]: המשך הדרך
+        - paragraph [ref=e64]: בסיום 3 החודשים — מחליטים יחד על המשך. ליווי חודשי מופחת או פגישות נקודתיות לפי הצורך.
+    - generic [ref=e65]:
+      - paragraph [ref=e66]: עלות הליווי המלא (3 חודשים)
+      - paragraph [ref=e67]: 2,400 ₪
+      - paragraph [ref=e68]: כולל 6 מפגשים, תפריט מותאם, ותמיכה יומיומית
+  - generic [ref=e70]:
+    - heading "מה אומרים עליי" [level=2] [ref=e71]
+    - generic [ref=e72]:
+      - generic [ref=e73]:
+        - paragraph [ref=e74]: "\" נכנסתי לתהליך אחרי שנכוויתי כמה פעמים. נתנאל היה הראשון שהסביר לי למה כל הדיאטות הקודמות נשברו. בלי דרמה, בלי קיצוניות — סוף סוף משהו שמחזיק."
+        - paragraph [ref=e75]:
+          - strong [ref=e76]: מיכל, 34
+          - text: "מטרה: ירידה במשקל"
+      - generic [ref=e77]:
+        - paragraph [ref=e78]: "\" ציפיתי לתפריט ולמנות. קיבלתי הרבה יותר מזה — הבנה של הגוף שלי ושל הדפוסים שלי. 3 חודשים שינו את הדרך שאני מסתכל על אוכל."
+        - paragraph [ref=e79]:
+          - strong [ref=e80]: יואב, 28
+          - text: "מטרה: חיטוב ובניית מסה"
+      - generic [ref=e81]:
+        - paragraph [ref=e82]: "\" הדבר שהכי עזר לי הוא שנתנאל לא ייחס לי אשמה. הוא פשוט עזר לי להבין מה לא עבד ולמה. ממליצה לכל מי שעייפה מניסוי וטעייה."
+        - paragraph [ref=e83]:
+          - strong [ref=e84]: שירה, 41
+          - text: "מטרה: סדר תזונתי ובריאות"
+  - generic [ref=e86]:
+    - generic [ref=e87]:
+      - img "נתא" [ref=e88]
+      - heading "מתעניינ/ת?" [level=2] [ref=e89]
+      - paragraph [ref=e90]:
+        - text: השאירו פרטים ואחזור אליכם לשיחת היכרות קצרה —
+        - text: בלי התחייבות, בלי לחץ.
+    - generic [ref=e92]:
+      - generic [ref=e93]:
+        - generic [ref=e94]: שם מלא *
+        - textbox "שם מלא *" [ref=e95]:
+          - /placeholder: השם שלך
+      - generic [ref=e96]:
+        - generic [ref=e97]: טלפון *
+        - textbox "טלפון *" [ref=e98]:
+          - /placeholder: 050-0000000
+      - generic [ref=e99]:
+        - generic [ref=e100]: המטרה שלי *
+        - combobox "המטרה שלי *" [ref=e101]:
+          - option "בחר/י מטרה" [disabled] [selected]
+          - option "חיטוב"
+          - option "עלייה במסת שריר"
+          - option "ירידה במשקל"
+          - option "סדר תזונתי"
+          - option "מסיבה בריאותית"
+      - generic [ref=e102]:
+        - generic [ref=e103]: הערות
+        - textbox "הערות" [ref=e104]:
+          - /placeholder: משהו שחשוב לך שאדע מראש (לא חובה)
+      - button "שלחו פרטים ואחזור אליכם 💪" [ref=e105] [cursor=pointer]
+  - contentinfo [ref=e106]:
+    - img "נתא | קליניקת תזונה" [ref=e107]
+    - paragraph [ref=e108]:
+      - text: נתנאל מלכה |
+      - link "nm.nutritionist@gmail.com" [ref=e109] [cursor=pointer]:
+        - /url: mailto:nm.nutritionist@gmail.com
+      - text: "|"
+      - link "0524013226" [ref=e110] [cursor=pointer]:
+        - /url: tel:0524013226
+    - paragraph [ref=e111]: © 2026 כל הזכויות שמורות

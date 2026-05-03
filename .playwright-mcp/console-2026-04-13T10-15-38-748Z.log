@@ -1,0 +1,23 @@
+[     640ms] [LOG] JQMIGRATE: Migrate is installed, version 3.4.1 @ https://shiruziel.com/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1:1
+[    1382ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://shiruziel.com/SplitText.min.js:0
+[    1615ms] ReferenceError: SplitText is not defined
+    at HTMLDocument.<anonymous> (https://shiruziel.com/?fbclid=PAVERFWARJn8dleHRuA2FlbQIxMABzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadXP-glDMkEZmD5yTfzb350nEv1VGev_ahYk2Qi4ig5RujbFG92u55h3n5GtQ_aem_2Md3Nqk6AGzB5q3BjPJc6A:2575:40)
+[    1452ms] [LOG] Total width in VW: 240 @ https://shiruziel.com/?fbclid=PAVERFWARJn8dleHRuA2FlbQIxMABzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadXP-glDMkEZmD5yTfzb350nEv1VGev_ahYk2Qi4ig5RujbFG92u55h3n5GtQ_aem_2Md3Nqk6AGzB5q3BjPJc6A:2664
+[    1487ms] [LOG] Steps found: [div.elementor-element.elementor-element-93fd70a.elementor-widget__width-initial.step-2.elementor-ta…, div.elementor-element.elementor-element-d3a179d.elementor-widget__width-initial.step-3.elementor-ta…, div.elementor-element.elementor-element-99cd634.elementor-widget__width-initial.step-4.elementor-ta…, div.elementor-element.elementor-element-2be2bb3.elementor-widget__width-initial.step-5.elementor-ta…, div.elementor-element.elementor-element-acdbcd6.elementor-widget__width-initial.step-6.elementor-ta…] @ https://shiruziel.com/?fbclid=PAVERFWARJn8dleHRuA2FlbQIxMABzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadXP-glDMkEZmD5yTfzb350nEv1VGev_ahYk2Qi4ig5RujbFG92u55h3n5GtQ_aem_2Md3Nqk6AGzB5q3BjPJc6A:2707
+[    3873ms] [LOG] Vee Plugin first run... @ https://vee-crm.com/js/:134
+[    3874ms] [LOG] Checking docReady... @ https://vee-crm.com/js/:106
+[    3874ms] [LOG] Verifying window.onload... @ https://vee-crm.com/js/:112
+[    3998ms] [LOG] Vee Plugin successfully loaded! @ https://vee-crm.com/js/:171
+[    4000ms] [LOG] Vee CSS element found. @ https://vee-crm.com/js/:480
+[    4105ms] [LOG] Vee CSS file loaded. @ https://vee-crm.com/js/:485
+[    4654ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://shiruziel.com/favicon.ico:0
+[    4874ms] [LOG] Plugin activated. @ https://vee-crm.com/js/:128
+[  185135ms] [LOG] Animation completed, refreshing ScrollTrigger @ https://shiruziel.com/?fbclid=PAVERFWARJn8dleHRuA2FlbQIxMABzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadXP-glDMkEZmD5yTfzb350nEv1VGev_ahYk2Qi4ig5RujbFG92u55h3n5GtQ_aem_2Md3Nqk6AGzB5q3BjPJc6A:2144
+[  186382ms] [LOG] Animation completed, refreshing ScrollTrigger @ https://shiruziel.com/?fbclid=PAVERFWARJn8dleHRuA2FlbQIxMABzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadXP-glDMkEZmD5yTfzb350nEv1VGev_ahYk2Qi4ig5RujbFG92u55h3n5GtQ_aem_2Md3Nqk6AGzB5q3BjPJc6A:2144
+[  323396ms] [LOG] Animation completed, refreshing ScrollTrigger @ https://shiruziel.com/?fbclid=PAVERFWARJn8dleHRuA2FlbQIxMABzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadXP-glDMkEZmD5yTfzb350nEv1VGev_ahYk2Qi4ig5RujbFG92u55h3n5GtQ_aem_2Md3Nqk6AGzB5q3BjPJc6A:2144
+[  346885ms] [LOG] Animation completed, refreshing ScrollTrigger @ https://shiruziel.com/?fbclid=PAVERFWARJn8dleHRuA2FlbQIxMABzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadXP-glDMkEZmD5yTfzb350nEv1VGev_ahYk2Qi4ig5RujbFG92u55h3n5GtQ_aem_2Md3Nqk6AGzB5q3BjPJc6A:2204
+[  346950ms] [WARNING] GSAP target .spech-video-mobile not found. https://greensock.com @ https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.1/gsap.min.js:9
+[  346950ms] [WARNING] GSAP target  not found. https://greensock.com @ https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.1/gsap.min.js:9
+[  346951ms] [WARNING] GSAP target  not found. https://greensock.com @ https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.1/gsap.min.js:9
+[  389976ms] [WARNING] GSAP target  not found. https://greensock.com @ https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.1/gsap.min.js:9
+[  416586ms] [LOG] Animation completed, refreshing ScrollTrigger @ https://shiruziel.com/?fbclid=PAVERFWARJn8dleHRuA2FlbQIxMABzcnRjBmFwcF9pZA8xMjQwMjQ1NzQyODc0MTQAAadXP-glDMkEZmD5yTfzb350nEv1VGev_ahYk2Qi4ig5RujbFG92u55h3n5GtQ_aem_2Md3Nqk6AGzB5q3BjPJc6A:2144

@@ -1,0 +1,9 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - heading "ניהול לקוחות" [level=1] [ref=e6]
+    - paragraph [ref=e7]: תזונה קלינית
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - generic [ref=e10]: סיסמה
+      - textbox "הזן סיסמה" [active] [ref=e11]
+    - button "כניסה" [ref=e12] [cursor=pointer]

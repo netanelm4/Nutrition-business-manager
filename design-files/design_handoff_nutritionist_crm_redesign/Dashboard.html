@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>נתא CRM — לוח בקרה</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles/app.css"/>
+<link rel="stylesheet" href="styles/shell.css"/>
+<link rel="stylesheet" href="styles/interactions.css"/>
+</head>
+<body data-screen-label="Dashboard">
+
+<div id="root"></div>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="src/icons.jsx"></script>
+<script type="text/babel" src="src/data.jsx"></script>
+<script type="text/babel" src="src/interactions.jsx"></script>
+<script type="text/babel" src="src/shell.jsx"></script>
+<script type="text/babel" src="src/dashboard.jsx"></script>
+
+<script type="text/babel">
+/* global React, ReactDOM, Sidebar, Topbar, Stats, Tasks, Sessions, Alerts, Progress, I */
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "density": "comfortable",
+  "accentVibrancy": "calm",
+  "showRightRail": true
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweaks] = React.useState(TWEAK_DEFAULTS);
+  const [editOn, setEditOn] = React.useState(false);
+  const [aiOpen, setAiOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    const h = () => setAiOpen(v => !v);
+    window.addEventListener('open-ai', h);
+    return () => window.removeEventListener('open-ai', h);
+  }, []);
+
+  // Edit mode protocol
+  React.useEffect(() => {
+    const onMsg = (e) => {
+      if (e.data?.type === '__activate_edit_mode') setEditOn(true);
+      if (e.data?.type === '__deactivate_edit_mode') setEditOn(false);
+    };
+    window.addEventListener('message', onMsg);
+    window.parent.postMessage({type: '__edit_mode_available'}, '*');
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  const setTweak = (k, v) => {
+    const next = {...tweaks, [k]: v};
+    setTweaks(next);
+    window.parent.postMessage({type: '__edit_mode_set_keys', edits: {[k]: v}}, '*');
+  };
+
+  // Apply density
+  React.useEffect(() => {
+    const root = document.documentElement;
+    if (tweaks.density === 'compact') {
+      root.style.setProperty('--pad', '18px');
+    } else if (tweaks.density === 'spacious') {
+      root.style.setProperty('--pad', '32px');
+    } else {
+      root.style.setProperty('--pad', '24px');
+    }
+  }, [tweaks.density]);
+
+  return (
+    <div className="app">
+      <Sidebar active="dash"/>
+
+      <div className="main">
+        <Topbar
+          crumbs={['עבודה', 'לוח בקרה']}
+          onToggleAI={() => setAiOpen(v => !v)}
+        />
+
+        <div className="page">
+          <div className="page__head">
+            <div>
+              <div className="page__title">בוקר טוב, נתנאל</div>
+              <div className="page__sub">
+                5 פגישות היום · 7 משימות פעילות · 3 התראות שדורשות טיפול
+              </div>
+            </div>
+            <div className="page__actions">
+              <button className="btn" onClick={() => Toaster.show('פילטר הוחל', 'info')}><I.filter size={13}/> סינון</button>
+              <button className="btn btn--primary" onClick={() => window.act('new-meeting')}><I.plus size={13}/> קבע פגישה</button>
+            </div>
+          </div>
+
+          <Stats/>
+
+          <div className="grid-main">
+            <div style={{display: 'flex', flexDirection: 'column', gap: 18}}>
+              <Tasks/>
+              <Progress/>
+            </div>
+            <div style={{display: 'flex', flexDirection: 'column', gap: 18}}>
+              <Sessions/>
+              <Alerts/>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Assistant FAB */}
+      <button className="fab" onClick={() => setAiOpen(v => !v)}>
+        <span className="pulse"/>
+        <I.sparkle size={14}/>
+        שאל את נתא AI
+      </button>
+
+      {aiOpen && <AIPanel onClose={() => setAiOpen(false)}/>}
+
+      {/* Tweaks panel */}
+      <div className={`tweaks ${editOn ? 'is-on' : ''}`}>
+        <h4>Tweaks</h4>
+        <label>
+          <span>צפיפות</span>
+          <select value={tweaks.density} onChange={e => setTweak('density', e.target.value)}>
+            <option value="compact">קומפקטי</option>
+            <option value="comfortable">מאוזן</option>
+            <option value="spacious">מרווח</option>
+          </select>
+        </label>
+        <label>
+          <span>רמת דגש</span>
+          <select value={tweaks.accentVibrancy} onChange={e => setTweak('accentVibrancy', e.target.value)}>
+            <option value="calm">רגועה</option>
+            <option value="bold">מודגשת</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function AIPanel({ onClose }) {
+  return (
+    <div style={{
+      position: 'fixed', top: 0, insetInlineStart: 0, bottom: 0,
+      width: 380, background: 'var(--surface)',
+      borderInlineEnd: '1px solid var(--line)',
+      boxShadow: 'var(--shadow-pop)', zIndex: 60,
+      display: 'flex', flexDirection: 'column',
+      animation: 'slide .24s ease-out'
+    }}>
+      <style>{`@keyframes slide { from { transform: translateX(100%); } to { transform: none; } }`}</style>
+      <div style={{padding: '14px 18px', borderBottom: '1px solid var(--hairline)', display:'flex', alignItems:'center', gap: 10}}>
+        <div style={{
+          width: 28, height: 28, borderRadius: 8,
+          background: 'linear-gradient(135deg, #567DBF, #31B996)',
+          display: 'grid', placeItems: 'center', color: '#fff'
+        }}>
+          <I.sparkle size={14}/>
+        </div>
+        <div style={{flex: 1}}>
+          <div style={{fontWeight: 600, fontSize: 13.5}}>נתא AI</div>
+          <div className="t-xs t-muted">עוזר קליני · מבוסס על 47 תיקי מטופלים</div>
+        </div>
+        <button className="btn btn--ghost btn--icon" onClick={onClose}>✕</button>
+      </div>
+
+      <div style={{flex: 1, padding: 18, overflowY: 'auto', fontSize: 13.5, lineHeight: 1.6}}>
+        <div style={{color: 'var(--ink-3)', fontSize: 12, marginBottom: 10}}>הצעות מהירות</div>
+        {[
+          'סכם את פגישת רחל כהן מהשבוע',
+          'הצע פרוטוקול למטופל חדש עם תסמונת מטבולית',
+          'כתוב הודעת צ׳ק-אין שבועי ל-5 מטופלים פעילים',
+          'נתח דפוסי הצלחה בפרוטוקולים טבעוניים',
+        ].map((p, i) => (
+          <button key={i} className="btn" style={{width: '100%', justifyContent: 'flex-start', marginBottom: 6, fontWeight: 400, textAlign: 'start'}}>
+            <I.sparkle size={12}/> {p}
+          </button>
+        ))}
+      </div>
+
+      <div style={{padding: 12, borderTop: '1px solid var(--hairline)'}}>
+        <div style={{
+          border: '1px solid var(--line)', borderRadius: 10,
+          padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8,
+          background: 'var(--surface)'
+        }}>
+          <input style={{flex: 1, border: 0, outline: 'none', background: 'transparent'}} placeholder="שאל שאלה קלינית…"/>
+          <button className="btn btn--primary btn--sm"><I.arrow size={12}/></button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ActionProvider><App/></ActionProvider>);
+</script>
+
+</body>
+</html>

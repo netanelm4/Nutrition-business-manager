@@ -1,0 +1,213 @@
+/* Modals, toasts, dropdowns, notifications */
+
+/* ========== Backdrop + modal ========== */
+.backdrop {
+  position: fixed; inset: 0;
+  background: oklch(0.2 0.02 320 / 0.35);
+  backdrop-filter: blur(2px);
+  z-index: 100;
+  display: grid; place-items: center;
+  animation: fade .15s ease-out;
+}
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-pop);
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100vh - 60px);
+  overflow: hidden;
+  animation: pop .18s cubic-bezier(.2,.8,.3,1);
+  display: flex; flex-direction: column;
+}
+.modal--wide { width: min(720px, calc(100vw - 32px)); }
+@keyframes pop {
+  from { transform: translateY(8px) scale(0.98); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+.modal__head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--hairline);
+}
+.modal__title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.modal__sub { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+.modal__body { padding: 18px 20px; overflow-y: auto; flex: 1; }
+.modal__foot {
+  padding: 12px 20px;
+  border-top: 1px solid var(--hairline);
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--surface-2);
+}
+.x-btn {
+  width: 28px; height: 28px; border-radius: 6px;
+  display: grid; place-items: center; color: var(--ink-3);
+}
+.x-btn:hover { background: var(--surface-3); color: var(--ink-1); }
+
+/* ========== Form ========== */
+.field { margin-bottom: 14px; }
+.field label {
+  display: block; font-size: 12px; font-weight: 500;
+  color: var(--ink-2); margin-bottom: 6px;
+}
+.field input, .field textarea, .field select {
+  width: 100%;
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--surface);
+  font-size: 13.5px;
+  outline: none;
+  transition: border-color .12s, box-shadow .12s;
+}
+.field textarea { height: auto; padding: 9px 12px; min-height: 80px; font-family: inherit; line-height: 1.5; }
+.field input:focus, .field textarea:focus, .field select:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px oklch(0.8 0.06 255 / 0.25);
+}
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* ========== Dropdown ========== */
+.dropdown {
+  position: absolute;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-pop);
+  padding: 5px;
+  min-width: 220px;
+  z-index: 50;
+  animation: dropdown .12s ease-out;
+}
+@keyframes dropdown {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
+}
+.dd-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--ink-1);
+  width: 100%; text-align: start;
+  cursor: pointer;
+}
+.dd-item:hover { background: var(--surface-3); }
+.dd-item .ic { color: var(--ink-3); flex-shrink: 0; }
+.dd-item .kbd {
+  margin-inline-start: auto;
+  font-size: 10.5px; color: var(--ink-4);
+  background: var(--surface-3);
+  padding: 1px 5px; border-radius: 4px;
+  border: 1px solid var(--hairline);
+}
+.dd-sep { height: 1px; background: var(--hairline); margin: 4px -5px; }
+.dd-head {
+  padding: 6px 10px 4px;
+  font-size: 10.5px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+/* ========== Toasts ========== */
+.toast-wrap {
+  position: fixed;
+  top: 16px;
+  inset-inline-end: 16px;
+  z-index: 200;
+  display: flex; flex-direction: column; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px 10px 12px;
+  box-shadow: var(--shadow-pop);
+  display: flex; align-items: center; gap: 10px;
+  min-width: 260px;
+  pointer-events: auto;
+  animation: toast-in .22s ease-out;
+  font-size: 13px;
+}
+@keyframes toast-in {
+  from { transform: translateY(-8px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.toast.is-leaving { animation: toast-out .18s ease-out forwards; }
+@keyframes toast-out {
+  to { transform: translateX(8px); opacity: 0; }
+}
+.toast__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--green);
+  flex-shrink: 0;
+}
+.toast--info .toast__dot { background: var(--blue); }
+.toast--warn .toast__dot { background: oklch(0.72 0.13 70); }
+.toast--err  .toast__dot { background: oklch(0.55 0.2 20); }
+
+/* ========== Notification panel ========== */
+.notif-panel {
+  position: fixed;
+  top: 60px;
+  inset-inline-end: 16px;
+  width: 360px;
+  max-height: calc(100vh - 80px);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  z-index: 80;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: dropdown .15s ease-out;
+}
+.notif-panel__head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hairline);
+}
+.notif-panel__body { overflow-y: auto; }
+.notif-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--hairline);
+  cursor: pointer;
+  display: grid; grid-template-columns: 8px 1fr auto; gap: 10px;
+  align-items: flex-start;
+}
+.notif-item:hover { background: var(--surface-2); }
+.notif-item__unread {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--blue); margin-top: 6px;
+  opacity: 1;
+}
+.notif-item.is-read .notif-item__unread { opacity: 0; }
+.notif-item__title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.notif-item__body { font-size: 12px; color: var(--ink-3); line-height: 1.45; }
+.notif-item__time { font-size: 10.5px; color: var(--ink-4); white-space: nowrap; }
+
+/* Command palette */
+.cmdk {
+  width: min(560px, calc(100vw - 40px));
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+  animation: pop .18s cubic-bezier(.2,.8,.3,1);
+}
+.cmdk__input {
+  width: 100%;
+  height: 48px;
+  border: 0; outline: 0;
+  padding: 0 20px;
+  font-size: 15px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--hairline);
+}
+.cmdk__list { max-height: 360px; overflow-y: auto; padding: 6px; }

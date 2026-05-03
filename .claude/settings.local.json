@@ -5,7 +5,12 @@
       "Bash(sudo rm:*)",
       "Bash(npm cache:*)",
       "Bash(npm create:*)",
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "Bash(npx playwright:*)",
+      "mcp__playwright__browser_resize",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_take_screenshot"
     ]
   }
 }

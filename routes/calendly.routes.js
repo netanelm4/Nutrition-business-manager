@@ -266,6 +266,39 @@ calendlyRouter.put('/events/:id/cancel', async (req, res) => {
   }
 });
 
+// ── GET /api/calendly/clients/:clientId/events ───────────────────────────────
+
+calendlyRouter.get('/clients/:clientId/events', (req, res) => {
+  try {
+    const rows = db.prepare(`
+      SELECT * FROM calendly_events
+      WHERE client_id = ? AND status = 'active' AND start_time > datetime('now')
+      ORDER BY start_time ASC
+    `).all(req.params.clientId);
+    return res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error('[GET /calendly/clients/:clientId/events]', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch client events.' });
+  }
+});
+
+// ── PUT /api/calendly/events/:id/complete ─────────────────────────────────────
+
+calendlyRouter.put('/events/:id/complete', (req, res) => {
+  try {
+    const event = db.prepare('SELECT * FROM calendly_events WHERE id = ?').get(req.params.id);
+    if (!event) return res.status(404).json({ success: false, error: 'Event not found.' });
+
+    db.prepare("UPDATE calendly_events SET status = 'completed' WHERE id = ?").run(req.params.id);
+
+    const updated = db.prepare('SELECT * FROM calendly_events WHERE id = ?').get(req.params.id);
+    return res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('[PUT /calendly/events/:id/complete]', err);
+    return res.status(500).json({ success: false, error: 'Failed to complete event.' });
+  }
+});
+
 // ── POST /api/calendly/check-reminders ───────────────────────────────────────
 
 calendlyRouter.post('/check-reminders', (req, res) => {

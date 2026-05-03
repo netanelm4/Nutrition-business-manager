@@ -1,0 +1,178 @@
+/* ============================================================
+   נתא CRM — design tokens + base
+   RTL Hebrew, Heebo, minimal modern SaaS
+============================================================ */
+:root {
+  /* Brand — fixed */
+  --blue: #567DBF;
+  --green: #31B996;
+  --pink: #F5DBEA;
+  --bg: #fcf4f9;
+  --ink: #1a1a1a;
+
+  /* Derived tonal scale (warm-neutral, slight pink lift) */
+  --canvas: #fcf4f9;
+  --surface: #ffffff;
+  --surface-2: #fbf6f9;
+  --surface-3: #f4ecf2;
+
+  --line: oklch(0.92 0.008 340);
+  --line-2: oklch(0.88 0.012 340);
+  --hairline: oklch(0.95 0.006 340);
+
+  --ink-1: #1a1a1a;
+  --ink-2: oklch(0.35 0.01 320);
+  --ink-3: oklch(0.52 0.012 320);
+  --ink-4: oklch(0.68 0.01 320);
+
+  /* Status */
+  --blue-soft: oklch(0.94 0.03 255);
+  --blue-ink: oklch(0.42 0.11 255);
+  --green-soft: oklch(0.94 0.05 165);
+  --green-ink: oklch(0.42 0.12 165);
+  --pink-soft: #F5DBEA;
+  --pink-ink: oklch(0.38 0.08 0);
+  --amber-soft: oklch(0.94 0.06 80);
+  --amber-ink: oklch(0.48 0.11 70);
+  --red-soft: oklch(0.94 0.04 20);
+  --red-ink: oklch(0.5 0.14 20);
+
+  /* Radii */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+
+  /* Shadows */
+  --shadow-1: 0 1px 2px oklch(0.3 0.02 320 / 0.04),
+              0 1px 0 oklch(0.3 0.02 320 / 0.02);
+  --shadow-2: 0 4px 14px oklch(0.3 0.02 320 / 0.06),
+              0 1px 3px oklch(0.3 0.02 320 / 0.04);
+  --shadow-pop: 0 10px 30px oklch(0.3 0.02 320 / 0.12),
+                0 2px 6px oklch(0.3 0.02 320 / 0.06);
+
+  /* Layout */
+  --sidebar-w: 232px;
+  --topbar-h: 56px;
+  --pad: 24px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: 'Heebo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ink-1);
+  background: var(--canvas);
+  direction: rtl;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: 'ss01', 'kern';
+}
+
+button { font-family: inherit; cursor: pointer; border: 0; background: none; color: inherit; }
+a { color: inherit; text-decoration: none; }
+input, textarea, select { font-family: inherit; font-size: inherit; color: inherit; }
+
+/* ---------- Typography helpers ---------- */
+.h-display { font-size: 24px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.2; }
+.h-1 { font-size: 20px; font-weight: 700; letter-spacing: -0.012em; }
+.h-2 { font-size: 16px; font-weight: 600; letter-spacing: -0.006em; }
+.h-3 { font-size: 13px; font-weight: 600; }
+.t-muted { color: var(--ink-3); }
+.t-faint { color: var(--ink-4); }
+.t-mono  { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: 'tnum'; letter-spacing: -0.01em; }
+.t-num   { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+.t-xs    { font-size: 11px; }
+.t-sm    { font-size: 12px; }
+.t-eyebrow {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border-radius: var(--r-md);
+  font-size: 13px; font-weight: 500;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-1);
+  transition: background .15s, border-color .15s, transform .05s;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--surface-2); border-color: var(--line-2); }
+.btn:active { transform: translateY(0.5px); }
+.btn--primary {
+  background: var(--blue); border-color: var(--blue); color: #fff;
+}
+.btn--primary:hover { background: oklch(0.55 0.1 255); border-color: oklch(0.55 0.1 255); }
+.btn--ghost { background: transparent; border-color: transparent; }
+.btn--ghost:hover { background: var(--surface-3); }
+.btn--sm { height: 26px; padding: 0 9px; font-size: 12px; border-radius: 8px; }
+.btn--icon { width: 30px; padding: 0; justify-content: center; }
+
+/* ---------- Chips / Badges ---------- */
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 22px; padding: 0 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 500;
+  background: var(--surface-3); color: var(--ink-2);
+  border: 1px solid var(--hairline);
+}
+.chip--blue { background: var(--blue-soft); color: var(--blue-ink); border-color: transparent; }
+.chip--green { background: var(--green-soft); color: var(--green-ink); border-color: transparent; }
+.chip--pink { background: var(--pink-soft); color: var(--pink-ink); border-color: transparent; }
+.chip--amber { background: var(--amber-soft); color: var(--amber-ink); border-color: transparent; }
+.chip--red { background: var(--red-soft); color: var(--red-ink); border-color: transparent; }
+.chip .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+}
+
+/* ---------- Cards ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-1);
+}
+.card__head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px; border-bottom: 1px solid var(--hairline);
+}
+.card__body { padding: 8px 0; }
+.card__foot {
+  padding: 10px 18px; border-top: 1px solid var(--hairline);
+  display: flex; align-items: center; justify-content: space-between;
+  color: var(--ink-3); font-size: 12px;
+}
+
+/* ---------- Scrollbar polish ---------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: oklch(0.88 0.01 320); border: 2px solid transparent; background-clip: padding-box; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(0.78 0.012 320); background-clip: padding-box; border: 2px solid transparent; }
+
+/* ---------- Avatar ---------- */
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--pink-soft); color: var(--pink-ink);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600;
+  flex-shrink: 0;
+}
+.avatar--blue { background: var(--blue-soft); color: var(--blue-ink); }
+.avatar--green { background: var(--green-soft); color: var(--green-ink); }
+.avatar--lg { width: 36px; height: 36px; font-size: 13px; }
+
+/* ---------- Focus ---------- */
+:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Dividers */
+.hr { height: 1px; background: var(--hairline); border: 0; margin: 0; }
