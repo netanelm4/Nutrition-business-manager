@@ -595,6 +595,116 @@ function repairConvertedLeads(database) {
 repairPaymentStatus(db);
 repairConvertedLeads(db);
 
+// ── Repair: Correct food bank data to match clinical nutritional guidelines ───
+// Applied 2026-05-03: calorie ranges, legume reclassification, household portions.
+// Uses name+category lookups (not IDs) so it is safe across environments.
+// The seed now inserts legumes into cat 7 and שמנת חמוצה into cat 9; this repair
+// deletes any stale rows left in the old categories from before that seed change.
+function repairFoodBankClinicalData(database) {
+  try {
+    let fixed = 0;
+
+    // Step 1 — Remove stale entries in old categories.
+    const deleteStaleCat = database.prepare(
+      'DELETE FROM food_items WHERE name_he = ? AND category_id = ?'
+    );
+
+    // Legumes: old category 4 (חלבון מהצומח — קטניות) — seed now places them in cat 7
+    for (const name of [
+      'עדשים כתומות מבושלות', 'עדשים ירוקות מבושלות', 'שעועית לבנה מבושלת',
+      'שעועית שחורה מבושלת',  'חומוס מבושל',          'אפונה מבושלת',
+      'פול מבושל',            'סויה מבושלת',
+    ]) {
+      const r = deleteStaleCat.run(name, 4);
+      if (r.changes > 0) { console.log(`[repair] food_bank: removed stale cat-4 entry for ${name}`); fixed++; }
+    }
+
+    // שמנת חמוצה: old category 1 (dairy) — seed now places it in cat 9
+    const rSour = deleteStaleCat.run('שמנת חמוצה 15%', 1);
+    if (rSour.changes > 0) { console.log('[repair] food_bank: removed stale cat-1 entry for שמנת חמוצה'); fixed++; }
+
+    // Step 2 — Correct portion/calorie values (idempotent: skips rows already correct).
+    // Format: [portion_desc, grams, cal, protein(null=keep), notes(null=keep), name, cat, ...WHERE...]
+    const updateVals = database.prepare(`
+      UPDATE food_items
+      SET portion_description = ?, portion_grams = ?, calories_per_half_portion = ?,
+          protein_grams = COALESCE(?, protein_grams), notes = COALESCE(?, notes)
+      WHERE name_he = ? AND category_id = ?
+        AND (portion_description != ? OR portion_grams != ? OR calories_per_half_portion != ?)
+    `);
+
+    const corrections = [
+      // Group A — Protein: portion reduced
+      ['90 גרם',                   90, 144, null, null, 'פילה בקר',                    3, '90 גרם',                   90, 144],
+      ['65 גרם',                   65, 130, null, null, 'טמפה',                         5, '65 גרם',                   65, 130],
+      ['1 חתיכה קטנה (65 גרם)',    65, 126, null, null, 'שניצל עוף',                    3, '1 חתיכה קטנה (65 גרם)',    65, 126],
+      ['3-4 קציצות (80 גרם)',      80, 120, null, null, 'קציצות עוף',                   3, '3-4 קציצות (80 גרם)',      80, 120],
+      ['1 פילה (95 גרם)',           95, 138, null, null, 'פלמידה',                       2, '1 פילה (95 גרם)',           95, 138],
+      // Group B — Protein: portion enlarged for min 6g protein
+      ['1.5 פרוסות',               30,  90,  7.5, null, 'גבינה צהובה 15%',              1, '1.5 פרוסות',               30,  90],
+      ['1.5 פרוסות',               30, 113,  7.5, null, 'גבינה צהובה 28%',              1, '1.5 פרוסות',               30, 113],
+      ['3 כפות מפוררות',           36,  90,  6.0, null, 'גבינת פטה',                    1, '3 כפות מפוררות',           36,  90],
+      // Group C — Legumes now in cat 7: ensure correct values
+      ['1/4 כוס',  50,  80, null, null, 'חומוס מבושל',           7, '1/4 כוס',  50,  80],
+      ['1/4 כוס',  55,  92, null, null, 'סויה מבושלת',           7, '1/4 כוס',  55,  92],
+      ['1/3 כוס',  65,  85, null, null, 'שעועית שחורה מבושלת',   7, '1/3 כוס',  65,  85],
+      ['1/3 כוס',  70,  88, null, null, 'שעועית לבנה מבושלת',    7, '1/3 כוס',  70,  88],
+      ['1/3 כוס',  70,  80, null, null, 'עדשים ירוקות מבושלות',  7, '1/3 כוס',  70,  80],
+      ['1/3 כוס',  70,  80, null, null, 'עדשים כתומות מבושלות',  7, '1/3 כוס',  70,  80],
+      ['1/3 כוס',  70,  77, null, null, 'פול מבושל',             7, '1/3 כוס',  70,  77],
+      ['1/2 כוס',  80,  70, null, null, 'אפונה מבושלת',          7, '1/2 כוס',  80,  70],
+      // Group D — Carbs > 100 kcal (שיבולת שועל intentionally kept)
+      ['4 כפות',          60,  93, null, null, 'פסטה מבושלת',         6, '4 כפות',          60,  93],
+      ['1/2 לחמניה',      30,  78, null, null, 'לחמניה מלאה',         6, '1/2 לחמניה',      30,  78],
+      ['1/2 פיתה',        30,  75, null, null, 'פיתה כוסמין',         6, '1/2 פיתה',        30,  75],
+      ['6 כפות',          75,  98, null, null, 'אורז לבן מבושל',      6, '6 כפות',          75,  98],
+      ['4 כפות',          67,  87, null, null, 'פתיתים מבושלים',      6, '4 כפות',          67,  87],
+      ['1 יחידה בינונית', 100,  87, null, null, 'תפוח אדמה אפוי',      8, '1 יחידה בינונית', 100,  87],
+      ['6 כפות',          75,  90, null, null, 'קינואה מבושלת',       6, '6 כפות',          75,  90],
+      ['1 יחידה',         120,  92, null, null, 'תפוח אדמה מבושל',     8, '1 יחידה',         120,  92],
+      ['2 יחידות',         20,  77, null, null, 'קרקר מלאים',          6, '2 יחידות',         20,  77],
+      ['8 כפות',           80,  88, null, null, 'קוסקוס מבושל',        6, '8 כפות',           80,  88],
+      ['7 כפות',           87,  96, null, null, 'אורז מלא מבושל',      6, '7 כפות',           87,  96],
+      ['6 כפות',           86,  95, null, null, 'אטריות אורז מבושלות', 6, '6 כפות',           86,  95],
+      ['2 יחידות',         20,  73, null, null, 'פריכיות אורז',        6, '2 יחידות',         20,  73],
+      // Group E — Fat > 60 kcal (חמאה intentionally kept)
+      ['4 יחידות',      10, 58, null, null, 'שקדים',                 10, '4 יחידות',      10, 58],
+      ['1 כף',          10, 58, null, null, 'גרעיני חמנייה',         10, '1 כף',          10, 58],
+      ['1 כף',          10, 58, null, null, 'זרעי דלעת',             10, '1 כף',          10, 58],
+      ['10 יחידות',     10, 58, null, null, 'פיסטוקים',              10, '10 יחידות',     10, 58],
+      ['5 יחידות',      10, 55, null, null, 'קשיו',                  10, '5 יחידות',      10, 55],
+      ['2 חצאים',        9, 60, null, null, 'אגוזי מלך',             10, '2 חצאים',        9, 60],
+      ['2 כפות גרוסות', 15, 53, null, null, 'קוקוס (טרי)',           11, '2 כפות גרוסות', 15, 53],
+      ['2 כפות',        30, 48, null, null, 'אבוקדו',                11, '2 כפות',        30, 48],
+      ['2 כפיות',       10, 59, null, null, 'חמאת בוטנים טבעית',     9, '2 כפיות',       10, 59],
+      ['2 כפיות',       10, 59, null, null, 'חמאת שקדים',             9, '2 כפיות',       10, 59],
+      // Group F — Household measures
+      ['1 כוס',        100, 30, null, null, 'שעועית ירוקה',          12, '1 כוס',        100, 30],
+    ];
+
+    for (const row of corrections) {
+      const r = updateVals.run(...row);
+      if (r.changes > 0) { console.log(`[repair] food_bank: corrected ${row[5]}`); fixed++; }
+    }
+
+    // Notes-only fix: מנה גדולה for fatty meat items (no portion change)
+    const notesFix = database.prepare(
+      "UPDATE food_items SET notes = 'מנה גדולה' WHERE name_he = ? AND category_id = 3 AND (notes IS NULL OR notes != 'מנה גדולה')"
+    );
+    for (const name of ['סטייק אנטריקוט', 'בשר בקר טחון']) {
+      const r = notesFix.run(name);
+      if (r.changes > 0) { console.log(`[repair] food_bank: added מנה גדולה note for ${name}`); fixed++; }
+    }
+
+    if (fixed === 0) console.log('[repair] food_bank: all items already up to date');
+    else console.log(`[repair] food_bank: corrected ${fixed} item(s)`);
+  } catch (err) {
+    console.error('[repair] repairFoodBankClinicalData failed:', err.message);
+  }
+}
+
+repairFoodBankClinicalData(db);
+
 // ── Repair 3: Generate missing AI assessments for session 1 intakes ───────────
 // Runs async (fire-and-forget) so it never blocks server startup.
 
@@ -1186,7 +1296,7 @@ try {
     insertItem.run(d, 'יוגורט יווני 0%',    '3/4 כוס',        150,  85, 15, null);
     insertItem.run(d, 'יוגורט יווני 2%',    '3/4 כוס',        150, 110, 12, null);
     insertItem.run(d, 'יוגורט ביו עד 3%',   '1 גביע',         150,  90,  7, null);
-    insertItem.run(d, 'שמנת חמוצה 15%',     '2 כפות',          30,  45,  1, 'כמות חלבון נמוכה');
+    // שמנת חמוצה moved to שמנים וממרחים (fat category) — seeded there below
     insertItem.run(d, 'מעדן חלבון',         '1 יחידה',        200, 140, 20, '= מנה שלמה');
     insertItem.run(d, 'משקה חלבון',         '1 בקבוק',        250, 130, 25, '= מנה שלמה ויותר');
 
@@ -1218,15 +1328,7 @@ try {
     insertItem.run(m, 'נקניקיות עוף',     '2 יחידות',     80, 140, 10, null);
 
     // ── חלבון מהצומח — קטניות ───────────────────────────────────────────────
-    const pl = 'חלבון מהצומח — קטניות';
-    insertItem.run(pl, 'עדשים כתומות מבושלות',  '1/2 כוס', 100, 115,  9, null);
-    insertItem.run(pl, 'עדשים ירוקות מבושלות',  '1/2 כוס', 100, 115,  9, null);
-    insertItem.run(pl, 'שעועית לבנה מבושלת',    '1/2 כוס', 100, 125,  9, null);
-    insertItem.run(pl, 'שעועית שחורה מבושלת',   '1/2 כוס', 100, 130,  9, null);
-    insertItem.run(pl, 'חומוס מבושל',           '1/2 כוס', 100, 160,  9, null);
-    insertItem.run(pl, 'אפונה מבושלת',          '1/2 כוס',  80,  65,  4, null);
-    insertItem.run(pl, 'פול מבושל',             '1/2 כוס', 100, 110,  8, null);
-    insertItem.run(pl, 'סויה מבושלת',           '1/2 כוס',  90, 150, 14, null);
+    // Legumes reclassified to קטניות (פחמימה) (carb category) — seeded there below
 
     // ── חלבון מהצומח — אחר ──────────────────────────────────────────────────
     const po = 'חלבון מהצומח — אחר';
@@ -1266,11 +1368,23 @@ try {
     insertItem.run(sv, 'תירס',             '1 קלח בינוני',        100,  95, 3, null);
     insertItem.run(sv, 'דלעת מבושלת',      '1 כוס',               150,  70, 2, null);
 
+    // ── קטניות (פחמימה) ─────────────────────────────────────────────────────
+    const lc = 'קטניות (פחמימה)';
+    insertItem.run(lc, 'עדשים כתומות מבושלות',  '1/3 כוס',  70,  80,  9, null);
+    insertItem.run(lc, 'עדשים ירוקות מבושלות',  '1/3 כוס',  70,  80,  9, null);
+    insertItem.run(lc, 'שעועית לבנה מבושלת',    '1/3 כוס',  70,  88,  9, null);
+    insertItem.run(lc, 'שעועית שחורה מבושלת',   '1/3 כוס',  65,  85,  9, null);
+    insertItem.run(lc, 'חומוס מבושל',           '1/4 כוס',  50,  80,  9, null);
+    insertItem.run(lc, 'אפונה מבושלת',          '1/2 כוס',  80,  70,  4, null);
+    insertItem.run(lc, 'פול מבושל',             '1/3 כוס',  70,  77,  8, null);
+    insertItem.run(lc, 'סויה מבושלת',           '1/4 כוס',  55,  92, 14, null);
+
     // ── שמנים וממרחים ────────────────────────────────────────────────────────
     const oi = 'שמנים וממרחים';
     insertItem.run(oi, 'שמן זית',           '1/2 כף',   7,  60, 0, null);
     insertItem.run(oi, 'שמן קוקוס',         '1/2 כף',   7,  60, 0, null);
     insertItem.run(oi, 'חמאה',              '1 כפית',   5,  35, 0, null);
+    insertItem.run(oi, 'שמנת חמוצה 15%',   '2 כפות',  30,  45, 1, 'כמות חלבון נמוכה');
     insertItem.run(oi, 'טחינה גולמית',      '2 כפיות', 10,  60, 2, null);
     insertItem.run(oi, 'סלט טחינה מוכן',    '1 כף',    20,  60, 2, null);
     insertItem.run(oi, 'חמאת בוטנים טבעית', '1 כף',    16,  95, 4, null);
