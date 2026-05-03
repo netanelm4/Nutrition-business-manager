@@ -223,6 +223,30 @@ export default function FoodBank() {
     setConfirmDeleteId(null);
   }
 
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  async function handleExportPdf() {
+    if (!selectedId || pdfLoading) return;
+    setPdfLoading(true);
+    try {
+      const res = await fetch(`/api/food-bank/pdf/${selectedId}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('auth_password') || ''}` },
+      });
+      if (!res.ok) throw new Error('PDF generation failed');
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `${selectedCategory?.name_he ?? 'מאגר-מזון'}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('[exportPdf]', err);
+    } finally {
+      setPdfLoading(false);
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -239,14 +263,26 @@ export default function FoodBank() {
               <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>{selectedCategory.name_he}</p>
             )}
           </div>
-          {selectedId && !addOpen && (
-            <button
-              type="button"
-              className="crm-btn crm-btn--primary"
-              onClick={() => { setAddOpen(true); setEditingId(null); setAddForm(EMPTY_FORM); }}
-            >
-              + הוסף פריט
-            </button>
+          {selectedId && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="crm-btn"
+                onClick={handleExportPdf}
+                disabled={pdfLoading}
+              >
+                {pdfLoading ? 'מייצא...' : 'ייצא PDF'}
+              </button>
+              {!addOpen && (
+                <button
+                  type="button"
+                  className="crm-btn crm-btn--primary"
+                  onClick={() => { setAddOpen(true); setEditingId(null); setAddForm(EMPTY_FORM); }}
+                >
+                  + הוסף פריט
+                </button>
+              )}
+            </div>
           )}
         </div>
 
