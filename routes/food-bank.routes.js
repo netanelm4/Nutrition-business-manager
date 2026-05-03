@@ -108,6 +108,35 @@ router.put('/items/:id', (req, res) => {
   }
 });
 
+// ─── GET /api/food-bank/macro/:nutrientType ──────────────────────────────────
+
+const ALLOWED_TYPES = ['protein', 'carb', 'fat', 'vegetable', 'fruit'];
+
+router.get('/macro/:nutrientType', (req, res) => {
+  try {
+    const { nutrientType } = req.params;
+    if (!ALLOWED_TYPES.includes(nutrientType)) {
+      return fail(res, 400, 'Invalid nutrient type.');
+    }
+
+    const cats = db.prepare(
+      'SELECT id, name_he FROM food_categories WHERE nutrient_type = ? ORDER BY sort_order'
+    ).all(nutrientType);
+
+    const categories = cats.map((cat) => {
+      const items = db.prepare(
+        'SELECT * FROM food_items WHERE category_id = ? AND is_active = 1 ORDER BY sort_order, name_he'
+      ).all(cat.id);
+      return { ...cat, items };
+    });
+
+    return ok(res, { categories });
+  } catch (err) {
+    console.error('[GET /food-bank/macro/:nutrientType]', err);
+    return fail(res, 500, 'Failed to fetch macro data.');
+  }
+});
+
 // ─── DELETE /api/food-bank/items/:id ─────────────────────────────────────────
 
 router.delete('/items/:id', (req, res) => {

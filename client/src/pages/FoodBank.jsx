@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  fetchFoodCategories, fetchFoodItems,
+  fetchFoodCategories, fetchFoodItems, fetchFoodMacro,
   createFoodItem, updateFoodItem, deleteFoodItem,
 } from '../lib/api';
 
@@ -134,6 +134,7 @@ export default function FoodBank() {
   const queryClient = useQueryClient();
 
   const [selectedId,      setSelectedId]      = useState(null);
+  const [selectedMacro,   setSelectedMacro]   = useState(null);
   const [addOpen,         setAddOpen]         = useState(false);
   const [editingId,       setEditingId]       = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
@@ -151,6 +152,12 @@ export default function FoodBank() {
     queryKey: ['food-items', selectedId],
     queryFn: () => fetchFoodItems(selectedId),
     enabled: !!selectedId,
+  });
+
+  const { data: macroData, isLoading: macroLoading } = useQuery({
+    queryKey: ['food-macro', selectedMacro],
+    queryFn: () => fetchFoodMacro(selectedMacro),
+    enabled: !!selectedMacro,
   });
 
   // ── Derived: grouped categories ──────────────────────────────────────────────
@@ -218,6 +225,15 @@ export default function FoodBank() {
 
   function selectCategory(id) {
     setSelectedId(id);
+    setSelectedMacro(null);
+    setAddOpen(false);
+    setEditingId(null);
+    setConfirmDeleteId(null);
+  }
+
+  function selectMacro(type) {
+    setSelectedMacro(type);
+    setSelectedId(null);
     setAddOpen(false);
     setEditingId(null);
     setConfirmDeleteId(null);
@@ -226,20 +242,27 @@ export default function FoodBank() {
   const [pdfLoading, setPdfLoading] = useState(false);
 
   async function handleExportPdf() {
-    if (!selectedId || pdfLoading) return;
+    if ((!selectedId && !selectedMacro) || pdfLoading) return;
     setPdfLoading(true);
     try {
-      const res = await fetch(`/api/food-bank/pdf/${selectedId}`, {
+      const url = selectedMacro
+        ? `/api/food-bank/pdf/macro/${selectedMacro}`
+        : `/api/food-bank/pdf/${selectedId}`;
+      const filename = selectedMacro
+        ? `מאגר ${MACRO_LABELS[selectedMacro]}.pdf`
+        : `${selectedCategory?.name_he ?? 'מאגר-מזון'}.pdf`;
+
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${localStorage.getItem('auth_password') || ''}` },
       });
       if (!res.ok) throw new Error('PDF generation failed');
       const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href     = url;
-      a.download = `${selectedCategory?.name_he ?? 'מאגר-מזון'}.pdf`;
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = filename;
       a.click();
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(objUrl);
     } catch (err) {
       console.error('[exportPdf]', err);
     } finally {
@@ -262,8 +285,13 @@ export default function FoodBank() {
             {selectedCategory && (
               <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>{selectedCategory.name_he}</p>
             )}
+            {selectedMacro && (
+              <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 2 }}>
+                {`מאגר ${MACRO_LABELS[selectedMacro]} — כל הקטגוריות`}
+              </p>
+            )}
           </div>
-          {selectedId && (
+          {(selectedId || selectedMacro) && (
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
@@ -273,7 +301,7 @@ export default function FoodBank() {
               >
                 {pdfLoading ? 'מייצא...' : 'ייצא PDF'}
               </button>
-              {!addOpen && (
+              {selectedId && !addOpen && (
                 <button
                   type="button"
                   className="crm-btn crm-btn--primary"
@@ -286,10 +314,66 @@ export default function FoodBank() {
           )}
         </div>
 
-        {/* No category selected */}
-        {!selectedId && (
+        {/* No selection */}
+        {!selectedId && !selectedMacro && (
           <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 14 }}>
             בחר קטגוריה מהרשימה בצד ימין
+          </div>
+        )}
+
+        {/* Macro view — all sub-categories grouped */}
+        {selectedMacro && (
+          <div>
+            {macroLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="animate-pulse" style={{ height: 36, background: 'var(--surface-2, #f5f5f5)', borderRadius: 6 }} />
+                ))}
+              </div>
+            ) : (macroData?.categories ?? []).map((cat) => (
+              <div key={cat.id} style={{ marginBottom: 28 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 700, color: 'var(--blue, #567DBF)',
+                  padding: '8px 12px', background: 'var(--blue-soft, #eff6ff)',
+                  borderRadius: '8px 8px 0 0', border: '1px solid var(--hairline, #f0f0f0)',
+                  borderBottom: 'none',
+                }}>
+                  {cat.name_he}
+                </div>
+                <div style={{ background: 'white', borderRadius: '0 0 12px 12px', border: '1px solid var(--hairline, #f0f0f0)', overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-2, #f8f8f8)', borderBottom: '1px solid var(--hairline, #f0f0f0)' }}>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>שם</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>כמות (חצי מנה)</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>גרמים</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>קק״ל</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>חלבון (ג׳)</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>הערות</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cat.items.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ padding: '20px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+                            אין פריטים
+                          </td>
+                        </tr>
+                      ) : cat.items.map((item) => (
+                        <tr key={item.id} style={{ borderBottom: '1px solid var(--hairline, #f0f0f0)' }}>
+                          <td style={{ padding: '8px 10px' }}>{item.name_he}</td>
+                          <td style={{ padding: '8px 10px', color: 'var(--ink-2)' }}>{item.portion_description ?? '—'}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--ink-2)' }}>{item.portion_grams ?? '—'}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>{item.calories_per_half_portion ?? '—'}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--ink-2)' }}>{item.protein_grams ?? '—'}</td>
+                          <td style={{ padding: '8px 10px', fontSize: 12, color: 'var(--ink-3)' }}>{item.notes ?? ''}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
@@ -384,15 +468,25 @@ export default function FoodBank() {
           MACRO_ORDER.map((type) => {
             const cats = grouped[type];
             if (!cats?.length) return null;
+            const isMacroActive = selectedMacro === type;
             return (
               <div key={type} style={{ marginBottom: 16 }}>
-                <div style={{
-                  padding: '4px 16px 6px',
-                  fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-                  color: 'var(--ink-3)', textTransform: 'uppercase',
-                }}>
+                <button
+                  type="button"
+                  onClick={() => selectMacro(type)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'right',
+                    padding: '4px 16px 6px', border: 'none', cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: isMacroActive ? 'var(--blue, #567DBF)' : 'var(--ink-3)',
+                    background: isMacroActive ? 'var(--blue-soft, #eff6ff)' : 'transparent',
+                    borderInlineStart: isMacroActive ? '3px solid var(--blue, #567DBF)' : '3px solid transparent',
+                    transition: 'background 0.12s',
+                  }}
+                >
                   {MACRO_LABELS[type]}
-                </div>
+                </button>
                 {cats.map((cat) => {
                   const isActive = cat.id === selectedId;
                   return (
