@@ -92,6 +92,23 @@ router.put('/:id', (req, res) => {
   }
 });
 
+// ─── PUT /api/sessions/:id/complete ──────────────────────────────────────────
+
+router.put('/:id/complete', (req, res) => {
+  try {
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
+    if (!session) return fail(res, 404, 'Session not found.');
+
+    db.prepare("UPDATE sessions SET status = 'completed' WHERE id = ?").run(req.params.id);
+
+    const updated = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
+    return ok(res, serializeSession(updated));
+  } catch (err) {
+    console.error('[PUT /sessions/:id/complete]', err);
+    return fail(res, 500, 'Failed to complete session.');
+  }
+});
+
 // ─── POST /api/sessions/:id/insights ─────────────────────────────────────────
 
 router.post('/:id/insights', async (req, res) => {

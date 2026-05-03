@@ -8,7 +8,7 @@ import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
 import { ReadonlyTaskList } from './TaskList';
 import SessionIntakeForm from './SessionIntakeForm';
-import { fetchCheckinMessage, generateCheckinMessage, deleteSession } from '../../lib/api';
+import { fetchCheckinMessage, generateCheckinMessage, deleteSession, completeSession } from '../../lib/api';
 
 // ─── Check-in message panel ───────────────────────────────────────────────────
 
@@ -134,6 +134,13 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
     },
   });
 
+  const completeMutation = useMutation({
+    mutationFn: () => completeSession(session.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sessions', String(client.id)] });
+    },
+  });
+
   return (
     <>
       {/* Collapsed header — always visible */}
@@ -158,6 +165,16 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <AlertBadge state={alertState} />
+            {session.status !== 'completed' && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); completeMutation.mutate(); }}
+                disabled={completeMutation.isPending}
+                className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-green-500 text-green-700 bg-transparent hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-default"
+              >
+                {completeMutation.isPending ? 'מעדכן...' : '✓ בוצעה'}
+              </button>
+            )}
             <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
           </div>
         </button>

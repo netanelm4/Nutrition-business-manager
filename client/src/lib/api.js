@@ -56,7 +56,8 @@ export const fetchSession = (id) => request('GET', `/sessions/${id}`);
 export const createSession = (clientId, data) => request('POST', `/clients/${clientId}/sessions`, data);
 export const updateSession = (id, data) => request('PUT', `/sessions/${id}`, data);
 export const deleteSession = (sessionId) => request('DELETE', `/sessions/${sessionId}`);
-export const generateInsights = (sessionId) => request('POST', `/sessions/${sessionId}/insights`);
+export const generateInsights  = (sessionId) => request('POST', `/sessions/${sessionId}/insights`);
+export const completeSession   = (sessionId) => request('PUT',  `/sessions/${sessionId}/complete`);
 
 // ── Leads ─────────────────────────────────────────────────────────────────────
 export const fetchLeads = () => request('GET', '/leads');

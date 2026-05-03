@@ -1078,6 +1078,10 @@ try {
 } catch { /* column already exists */ }
 
 try {
+  db.exec('ALTER TABLE sessions ADD COLUMN status TEXT DEFAULT NULL');
+} catch { /* column already exists */ }
+
+try {
   db.exec('ALTER TABLE payments ADD COLUMN engagement_id INTEGER');
 } catch { /* column already exists */ }
 
