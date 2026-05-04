@@ -141,13 +141,13 @@ function buildHtml(categoryName, items) {
   </div>
 
   <div class="title-bar">${categoryName}</div>
-  <div class="subtitle">חצי מנה = 100–140 קק״ל &nbsp;·&nbsp; לפחות 6 גרם חלבון לחצי מנה</div>
+  <div class="subtitle">מנה = 100–140 קק״ל &nbsp;·&nbsp; לפחות 6 גרם חלבון למנה</div>
 
   <table>
     <thead>
       <tr>
         <th>שם</th>
-        <th>כמות (חצי מנה)</th>
+        <th>כמות (מנה)</th>
         <th class="center">גרמים</th>
         <th class="center">קק״ל</th>
         <th class="center">חלבון (ג׳)</th>
@@ -347,13 +347,13 @@ function buildMacroHtml(macroLabel, categories) {
   </div>
 
   <div class="title-bar">מאגר ${macroLabel} — כל הקטגוריות</div>
-  <div class="subtitle">חצי מנה = 100–140 קק״ל &nbsp;·&nbsp; לפחות 6 גרם חלבון לחצי מנה</div>
+  <div class="subtitle">מנה = 100–140 קק״ל &nbsp;·&nbsp; לפחות 6 גרם חלבון למנה</div>
 
   <table>
     <thead>
       <tr>
         <th>שם</th>
-        <th>כמות (חצי מנה)</th>
+        <th>כמות (מנה)</th>
         <th class="center">גרמים</th>
         <th class="center">קק״ל</th>
         <th class="center">חלבון (ג׳)</th>
