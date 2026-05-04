@@ -200,6 +200,45 @@ export const createFoodItem      = (data)         => request('POST',   '/food-ba
 export const updateFoodItem      = (id, data)     => request('PUT',    `/food-bank/items/${id}`, data);
 export const deleteFoodItem      = (id)           => request('DELETE', `/food-bank/items/${id}`);
 
+// ── Menus ─────────────────────────────────────────────────────────────────────
+
+// Menus routes return { ok: true, ...data } (not { success, data }) — needs its own helper.
+async function reqMenus(method, path, body) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${getPassword()}`,
+    },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const json = await res.json();
+  if (res.status === 401) {
+    localStorage.removeItem('auth_password');
+    window.location.href = '/';
+    return;
+  }
+  if (!json.ok) {
+    const err = new Error(json.error || 'Request failed');
+    err.status = res.status;
+    throw err;
+  }
+  return json;
+}
+
+export const fetchClientMenus  = (clientId)                        => reqMenus('GET',    `/menus?client_id=${clientId}`);
+export const fetchMenu         = (menuId)                          => reqMenus('GET',    `/menus/${menuId}`);
+export const createMenu        = (clientId, data)                  => reqMenus('POST',   `/menus`, { client_id: clientId, ...data });
+export const updateMenu        = (menuId, data)                    => reqMenus('PUT',    `/menus/${menuId}`, data);
+export const generateMenu      = (menuId)                          => reqMenus('POST',   `/menus/${menuId}/generate`);
+export const finalizeMenu      = (menuId)                          => reqMenus('POST',   `/menus/${menuId}/finalize`);
+export const addMeal           = (menuId, data)                    => reqMenus('POST',   `/menus/${menuId}/meals`, data);
+export const updateMeal        = (menuId, mealId, data)            => reqMenus('PUT',    `/menus/${menuId}/meals/${mealId}`, data);
+export const deleteMeal        = (menuId, mealId)                  => reqMenus('DELETE', `/menus/${menuId}/meals/${mealId}`);
+export const addMenuItem       = (menuId, mealId, data)            => reqMenus('POST',   `/menus/${menuId}/meals/${mealId}/items`, data);
+export const updateMenuItem    = (menuId, mealId, itemId, data)    => reqMenus('PUT',    `/menus/${menuId}/meals/${mealId}/items/${itemId}`, data);
+export const deleteMenuItem    = (menuId, mealId, itemId)          => reqMenus('DELETE', `/menus/${menuId}/meals/${mealId}/items/${itemId}`);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const checkHealth = (password) =>
   fetch('/api/health', {

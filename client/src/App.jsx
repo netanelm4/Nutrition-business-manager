@@ -10,6 +10,7 @@ import Templates from './pages/Templates';
 import Protocols from './pages/Protocols';
 import CalendlySettings from './pages/CalendlySettings';
 import FoodBank from './pages/FoodBank';
+import MenuEditor from './pages/MenuEditor';
 import Login from './pages/Login';
 
 export default function App() {
@@ -26,6 +27,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="clients" element={<Clients />} />
           <Route path="clients/:id" element={<ClientDetail />} />
+          <Route path="clients/:clientId/menus/:menuId" element={<MenuEditor />} />
           <Route path="leads" element={<Leads />} />
           <Route path="leads/:id" element={<LeadDetail />} />
           <Route path="templates" element={<Templates />} />

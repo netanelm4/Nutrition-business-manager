@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent, fetchClientMenus, createMenu } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -1012,6 +1012,111 @@ function NewEngagementModal({ clientId, activeEngagement, onClose }) {
   );
 }
 
+// ─── Menus tab ────────────────────────────────────────────────────────────────
+
+function MenusTab({ clientId }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [showNew, setShowNew] = useState(false);
+  const [newTitle, setNewTitle] = useState('');
+  const [newCalories, setNewCalories] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['menus', String(clientId)],
+    queryFn: () => fetchClientMenus(clientId),
+  });
+
+  const menus = data?.menus ?? [];
+
+  async function handleCreate(e) {
+    e.preventDefault();
+    if (!newTitle.trim() || !newCalories) return;
+    setCreating(true);
+    try {
+      const res = await createMenu(clientId, { title: newTitle.trim(), calorie_target: Number(newCalories) });
+      queryClient.invalidateQueries({ queryKey: ['menus', String(clientId)] });
+      navigate(`/clients/${clientId}/menus/${res.menu.id}`);
+    } catch (err) {
+      console.error('[MenusTab] create failed', err);
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  if (isLoading) {
+    return <div className="animate-pulse rounded-xl" style={{ height: 80, background: 'var(--surface-3)' }} />;
+  }
+
+  const STATUS_LABEL = { draft: 'טיוטה', final: 'סופי' };
+  const STATUS_COLOR = { draft: 'bg-gray-100 text-gray-500', final: 'bg-green-100 text-green-700' };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {menus.length === 0 && !showNew && (
+        <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', padding: '24px 0' }}>
+          אין תפריטים עדיין
+        </p>
+      )}
+
+      {menus.map((m) => (
+        <div
+          key={m.id}
+          onClick={() => navigate(`/clients/${clientId}/menus/${m.id}`)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--surface-2)', borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer' }}
+        >
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-1)' }}>{m.title}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{m.calorie_target} קק&quot;ל</div>
+          </div>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[m.status] ?? STATUS_COLOR.draft}`}>
+            {STATUS_LABEL[m.status] ?? m.status}
+          </span>
+        </div>
+      ))}
+
+      {showNew ? (
+        <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 16px', background: 'var(--surface-2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+          <input
+            type="text"
+            placeholder="שם התפריט"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            className="crm-input"
+            autoFocus
+          />
+          <input
+            type="number"
+            placeholder="יעד קלורי (קק&quot;ל)"
+            value={newCalories}
+            onChange={(e) => setNewCalories(e.target.value)}
+            className="crm-input"
+            min={800}
+            max={4000}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="submit" className="crm-btn crm-btn--primary" disabled={creating}>
+              {creating ? 'יוצר...' : 'צור תפריט'}
+            </button>
+            <button type="button" className="crm-btn" onClick={() => { setShowNew(false); setNewTitle(''); setNewCalories(''); }}>
+              ביטול
+            </button>
+          </div>
+        </form>
+      ) : (
+        <button
+          type="button"
+          className="crm-btn"
+          onClick={() => setShowNew(true)}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          + תפריט חדש
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ClientDetail() {
@@ -1242,6 +1347,7 @@ export default function ClientDetail() {
               { id: 'sessions',  label: 'פגישות', count: filteredSessions.length },
               { id: 'payments',  label: 'תשלומים' },
               { id: 'messages',  label: 'הודעות' },
+              { id: 'menus',     label: 'תפריטים' },
             ].map((t) => (
               <button
                 key={t.id}
@@ -1334,6 +1440,10 @@ export default function ClientDetail() {
                   </ul>
                 )}
               </>
+            )}
+
+            {activeTab === 'menus' && (
+              <MenusTab clientId={id} />
             )}
           </div>
         </section>
