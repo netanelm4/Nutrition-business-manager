@@ -1281,6 +1281,64 @@ try {
 try { db.exec('ALTER TABLE session_intakes ADD COLUMN menu_building TEXT'); } catch {}
 try { db.exec('ALTER TABLE lead_intakes ADD COLUMN menu_building TEXT'); } catch {}
 
+// ── Menu feature tables ───────────────────────────────────────────────────────
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS menus (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id      INTEGER NOT NULL REFERENCES clients(id),
+      engagement_id  INTEGER REFERENCES engagements(id),
+      title          TEXT NOT NULL,
+      calorie_target INTEGER NOT NULL,
+      status         TEXT NOT NULL DEFAULT 'draft'
+                     CHECK (status IN ('draft', 'final')),
+      created_at     TEXT DEFAULT (datetime('now')),
+      notes          TEXT
+    )
+  `);
+} catch {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS menu_meals (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      menu_id    INTEGER NOT NULL REFERENCES menus(id) ON DELETE CASCADE,
+      meal_name  TEXT NOT NULL,
+      meal_order INTEGER NOT NULL,
+      notes      TEXT
+    )
+  `);
+} catch {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS menu_items (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      meal_id      INTEGER NOT NULL REFERENCES menu_meals(id) ON DELETE CASCADE,
+      item_type    TEXT NOT NULL
+                   CHECK (item_type IN ('protein','carb','fat','vegetable','fruit','daily_basket')),
+      portions     REAL NOT NULL DEFAULT 1,
+      food_item_id INTEGER REFERENCES food_items(id),
+      custom_text  TEXT,
+      notes        TEXT,
+      sort_order   INTEGER DEFAULT 0
+    )
+  `);
+} catch {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS menu_examples (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      menu_id        INTEGER NOT NULL REFERENCES menus(id),
+      client_summary TEXT,
+      menu_summary   TEXT,
+      created_at     TEXT DEFAULT (datetime('now'))
+    )
+  `);
+} catch {}
+
 // 3. Auto-create engagement #1 for every existing client that has none
 try {
   db.exec(`
