@@ -137,6 +137,34 @@ router.get('/macro/:nutrientType', (req, res) => {
   }
 });
 
+// ─── GET /api/food-bank/search?q=... (proxies Open Food Facts — avoids CORS) ──
+
+router.get('/search', async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q) return ok(res, []);
+  try {
+    const url =
+      `https://search.openfoodfacts.org/search` +
+      `?q=${encodeURIComponent(q)}&json=1&page_size=12` +
+      `&fields=product_name,nutriments`;
+    const upstream = await fetch(url, { headers: { 'User-Agent': 'nutrition-crm/1.0' } });
+    if (!upstream.ok) throw new Error(`Open Food Facts returned ${upstream.status}`);
+    const body = await upstream.json();
+    const products = (body.hits || [])
+      .filter((p) => p.product_name && (p.nutriments?.['energy-kcal_100g'] ?? 0) > 0)
+      .slice(0, 8)
+      .map((p) => ({
+        name:       p.product_name,
+        kcal100:    Math.round(p.nutriments['energy-kcal_100g']),
+        protein100: Math.round((p.nutriments.proteins_100g || 0) * 10) / 10,
+      }));
+    return ok(res, products);
+  } catch (err) {
+    console.error('[GET /food-bank/search]', err.message);
+    return fail(res, 502, 'חיפוש נכשל — נסה שוב');
+  }
+});
+
 // ─── DELETE /api/food-bank/items/:id ─────────────────────────────────────────
 
 router.delete('/items/:id', (req, res) => {

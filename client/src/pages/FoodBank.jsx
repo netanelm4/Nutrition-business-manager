@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchFoodCategories, fetchFoodItems, fetchFoodMacro,
@@ -7,8 +7,9 @@ import {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const MACRO_ORDER  = ['protein', 'carb', 'fat', 'vegetable', 'fruit'];
-const MACRO_LABELS = { protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירקות', fruit: 'פירות' };
+const MACRO_ORDER    = ['protein', 'carb', 'fat', 'vegetable', 'fruit'];
+const MACRO_LABELS   = { protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירקות', fruit: 'פירות' };
+const MACRO_CEILINGS = { protein: 140, carb: 100, fat: 60, vegetable: 40, fruit: 120 };
 
 const EMPTY_FORM = {
   name_he: '', portion_description: '', portion_grams: '',
@@ -128,6 +129,153 @@ function ItemRow({ item, onEdit, onDelete, confirmDeleteId, onConfirmDelete, onC
   );
 }
 
+// ── Food Search (Open Food Facts) ─────────────────────────────────────────────
+
+async function fetchOpenFoodFacts(query) {
+  const res = await fetch(
+    `/api/food-bank/search?q=${encodeURIComponent(query)}`,
+    { headers: { Authorization: `Bearer ${localStorage.getItem('auth_password') || ''}` } },
+  );
+  if (!res.ok) throw new Error(`שגיאת רשת ${res.status}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'חיפוש נכשל');
+  return json.data;
+}
+
+function FoodSearch({ macroType, onAdd }) {
+  const [query,   setQuery]   = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+  const [open,    setOpen]    = useState(false);
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    function handleOutside(e) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, []);
+
+  async function handleSearch() {
+    const q = query.trim();
+    if (!q) return;
+    setLoading(true);
+    setError(null);
+    setResults([]);
+    setOpen(false);
+    try {
+      const found = await fetchOpenFoodFacts(q);
+      setResults(found);
+      setOpen(true);
+    } catch (err) {
+      setError(err.message);
+      setOpen(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter') handleSearch();
+    if (e.key === 'Escape') setOpen(false);
+  }
+
+  function handleAdd(result) {
+    onAdd(result);
+    setOpen(false);
+    setQuery('');
+    setResults([]);
+    setError(null);
+  }
+
+  return (
+    <div ref={wrapperRef} style={{ position: 'relative', marginBottom: 16 }}>
+      {/* Search input row */}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input
+          className={inputCls}
+          style={{ flex: 1 }}
+          placeholder="חפש מוצר להוספה מ-Open Food Facts..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleKey}
+        />
+        <button
+          type="button"
+          className="crm-btn crm-btn--primary"
+          onClick={handleSearch}
+          disabled={loading || !query.trim()}
+          style={{ flexShrink: 0, minWidth: 64 }}
+        >
+          {loading ? '...' : 'חפש'}
+        </button>
+      </div>
+
+      {/* Results dropdown */}
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)',
+          insetInlineStart: 0, insetInlineEnd: 0, zIndex: 50,
+          background: 'white', borderRadius: 10,
+          border: '1px solid var(--hairline, #e8e8e8)',
+          boxShadow: '0 6px 32px rgba(0,0,0,0.11)',
+          overflow: 'hidden',
+        }}>
+          {/* Header strip */}
+          <div style={{
+            padding: '8px 14px', fontSize: 11, fontWeight: 600,
+            color: 'var(--ink-3)', background: 'var(--surface-2, #f8f8f8)',
+            borderBottom: '1px solid var(--hairline, #f0f0f0)',
+          }}>
+            תוצאות מ-Open Food Facts — בדוק ערכים לפני שמירה
+          </div>
+
+          {error ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: 'var(--red, #dc2626)' }}>
+              {error}
+            </div>
+          ) : results.length === 0 ? (
+            <div style={{ padding: '14px 16px', fontSize: 13, color: 'var(--ink-3)' }}>
+              לא נמצאו תוצאות
+            </div>
+          ) : results.map((r, i) => (
+            <div
+              key={i}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 14px',
+                borderBottom: i < results.length - 1 ? '1px solid var(--hairline, #f0f0f0)' : 'none',
+              }}
+            >
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 500,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {r.name}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>
+                  {r.kcal100} קק״ל / 100 גרם &nbsp;·&nbsp; חלבון {r.protein100} ג׳ / 100 גרם
+                </div>
+              </div>
+              <button
+                type="button"
+                className="crm-btn crm-btn--primary crm-btn--sm"
+                onClick={() => handleAdd(r)}
+                style={{ flexShrink: 0 }}
+              >
+                הוסף למאגר
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main page ────────────────────────────────────────────────────────────────
 
 export default function FoodBank() {
@@ -237,6 +385,23 @@ export default function FoodBank() {
     setAddOpen(false);
     setEditingId(null);
     setConfirmDeleteId(null);
+  }
+
+  function handleAddFromSearch(result) {
+    const ceiling    = MACRO_CEILINGS[selectedCategory?.nutrient_type] ?? 100;
+    const portionG   = result.kcal100 > 0 ? Math.round((ceiling / result.kcal100) * 100) : 100;
+    const portionCal = Math.round((result.kcal100 / 100) * portionG);
+    const portionPro = String(Math.round((result.protein100 / 100) * portionG * 10) / 10);
+    setEditingId(null);
+    setAddForm({
+      name_he:                   result.name,
+      portion_description:       '',
+      portion_grams:             String(portionG),
+      calories_per_half_portion: String(portionCal),
+      protein_grams:             portionPro,
+      notes:                     '',
+    });
+    setAddOpen(true);
   }
 
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -390,76 +555,85 @@ export default function FoodBank() {
 
         {/* Items table */}
         {selectedId && (
-          <div style={{ background: 'white', borderRadius: 12, border: '1px solid var(--hairline, #f0f0f0)', overflow: 'hidden' }}>
-            {itemsLoading ? (
-              <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="animate-pulse" style={{ height: 36, background: 'var(--surface-2, #f5f5f5)', borderRadius: 6 }} />
-                ))}
-              </div>
-            ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ background: 'var(--surface-2, #f8f8f8)', borderBottom: '1px solid var(--hairline, #f0f0f0)' }}>
-                      <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>שם</th>
-                      <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>כמות (מנה)</th>
-                      <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>גרמים</th>
-                      <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>קק״ל</th>
-                      <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>חלבון (ג׳)</th>
-                      <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>הערות</th>
-                      <th style={{ padding: '10px 10px', width: 140 }} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Add row */}
-                    {addOpen && (
-                      <FormRow
-                        form={addForm}
-                        onChange={handleAddField}
-                        onSave={() => createMutation.mutate(toPayload(addForm))}
-                        onCancel={() => { setAddOpen(false); setAddForm(EMPTY_FORM); }}
-                        isPending={createMutation.isPending}
-                      />
-                    )}
+          <>
+            {/* Search bar — only visible when a category is selected */}
+            <FoodSearch
+              key={selectedId}
+              macroType={selectedCategory?.nutrient_type}
+              onAdd={handleAddFromSearch}
+            />
 
-                    {/* Empty state */}
-                    {!addOpen && items.length === 0 && (
-                      <tr>
-                        <td colSpan={7} style={{ padding: '32px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
-                          אין פריטים בקטגוריה זו
-                        </td>
+            <div style={{ background: 'white', borderRadius: 12, border: '1px solid var(--hairline, #f0f0f0)', overflow: 'hidden' }}>
+              {itemsLoading ? (
+                <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="animate-pulse" style={{ height: 36, background: 'var(--surface-2, #f5f5f5)', borderRadius: 6 }} />
+                  ))}
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface-2, #f8f8f8)', borderBottom: '1px solid var(--hairline, #f0f0f0)' }}>
+                        <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>שם</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>כמות (מנה)</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>גרמים</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>קק״ל</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>חלבון (ג׳)</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>הערות</th>
+                        <th style={{ padding: '10px 10px', width: 140 }} />
                       </tr>
-                    )}
-
-                    {/* Item rows */}
-                    {items.map((item) =>
-                      editingId === item.id ? (
+                    </thead>
+                    <tbody>
+                      {/* Add row */}
+                      {addOpen && (
                         <FormRow
-                          key={item.id}
-                          form={editForm}
-                          onChange={handleEditField}
-                          onSave={() => updateMutation.mutate({ id: item.id, data: toPayload(editForm) })}
-                          onCancel={cancelEdit}
-                          isPending={updateMutation.isPending}
+                          form={addForm}
+                          onChange={handleAddField}
+                          onSave={() => createMutation.mutate(toPayload(addForm))}
+                          onCancel={() => { setAddOpen(false); setAddForm(EMPTY_FORM); }}
+                          isPending={createMutation.isPending}
                         />
-                      ) : (
-                        <ItemRow
-                          key={item.id}
-                          item={item}
-                          onEdit={startEdit}
-                          onDelete={(id) => { setConfirmDeleteId(id); setEditingId(null); }}
-                          confirmDeleteId={confirmDeleteId}
-                          onConfirmDelete={(id) => deleteMutation.mutate(id)}
-                          onCancelDelete={() => setConfirmDeleteId(null)}
-                        />
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                      )}
+
+                      {/* Empty state */}
+                      {!addOpen && items.length === 0 && (
+                        <tr>
+                          <td colSpan={7} style={{ padding: '32px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+                            אין פריטים בקטגוריה זו
+                          </td>
+                        </tr>
+                      )}
+
+                      {/* Item rows */}
+                      {items.map((item) =>
+                        editingId === item.id ? (
+                          <FormRow
+                            key={item.id}
+                            form={editForm}
+                            onChange={handleEditField}
+                            onSave={() => updateMutation.mutate({ id: item.id, data: toPayload(editForm) })}
+                            onCancel={cancelEdit}
+                            isPending={updateMutation.isPending}
+                          />
+                        ) : (
+                          <ItemRow
+                            key={item.id}
+                            item={item}
+                            onEdit={startEdit}
+                            onDelete={(id) => { setConfirmDeleteId(id); setEditingId(null); }}
+                            confirmDeleteId={confirmDeleteId}
+                            onConfirmDelete={(id) => deleteMutation.mutate(id)}
+                            onCancelDelete={() => setConfirmDeleteId(null)}
+                          />
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
