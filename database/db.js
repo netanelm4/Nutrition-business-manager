@@ -1278,6 +1278,9 @@ try {
   db.exec('ALTER TABLE calendly_events ADD COLUMN engagement_id INTEGER');
 } catch { /* column already exists */ }
 
+try { db.exec('ALTER TABLE session_intakes ADD COLUMN menu_building TEXT'); } catch {}
+try { db.exec('ALTER TABLE lead_intakes ADD COLUMN menu_building TEXT'); } catch {}
+
 // 3. Auto-create engagement #1 for every existing client that has none
 try {
   db.exec(`

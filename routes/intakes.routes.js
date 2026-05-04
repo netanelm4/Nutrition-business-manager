@@ -137,6 +137,7 @@ router.get('/sessions/:id/intake', (req, res) => {
       try { intake.medications         = JSON.parse(intake.medications         || '[]'); } catch { intake.medications = []; }
       try { intake.eating_patterns     = JSON.parse(intake.eating_patterns     || '{}'); } catch { intake.eating_patterns = {}; }
       try { intake.nutrition_anamnesis = JSON.parse(intake.nutrition_anamnesis || 'null'); } catch { intake.nutrition_anamnesis = null; }
+      try { intake.menu_building       = JSON.parse(intake.menu_building       || 'null'); } catch { intake.menu_building = null; }
       return ok(res, intake);
     }
 
@@ -184,7 +185,7 @@ router.post('/sessions/:id/intake', (req, res) => {
          prev_challenges, reason_for_treatment, diet_type, eating_patterns,
          water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
          physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods,
-         nutrition_anamnesis)
+         nutrition_anamnesis, menu_building)
       VALUES
         (@session_id, @client_id,
          @age, @gender, @weight, @goal, @activity_factor,
@@ -195,7 +196,7 @@ router.post('/sessions/:id/intake', (req, res) => {
          @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
          @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
          @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods,
-         @nutrition_anamnesis)
+         @nutrition_anamnesis, @menu_building)
     `).run({ session_id: sessionId, client_id: session.client_id, ...data });
 
     // Clear pending intake data from the client once session 1 intake is saved
@@ -241,6 +242,7 @@ router.put('/sessions/:id/intake', (req, res) => {
         activity_type = @activity_type, activity_frequency = @activity_frequency,
         favorite_snacks = @favorite_snacks, favorite_foods = @favorite_foods,
         nutrition_anamnesis = @nutrition_anamnesis,
+        menu_building = @menu_building,
         updated_at = CURRENT_TIMESTAMP
       WHERE session_id = @session_id
     `).run({ session_id: sessionId, ...data });
@@ -302,6 +304,7 @@ router.get('/leads/:id/intake', (req, res) => {
       try { intake.medications         = JSON.parse(intake.medications         || '[]'); } catch { intake.medications = []; }
       try { intake.eating_patterns     = JSON.parse(intake.eating_patterns     || '{}'); } catch { intake.eating_patterns = {}; }
       try { intake.nutrition_anamnesis = JSON.parse(intake.nutrition_anamnesis || 'null'); } catch { intake.nutrition_anamnesis = null; }
+      try { intake.menu_building       = JSON.parse(intake.menu_building       || 'null'); } catch { intake.menu_building = null; }
     }
 
     return ok(res, intake || null);
@@ -335,7 +338,7 @@ router.post('/leads/:id/intake', (req, res) => {
          prev_challenges, reason_for_treatment, diet_type, eating_patterns,
          water_intake, coffee_per_day, alcohol_per_week, sleep_hours, sleep_quality,
          physical_activity, activity_type, activity_frequency, favorite_snacks, favorite_foods,
-         nutrition_anamnesis)
+         nutrition_anamnesis, menu_building)
       VALUES
         (@lead_id,
          @age, @gender, @weight, @goal, @activity_factor,
@@ -346,7 +349,7 @@ router.post('/leads/:id/intake', (req, res) => {
          @prev_challenges, @reason_for_treatment, @diet_type, @eating_patterns,
          @water_intake, @coffee_per_day, @alcohol_per_week, @sleep_hours, @sleep_quality,
          @physical_activity, @activity_type, @activity_frequency, @favorite_snacks, @favorite_foods,
-         @nutrition_anamnesis)
+         @nutrition_anamnesis, @menu_building)
     `).run({ lead_id: leadId, ...data });
 
     const intake = db.prepare('SELECT * FROM lead_intakes WHERE id = ?').get(result.lastInsertRowid);
@@ -390,6 +393,7 @@ router.put('/leads/:id/intake', (req, res) => {
         activity_type = @activity_type, activity_frequency = @activity_frequency,
         favorite_snacks = @favorite_snacks, favorite_foods = @favorite_foods,
         nutrition_anamnesis = @nutrition_anamnesis,
+        menu_building = @menu_building,
         updated_at = CURRENT_TIMESTAMP
       WHERE lead_id = @lead_id
     `).run({ lead_id: leadId, ...data });
@@ -474,6 +478,7 @@ function buildIntakeData(body) {
     favorite_snacks:      body.favorite_snacks       ?? null,
     favorite_foods:       body.favorite_foods        ?? null,
     nutrition_anamnesis:  body.nutrition_anamnesis != null ? JSON.stringify(body.nutrition_anamnesis) : null,
+    menu_building:        body.menu_building       != null ? JSON.stringify(body.menu_building)       : null,
   };
 }
 

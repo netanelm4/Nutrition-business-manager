@@ -594,6 +594,92 @@ function LifestyleSection({ form, set }) {
   );
 }
 
+// ── Section 7: לבניית התפריט ──────────────────────────────────────────────────
+
+function MenuBuildingSection({ form, set }) {
+  const mb = form.menu_building || {};
+  const setMB = (key, value) => set('menu_building', { ...mb, [key]: value });
+
+  return (
+    <Section title="לבניית התפריט">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className={labelCls}>מספר ארוחות ביום</label>
+          <select className={inputCls} value={mb.meals_per_day ?? ''} onChange={(e) => setMB('meals_per_day', e.target.value || null)}>
+            <option value="">בחירה...</option>
+            <option value="2 ארוחות">2 ארוחות</option>
+            <option value="3 ארוחות">3 ארוחות</option>
+            <option value="4 ארוחות">4 ארוחות</option>
+            <option value="5 ארוחות">5 ארוחות</option>
+          </select>
+        </div>
+        <div>
+          <label className={labelCls}>כשרות</label>
+          <select className={inputCls} value={mb.kashrut ?? ''} onChange={(e) => setMB('kashrut', e.target.value || null)}>
+            <option value="">בחירה...</option>
+            <option value="ללא הגבלה">ללא הגבלה</option>
+            <option value="כשר">כשר</option>
+            <option value="חלבי בלבד">חלבי בלבד</option>
+            <option value="בשרי בלבד">בשרי בלבד</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className={labelCls}>אוכל ארוחת בוקר?</label>
+        <RadioGroup
+          options={[{ value: 'כן', label: 'כן' }, { value: 'לא', label: 'לא' }, { value: 'קטנה בלבד', label: 'קטנה בלבד' }]}
+          value={mb.eats_breakfast ?? null}
+          onChange={(v) => setMB('eats_breakfast', v)}
+        />
+      </div>
+      <div>
+        <label className={labelCls}>אוכל ארוחת ביניים?</label>
+        <RadioGroup
+          options={[{ value: 'כן', label: 'כן' }, { value: 'לא', label: 'לא' }]}
+          value={mb.has_midday_snack ?? null}
+          onChange={(v) => setMB('has_midday_snack', v)}
+        />
+      </div>
+      <div>
+        <label className={labelCls}>צמחוני / טבעוני?</label>
+        <RadioGroup
+          options={[{ value: 'לא', label: 'לא' }, { value: 'צמחוני', label: 'צמחוני' }, { value: 'טבעוני', label: 'טבעוני' }]}
+          value={mb.vegetarian ?? null}
+          onChange={(v) => setMB('vegetarian', v)}
+        />
+      </div>
+      <div>
+        <label className={labelCls}>מבשל בבית?</label>
+        <RadioGroup
+          options={[{ value: 'כן', label: 'כן' }, { value: 'לא', label: 'לא' }, { value: 'לפעמים', label: 'לפעמים' }]}
+          value={mb.cooks_at_home ?? null}
+          onChange={(v) => setMB('cooks_at_home', v)}
+        />
+      </div>
+      <div>
+        <label className={labelCls}>אוכל צהריים מחוץ לבית?</label>
+        <RadioGroup
+          options={[{ value: 'כן', label: 'כן' }, { value: 'לא', label: 'לא' }]}
+          value={mb.eats_lunch_outside ?? null}
+          onChange={(v) => setMB('eats_lunch_outside', v)}
+        />
+      </div>
+      <div>
+        <label className={labelCls}>מזונות שלא אוהב</label>
+        <textarea className={inputCls} rows={2} value={mb.disliked_foods ?? ''} onChange={(e) => setMB('disliked_foods', e.target.value || null)} />
+      </div>
+      <div>
+        <label className={labelCls}>מזונות שאוהב במיוחד (לסל היומי)</label>
+        <textarea className={inputCls} rows={2} value={mb.liked_foods ?? ''} onChange={(e) => setMB('liked_foods', e.target.value || null)} />
+      </div>
+      <div>
+        <label className={labelCls}>אלרגיות / רגישויות</label>
+        <textarea className={inputCls} rows={2} value={mb.allergies ?? ''} onChange={(e) => setMB('allergies', e.target.value || null)} />
+      </div>
+    </Section>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 const EMPTY_FORM = {
@@ -610,6 +696,7 @@ const EMPTY_FORM = {
   physical_activity: false, activity_type: null, activity_frequency: null,
   favorite_snacks: null, favorite_foods: null,
   nutrition_anamnesis: null,
+  menu_building: null,
 };
 
 export default function SessionIntakeForm({ sessionId, clientId }) {
@@ -783,6 +870,7 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
           <NutritionHistorySection  form={form} set={set} />
           <EatingSection            form={form} set={set} />
           <LifestyleSection         form={form} set={set} />
+          <MenuBuildingSection      form={form} set={set} />
 
           {/* Footer */}
           <div className="flex items-center justify-between pt-2">
