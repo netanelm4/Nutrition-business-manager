@@ -1339,6 +1339,12 @@ try {
   `);
 } catch {}
 
+// menu_meals: add time_label column (missing from original schema)
+try { db.exec('ALTER TABLE menu_meals ADD COLUMN time_label TEXT'); } catch {}
+
+// menu_examples: add calorie_target column for few-shot filtering
+try { db.exec('ALTER TABLE menu_examples ADD COLUMN calorie_target INTEGER'); } catch {}
+
 // 3. Auto-create engagement #1 for every existing client that has none
 try {
   db.exec(`

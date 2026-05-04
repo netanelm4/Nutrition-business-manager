@@ -32,9 +32,9 @@ function ItemModal({ menuId, mealId, existingItem, onClose }) {
     existingItem
       ? {
           item_type:   existingItem.item_type   ?? 'protein',
-          portions:    existingItem.portions     ?? (existingItem.portion_description ? parseFloat(existingItem.portion_description) || 1 : 1),
-          custom_text: existingItem.custom_name  ?? '',
-          notes:       existingItem.notes        ?? '',
+          portions:    existingItem.portions    ?? 1,
+          custom_text: existingItem.custom_text ?? '',
+          notes:       existingItem.notes       ?? '',
         }
       : { ...EMPTY_ITEM_FORM }
   );
@@ -49,11 +49,10 @@ function ItemModal({ menuId, mealId, existingItem, onClose }) {
     setError('');
     try {
       const payload = {
-        custom_name:         form.custom_text.trim(),
-        portion_description: form.portions ? `${form.portions} מנות` : null,
-        notes:               form.notes.trim() || null,
-        item_type:           form.item_type,
-        portions:            form.portions,
+        custom_text: form.custom_text.trim(),
+        item_type:   form.item_type,
+        portions:    form.portions,
+        notes:       form.notes.trim() || null,
       };
       if (existingItem) {
         await updateMenuItem(menuId, mealId, existingItem.id, payload);
@@ -152,24 +151,24 @@ function MealCard({ menu, meal, allMeals, onAddItem, onEditItem }) {
   });
 
   const moveMut = useMutation({
-    mutationFn: ({ id, order_index }) => updateMeal(menuId, id, { order_index }),
+    mutationFn: ({ id, meal_order }) => updateMeal(menuId, id, { meal_order }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['menu', String(menuId)] }),
   });
 
-  const sortedMeals = [...allMeals].sort((a, b) => a.order_index - b.order_index || a.id - b.id);
+  const sortedMeals = [...allMeals].sort((a, b) => a.meal_order - b.meal_order || a.id - b.id);
   const myIdx = sortedMeals.findIndex((m) => m.id === meal.id);
 
   function moveUp() {
     if (myIdx <= 0) return;
     const prev = sortedMeals[myIdx - 1];
-    moveMut.mutate({ id: meal.id,  order_index: prev.order_index });
-    moveMut.mutate({ id: prev.id,  order_index: meal.order_index });
+    moveMut.mutate({ id: meal.id, meal_order: prev.meal_order });
+    moveMut.mutate({ id: prev.id, meal_order: meal.meal_order });
   }
   function moveDown() {
     if (myIdx >= sortedMeals.length - 1) return;
     const next = sortedMeals[myIdx + 1];
-    moveMut.mutate({ id: meal.id,  order_index: next.order_index });
-    moveMut.mutate({ id: next.id,  order_index: meal.order_index });
+    moveMut.mutate({ id: meal.id, meal_order: next.meal_order });
+    moveMut.mutate({ id: next.id, meal_order: meal.meal_order });
   }
 
   return (
@@ -181,7 +180,7 @@ function MealCard({ menu, meal, allMeals, onAddItem, onEditItem }) {
             <button type="button" onClick={moveUp} disabled={myIdx === 0 || moveMut.isPending} style={{ fontSize: 10, padding: '1px 4px', lineHeight: 1, cursor: myIdx === 0 ? 'default' : 'pointer', opacity: myIdx === 0 ? 0.3 : 1, background: 'none', border: 'none', color: 'var(--ink-3)' }}>▲</button>
             <button type="button" onClick={moveDown} disabled={myIdx >= sortedMeals.length - 1 || moveMut.isPending} style={{ fontSize: 10, padding: '1px 4px', lineHeight: 1, cursor: myIdx >= sortedMeals.length - 1 ? 'default' : 'pointer', opacity: myIdx >= sortedMeals.length - 1 ? 0.3 : 1, background: 'none', border: 'none', color: 'var(--ink-3)' }}>▼</button>
           </div>
-          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-1)' }}>{meal.name}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-1)' }}>{meal.meal_name}</span>
           {meal.time_label && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>({meal.time_label})</span>}
         </div>
         <button
@@ -205,9 +204,9 @@ function MealCard({ menu, meal, allMeals, onAddItem, onEditItem }) {
             <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--hairline)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cfg.color}`}>{cfg.label}</span>
-                <span style={{ fontSize: 13, color: 'var(--ink-1)', fontWeight: 500 }}>{item.custom_name}</span>
-                {item.portion_description && (
-                  <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{item.portion_description}</span>
+                <span style={{ fontSize: 13, color: 'var(--ink-1)', fontWeight: 500 }}>{item.custom_text}</span>
+                {item.portions != null && (
+                  <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{item.portions} מנות</span>
                 )}
                 {item.notes && (
                   <span style={{ fontSize: 11, color: 'var(--ink-4)', fontStyle: 'italic' }}>{item.notes}</span>
@@ -303,7 +302,7 @@ function AddMealForm({ menuId, nextOrder, onDone }) {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await addMeal(menuId, { name: name.trim(), time_label: timeLabel.trim() || null, order_index: nextOrder });
+      await addMeal(menuId, { name: name.trim(), time_label: timeLabel.trim() || null, meal_order: nextOrder });
       queryClient.invalidateQueries({ queryKey: ['menu', String(menuId)] });
       onDone();
     } catch (err) {
@@ -377,7 +376,7 @@ export default function MenuEditor() {
   }
 
   const isDraft   = menu.status === 'draft';
-  const nextOrder = meals.length > 0 ? Math.max(...meals.map((m) => m.order_index)) + 1 : 0;
+  const nextOrder = meals.length > 0 ? Math.max(...meals.map((m) => m.meal_order)) + 1 : 0;
 
   return (
     <div className="crm-page" dir="rtl" style={{ maxWidth: 800 }}>
@@ -452,7 +451,7 @@ export default function MenuEditor() {
         )}
 
         {[...meals]
-          .sort((a, b) => a.order_index - b.order_index || a.id - b.id)
+          .sort((a, b) => a.meal_order - b.meal_order || a.id - b.id)
           .map((meal) => (
             <MealCard
               key={meal.id}
