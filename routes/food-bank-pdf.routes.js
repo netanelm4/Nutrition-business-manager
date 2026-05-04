@@ -17,7 +17,7 @@ function fail(res, status, message) {
 
 // ── HTML template ─────────────────────────────────────────────────────────────
 
-function buildHtml(categoryName, items) {
+function buildHtml(categoryName, items, nutrientType) {
   const rows = items.map((item, i) => {
     const bg = i % 2 === 0 ? '#ffffff' : '#fdf7fb';
     return `
@@ -141,7 +141,7 @@ function buildHtml(categoryName, items) {
   </div>
 
   <div class="title-bar">${categoryName}</div>
-  <div class="subtitle">מנה = 100–140 קק״ל &nbsp;·&nbsp; לפחות 6 גרם חלבון למנה</div>
+  <div class="subtitle">${MACRO_SUBTITLES[nutrientType] ?? ''}</div>
 
   <table>
     <thead>
@@ -186,7 +186,7 @@ router.get('/pdf/:categoryId', async (req, res) => {
       .prepare('SELECT * FROM food_items WHERE category_id = ? AND is_active = 1 ORDER BY sort_order, name_he')
       .all(req.params.categoryId);
 
-    const html = buildHtml(category.name_he, items);
+    const html = buildHtml(category.name_he, items, category.nutrient_type);
 
     browser = await puppeteer.launch({
       executablePath: chromiumPath,
@@ -224,9 +224,16 @@ router.get('/pdf/:categoryId', async (req, res) => {
 // ── GET /api/food-bank/pdf/macro/:nutrientType ───────────────────────────────
 
 const MACRO_LABELS_HE = { protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירקות', fruit: 'פירות' };
+const MACRO_SUBTITLES = {
+  protein:   'מנה = 100–140 קק״ל  ·  לפחות 6 גרם חלבון למנה',
+  carb:      'מנה = 70–100 קק״ל',
+  fat:       'מנה = 45–60 קק״ל',
+  vegetable: 'מנה = עד 40 קק״ל',
+  fruit:     'מנה = עד 120 קק״ל',
+};
 const ALLOWED_NUTRIENT_TYPES = ['protein', 'carb', 'fat', 'vegetable', 'fruit'];
 
-function buildMacroHtml(macroLabel, categories) {
+function buildMacroHtml(macroLabel, categories, nutrientType) {
   const sections = categories.map(({ name_he, items }) => {
     if (!items.length) return '';
     const rows = items.map((item, i) => {
@@ -347,7 +354,7 @@ function buildMacroHtml(macroLabel, categories) {
   </div>
 
   <div class="title-bar">מאגר ${macroLabel} — כל הקטגוריות</div>
-  <div class="subtitle">מנה = 100–140 קק״ל &nbsp;·&nbsp; לפחות 6 גרם חלבון למנה</div>
+  <div class="subtitle">${MACRO_SUBTITLES[nutrientType] ?? ''}</div>
 
   <table>
     <thead>
@@ -396,7 +403,7 @@ router.get('/pdf/macro/:nutrientType', async (req, res) => {
     }));
 
     const macroLabel = MACRO_LABELS_HE[nutrientType] ?? nutrientType;
-    const html = buildMacroHtml(macroLabel, categories);
+    const html = buildMacroHtml(macroLabel, categories, nutrientType);
 
     browser = await puppeteer.launch({
       executablePath: chromiumPath,
