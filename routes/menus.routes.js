@@ -301,8 +301,8 @@ router.post('/:id/generate', async (req, res) => {
     ).all(target - 200, target + 200);
 
     // Food bank summary
-    const fbRows = db.prepare("SELECT macro_type, COUNT(*) as cnt FROM food_categories GROUP BY macro_type").all();
-    const fbSummary = fbRows.map(r => `${r.macro_type}: ${r.cnt} קטגוריות`).join(' | ');
+    const fbRows = db.prepare("SELECT nutrient_type, COUNT(*) as cnt FROM food_categories GROUP BY nutrient_type").all();
+    const fbSummary = fbRows.map(r => `${r.nutrient_type}: ${r.cnt} קטגוריות`).join(' | ');
 
     // Build system prompt
     const dailyOptions = target >= 1350 ? '2 אופציות' : 'אופציה אחת';
