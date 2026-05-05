@@ -1345,6 +1345,31 @@ try { db.exec('ALTER TABLE menu_meals ADD COLUMN time_label TEXT'); } catch {}
 // menu_examples: add calorie_target column for few-shot filtering
 try { db.exec('ALTER TABLE menu_examples ADD COLUMN calorie_target INTEGER'); } catch {}
 
+// menu_items: remove CHECK constraint on item_type to allow 'custom' and future types
+try {
+  const schema = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='menu_items'").get();
+  if (schema && schema.sql && schema.sql.includes('CHECK')) {
+    db.transaction(() => {
+      db.exec(`CREATE TABLE IF NOT EXISTS menu_items_new (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        meal_id      INTEGER NOT NULL REFERENCES menu_meals(id) ON DELETE CASCADE,
+        item_type    TEXT NOT NULL DEFAULT 'protein',
+        portions     REAL NOT NULL DEFAULT 1,
+        food_item_id INTEGER REFERENCES food_items(id),
+        custom_text  TEXT,
+        notes        TEXT,
+        sort_order   INTEGER DEFAULT 0
+      )`);
+      db.exec(`INSERT INTO menu_items_new SELECT * FROM menu_items`);
+      db.exec(`DROP TABLE menu_items`);
+      db.exec(`ALTER TABLE menu_items_new RENAME TO menu_items`);
+    })();
+    console.log('[db] menu_items CHECK constraint removed — custom item_type now allowed');
+  }
+} catch (err) {
+  console.error('[db] menu_items migration error:', err.message);
+}
+
 // 3. Auto-create engagement #1 for every existing client that has none
 try {
   db.exec(`

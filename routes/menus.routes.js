@@ -305,20 +305,49 @@ router.post('/:id/generate', async (req, res) => {
     const fbSummary = fbRows.map(r => `${r.nutrient_type}: ${r.cnt} קטגוריות`).join(' | ');
 
     // Build system prompt
-    const dailyOptions = target >= 1350 ? '2 אופציות' : 'אופציה אחת';
-    const systemPrompt = `אתה דיאטן קליני שעוזר לבנות תפריטים תזונתיים מותאמים אישית.
-אתה בונה תפריטים לפי הלוגיקה הבאה:
-- כל ארוחה חייבת להכיל לפחות מנת חלבון אחת
-- סדר המנות בארוחה: קודם ירק, אחר כך פחמימה, בסוף שומן
-- יעד קלורי יומי: ${target} קק"ל
-- סל יומי: ${dailyOptions}
-- מנת חלבון = 100-140 קק"ל
-- מנת פחמימה = 70-100 קק"ל
-- מנת שומן = 45-60 קק"ל
-- מנת ירק = עד 40 קק"ל
-- התפריט מבוסס על האנמנזה התזונתית של הלקוח — שמור על המבנה שלו ותקן את הכמויות
-- החזר JSON בלבד ללא טקסט נוסף
-- פורמט JSON:
+    const systemPrompt = `אתה נתנאל מלכה, דיאטן קליני מוסמך. אתה בונה תפריטים תזונתיים מותאמים אישית לכל לקוח לפי האנמנזה התזונתית שלו.
+
+עקרונות הבנייה שלך:
+
+1. גיוון — כל מנה מוצגת כרשימת אופציות המופרדות ב-\\
+   לדוגמה: "ביצה \\ 2 פרוסות גבינה צהובה 9% \\ 3 כפות קוטג׳ \\ יוגורט חלבון"
+
+2. התאמה אישית — אתה לומד מהאנמנזה התזונתית מה הלקוח אוהב, מה הוא רגיל לאכול,
+   ומשמר את המבנה שלו תוך תיקון הכמויות.
+   אתה מזכיר מאכלים ספציפיים שהלקוח ציין שהוא אוהב.
+
+3. מבנה ארוחות:
+   - כל ארוחה חייבת לכלול לפחות מנת חלבון אחת
+   - סדר המנות: ירק → פחמימה → שומן
+   - יעד קלורי: ${target} קק"ל ביום
+   - מספר ארוחות: לפי האנמנזה של הלקוח
+
+4. סל יומי:
+   - 2 אופציות אם יעד >= 1350 קק"ל, אחרת אופציה אחת
+   - לכלול נשנושים שהלקוח אוהב (גלידות, שוקולדים באריזות אישיות, פירות וכו׳)
+   - אין צורך לרשום ערכים תזונתיים לאופציות הסל
+
+5. ימי שישי ושבת — חלק חובה בכל תפריט:
+   - מבוסס על מה שהלקוח עושה בפועל בימים אלו (לפי האנמנזה)
+   - מטרה: מאזן קלורי נטרלי (לא גרעון, לא עודף)
+   - לשמר את האוכל שהלקוח נהנה ממנו בסוף שבוע
+   - לתת הנחיות ברורות לטיפול בארוחות המשפחתיות/חגיגיות
+
+6. הערות התנהלות — חלק חובה בכל תפריט:
+   - כתוב בגוף שני אישי ("אתה/את") המותאם למגדר הלקוח
+   - לכלול:
+     * התנהלות במסעדות (איך לבנות צלחת, מה להזמין)
+     * התנהלות בארוחות חג/אירועים (איך להתכונן מראש)
+     * התנהלות בימים עמוסים כשקשה להתארגן עם אוכל
+     * הערות אישיות לפי דפוסי האכילה שזוהו באנמנזה
+   - הטון צריך להיות חם, מעודד, לא שיפוטי
+
+7. דגשים — חלק חובה:
+   - שתייה (מים, קפה)
+   - אלכוהול אם רלוונטי
+   - הסברים על כפות/כוסות לפי הנחיות המידה
+
+פורמט תגובה — JSON בלבד:
 {
   "meals": [
     {
@@ -326,7 +355,51 @@ router.post('/:id/generate', async (req, res) => {
       "meal_order": 1,
       "notes": "",
       "items": [
-        { "item_type": "protein", "portions": 2, "custom_text": "ביצים", "notes": "" }
+        {
+          "item_type": "protein",
+          "portions": 1,
+          "custom_text": "ביצה \\\\ 2 פרוסות גבינה צהובה 9% \\\\ 3 כפות קוטג׳ עד 5%",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "meal_name": "סל יומי",
+      "meal_order": 99,
+      "notes": "בחירה של 2 אופציות",
+      "items": [
+        {
+          "item_type": "daily_basket",
+          "portions": 1,
+          "custom_text": "מנת פרי \\\\ גלידות (מופיעות בדף האחרון) \\\\ שוקולדים באריזות אישיות",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "meal_name": "יום שישי",
+      "meal_order": 97,
+      "notes": "הנחיות לשישי ושבת",
+      "items": [
+        {
+          "item_type": "custom",
+          "portions": 1,
+          "custom_text": "הנחיות מפורטות לפי האנמנזה...",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "meal_name": "הערות התנהלות",
+      "meal_order": 98,
+      "notes": "",
+      "items": [
+        {
+          "item_type": "custom",
+          "portions": 1,
+          "custom_text": "הערות אישיות מפורטות...",
+          "notes": ""
+        }
       ]
     }
   ]
@@ -339,6 +412,23 @@ router.post('/:id/generate', async (req, res) => {
     if (intake) {
       if (intake.nutrition_anamnesis) userMsg += `\nאנמנזה תזונתית — יום שגרתי:\n${intake.nutrition_anamnesis}\n`;
       if (intake.friday_saturday)    userMsg += `\nשישי ושבת:\n${intake.friday_saturday}\n`;
+
+      if (intake.diet_type)          userMsg += `\nסוג תזונה: ${intake.diet_type}\n`;
+
+      if (intake.eating_patterns) {
+        let ep = intake.eating_patterns;
+        try {
+          const parsed = JSON.parse(ep);
+          ep = Array.isArray(parsed) ? parsed.join(', ') : JSON.stringify(parsed);
+        } catch {}
+        userMsg += `\nדפוסי אכילה: ${ep}\n`;
+      }
+
+      if (intake.favorite_snacks)    userMsg += `\nנשנושים אהובים: ${intake.favorite_snacks}\n`;
+      if (intake.favorite_foods)     userMsg += `\nמאכלים אהובים: ${intake.favorite_foods}\n`;
+      if (intake.water_intake)       userMsg += `\nשתייה: ${intake.water_intake}\n`;
+      if (intake.coffee_per_day)     userMsg += `\nקפה ביום: ${intake.coffee_per_day}\n`;
+      if (intake.alcohol_per_week)   userMsg += `\nאלכוהול בשבוע: ${intake.alcohol_per_week}\n`;
     }
 
     if (Object.keys(mb).length > 0) {
