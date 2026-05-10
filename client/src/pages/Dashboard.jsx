@@ -5,6 +5,7 @@ import {
   fetchDashboard, fetchTemplates, renderTemplate, repairAIAssessments,
   fetchDailyTasks, createDailyTask, updateDailyTask, deleteDailyTask, runAIScan,
   fetchClients,
+  fetchAIRecommendations, dismissRecommendation, markRecommendationSent, runAIAnalysis,
 } from '../lib/api';
 import { formatDateHebrew, formatTimeHebrew, relativeLabel } from '../lib/dates';
 import { ALERT_STATE } from '../constants/statuses';
@@ -839,6 +840,178 @@ function AdminRepairButton() {
   );
 }
 
+// ─── AI Recommendations card ──────────────────────────────────────────────────
+
+const REC_PRIORITY_STYLE = {
+  urgent: { bg: 'var(--red-surface, #fff1f1)', ink: 'oklch(0.55 0.18 25)', label: 'דחוף' },
+  medium: { bg: 'oklch(0.98 0.04 60)',         ink: 'oklch(0.58 0.15 55)', label: 'בינוני' },
+  low:    { bg: 'var(--surface-2)',             ink: 'var(--ink-3)',        label: 'נמוך' },
+};
+
+const REC_TYPE_LABEL = {
+  weight_missing:          'חסר משקל',
+  weight_not_progressing:  'קיפאון במשקל',
+  no_contact:              'אין קשר',
+  upcoming_meeting:        'פגישה קרובה',
+  blood_test_due:          'בדיקות דם',
+  motivation_drop:         'ירידה במוטיבציה',
+  menu_update_needed:      'תפריט לעדכון',
+};
+
+function RecRow({ rec, onDismiss, onSent }) {
+  const [expanded, setExpanded] = useState(false);
+  const pStyle = REC_PRIORITY_STYLE[rec.priority] || REC_PRIORITY_STYLE.low;
+
+  function buildWaLink() {
+    const phone = (rec.client_phone || '').replace(/\D/g, '');
+    if (!phone || !rec.message_draft) return null;
+    return `https://wa.me/${phone.startsWith('0') ? '972' + phone.slice(1) : phone}?text=${encodeURIComponent(rec.message_draft)}`;
+  }
+
+  const waLink = buildWaLink();
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', gap: 6,
+      padding: '10px 14px', borderRadius: 'var(--r-sm)',
+      background: pStyle.bg, border: '1px solid var(--line)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <span style={{
+          fontSize: 10.5, fontWeight: 600, padding: '1px 7px', borderRadius: 20,
+          background: pStyle.ink, color: '#fff', flexShrink: 0,
+        }}>{pStyle.label}</span>
+
+        <span style={{ fontSize: 10.5, color: 'var(--ink-3)', flexShrink: 0 }}>
+          {REC_TYPE_LABEL[rec.type] || rec.type}
+        </span>
+
+        <Link to={`/clients/${rec.client_id}`} style={{ fontSize: 13, fontWeight: 500, color: 'var(--blue)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {rec.client_name}
+        </Link>
+
+        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+          {rec.message_draft && (
+            <button
+              type="button"
+              onClick={() => setExpanded(v => !v)}
+              className="crm-btn crm-btn--ghost"
+              style={{ height: 26, fontSize: 11.5, padding: '0 8px' }}
+            >
+              {expanded ? 'הסתר' : 'הצג הודעה'}
+            </button>
+          )}
+          {waLink && (
+            <a
+              href={waLink}
+              target="_blank"
+              rel="noreferrer"
+              className="crm-btn crm-btn--primary"
+              style={{ height: 26, fontSize: 11.5, padding: '0 8px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
+              onClick={() => onSent(rec.id)}
+            >
+              שלח
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={() => onDismiss(rec.id)}
+            className="crm-btn crm-btn--ghost"
+            style={{ height: 26, fontSize: 11.5, padding: '0 8px', opacity: 0.6 }}
+          >
+            סגור
+          </button>
+        </div>
+      </div>
+
+      {rec.action_suggestion && (
+        <div style={{ fontSize: 12, color: 'var(--ink-2)', paddingRight: 2 }}>
+          {rec.action_suggestion}
+        </div>
+      )}
+
+      {expanded && rec.message_draft && (
+        <div style={{
+          fontSize: 12.5, color: 'var(--ink-1)', background: 'var(--surface-1)',
+          border: '1px solid var(--line)', borderRadius: 'var(--r-sm)',
+          padding: '8px 12px', whiteSpace: 'pre-wrap', direction: 'rtl',
+        }}>
+          {rec.message_draft}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AIRecommendationsCard() {
+  const queryClient = useQueryClient();
+
+  const { data: recs, isLoading } = useQuery({
+    queryKey: ['ai-recommendations'],
+    queryFn:  fetchAIRecommendations,
+    refetchInterval: 5 * 60 * 1000,
+  });
+
+  const dismissMut = useMutation({
+    mutationFn: dismissRecommendation,
+    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] }),
+  });
+
+  const sentMut = useMutation({
+    mutationFn: markRecommendationSent,
+    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] }),
+  });
+
+  const [running, setRunning] = useState(false);
+  async function handleRun() {
+    setRunning(true);
+    try { await runAIAnalysis(); setTimeout(() => queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] }), 3000); }
+    finally { setRunning(false); }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="card" style={{ padding: '16px 20px' }}>
+        <Skel style={{ height: 18, width: 140, marginBottom: 10 }} />
+        <Skel style={{ height: 52 }} />
+      </div>
+    );
+  }
+
+  const list = recs ?? [];
+
+  if (list.length === 0) return null;
+
+  return (
+    <div className="card" style={{ padding: '16px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <IcSparkle size={14} />
+        <span style={{ fontWeight: 600, fontSize: 14 }}>המלצות AI</span>
+        <span className="chip chip--blue" style={{ fontSize: 10.5, height: 18, padding: '0 7px' }}>{list.length}</span>
+        <button
+          type="button"
+          onClick={handleRun}
+          disabled={running}
+          className="crm-btn crm-btn--ghost"
+          style={{ marginRight: 'auto', height: 26, fontSize: 11.5, padding: '0 8px', opacity: 0.7 }}
+        >
+          {running ? 'סורק...' : 'עדכן'}
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {list.map((rec) => (
+          <RecRow
+            key={rec.id}
+            rec={rec}
+            onDismiss={(id) => dismissMut.mutate(id)}
+            onSent={(id) => sentMut.mutate(id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
@@ -891,6 +1064,9 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* ── AI Recommendations ───────────────────────────────────────── */}
+      <AIRecommendationsCard />
 
       {/* ── Stats row ────────────────────────────────────────────────── */}
       <div className="dash-stats">

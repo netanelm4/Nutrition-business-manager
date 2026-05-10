@@ -239,6 +239,12 @@ export const addMenuItem       = (menuId, mealId, data)            => reqMenus('
 export const updateMenuItem    = (menuId, mealId, itemId, data)    => reqMenus('PUT',    `/menus/${menuId}/meals/${mealId}/items/${itemId}`, data);
 export const deleteMenuItem    = (menuId, mealId, itemId)          => reqMenus('DELETE', `/menus/${menuId}/meals/${mealId}/items/${itemId}`);
 
+// ── AI Recommendations ────────────────────────────────────────────────────────
+export const fetchAIRecommendations  = ()   => request('GET',  '/ai-recommendations');
+export const dismissRecommendation   = (id) => request('POST', `/ai-recommendations/${id}/dismiss`);
+export const markRecommendationSent  = (id) => request('POST', `/ai-recommendations/${id}/sent`);
+export const runAIAnalysis           = ()   => request('POST', '/ai-recommendations/run');
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const checkHealth = (password) =>
   fetch('/api/health', {

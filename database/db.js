@@ -1370,6 +1370,25 @@ try {
   console.error('[db] menu_items migration error:', err.message);
 }
 
+// ai_recommendations table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_recommendations (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id         INTEGER REFERENCES clients(id),
+      type              TEXT NOT NULL,
+      priority          TEXT NOT NULL CHECK (priority IN ('urgent','medium','low')),
+      title             TEXT NOT NULL,
+      message_draft     TEXT,
+      action_suggestion TEXT,
+      is_dismissed      INTEGER DEFAULT 0,
+      is_sent           INTEGER DEFAULT 0,
+      created_at        TEXT DEFAULT (datetime('now')),
+      expires_at        TEXT
+    )
+  `);
+} catch {}
+
 // 3. Auto-create engagement #1 for every existing client that has none
 try {
   db.exec(`

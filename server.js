@@ -29,9 +29,12 @@ const engagementsRouter     = require('./routes/engagements.routes');
 const foodBankRouter        = require('./routes/food-bank.routes');
 const foodBankPdfRouter     = require('./routes/food-bank-pdf.routes');
 const menusRouter           = require('./routes/menus.routes');
+const aiRecommendationsRouter = require('./routes/ai-recommendations.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
 const { loadStoredToken, syncCanceledEvents, pollNewBookings } = require('./services/google-calendar.service');
+const cron = require('node-cron');
+const { runAnalysis } = require('./services/ai-intelligence.service');
 
 // ─── Seed default data ────────────────────────────────────────────────────────
 runSeed(db);
@@ -78,6 +81,7 @@ app.use('/api/engagements',      engagementsRouter);
 app.use('/api/food-bank',        foodBankRouter);
 app.use('/api/food-bank',        foodBankPdfRouter);
 app.use('/api/menus',            menusRouter);
+app.use('/api/ai-recommendations', aiRecommendationsRouter);
 
 // Session sub-routes are mounted on the clients router (/:id/sessions, /:id/windows)
 // Direct session access (/api/sessions/:id) is mounted here for GET/PUT/POST insights
@@ -133,4 +137,9 @@ app.listen(PORT, async () => {
   // ── Google Calendar: poll for new bookings every 5 minutes ────────────────
   setTimeout(pollNewBookings, 25_000);
   setInterval(pollNewBookings, 5 * 60 * 1000);
+
+  // ── AI Intelligence: analyze active clients twice daily ───────────────────
+  cron.schedule('0 8 * * *',  () => runAnalysis().catch(e => console.error('[ai-intelligence] cron error:', e.message)), { timezone: 'Asia/Jerusalem' });
+  cron.schedule('0 17 * * *', () => runAnalysis().catch(e => console.error('[ai-intelligence] cron error:', e.message)), { timezone: 'Asia/Jerusalem' });
+  console.log('[ai-intelligence] Cron jobs scheduled: 08:00 and 17:00 Israel time');
 });
