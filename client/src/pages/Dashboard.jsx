@@ -980,14 +980,14 @@ function AIRecommendationsCard() {
 
   const list = recs ?? [];
 
-  if (list.length === 0) return null;
-
   return (
     <div className="card" style={{ padding: '16px 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: list.length > 0 ? 12 : 0 }}>
         <IcSparkle size={14} />
         <span style={{ fontWeight: 600, fontSize: 14 }}>המלצות AI</span>
-        <span className="chip chip--blue" style={{ fontSize: 10.5, height: 18, padding: '0 7px' }}>{list.length}</span>
+        {list.length > 0 && (
+          <span className="chip chip--blue" style={{ fontSize: 10.5, height: 18, padding: '0 7px' }}>{list.length}</span>
+        )}
         <button
           type="button"
           onClick={handleRun}
@@ -998,16 +998,22 @@ function AIRecommendationsCard() {
           {running ? 'סורק...' : 'עדכן'}
         </button>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {list.map((rec) => (
-          <RecRow
-            key={rec.id}
-            rec={rec}
-            onDismiss={(id) => dismissMut.mutate(id)}
-            onSent={(id) => sentMut.mutate(id)}
-          />
-        ))}
-      </div>
+      {list.length === 0 ? (
+        <p style={{ fontSize: 12.5, color: 'var(--ink-3)', margin: '10px 0 0', textAlign: 'center' }}>
+          אין המלצות פתוחות כרגע
+        </p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {list.map((rec) => (
+            <RecRow
+              key={rec.id}
+              rec={rec}
+              onDismiss={(id) => dismissMut.mutate(id)}
+              onSent={(id) => sentMut.mutate(id)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

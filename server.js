@@ -142,4 +142,6 @@ app.listen(PORT, async () => {
   cron.schedule('0 8 * * *',  () => runAnalysis().catch(e => console.error('[ai-intelligence] cron error:', e.message)), { timezone: 'Asia/Jerusalem' });
   cron.schedule('0 17 * * *', () => runAnalysis().catch(e => console.error('[ai-intelligence] cron error:', e.message)), { timezone: 'Asia/Jerusalem' });
   console.log('[ai-intelligence] Cron jobs scheduled: 08:00 and 17:00 Israel time');
+  // Initial run after server is ready (60 s delay to avoid startup noise)
+  setTimeout(() => runAnalysis().catch(e => console.error('[ai-intelligence] startup run error:', e.message)), 60_000);
 });
