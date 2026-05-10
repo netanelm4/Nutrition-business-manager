@@ -1664,4 +1664,20 @@ try {
   }
 } catch { /* non-fatal */ }
 
+// weight_logs table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS weight_logs (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id    INTEGER NOT NULL REFERENCES clients(id),
+      weigh_date   TEXT    NOT NULL,
+      weight       REAL    NOT NULL,
+      day_of_week  TEXT    CHECK (day_of_week IN ('monday','thursday')),
+      notes        TEXT,
+      created_at   TEXT    DEFAULT (datetime('now')),
+      UNIQUE(client_id, weigh_date)
+    )
+  `);
+} catch {}
+
 module.exports = db;

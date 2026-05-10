@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent, fetchClientMenus, createMenu } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -1117,6 +1117,247 @@ function MenusTab({ clientId }) {
   );
 }
 
+// ─── Weights tab ──────────────────────────────────────────────────────────────
+
+function WeightCell({ weight, weightId, date, clientId, onSaved, onDeleted }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState(null);
+
+  async function handleSubmit() {
+    const w = parseFloat(val);
+    if (!val.trim() || isNaN(w)) { setEditing(false); return; }
+    setSaving(true);
+    setErr(null);
+    try {
+      await addWeight(clientId, { date, weight: w });
+      onSaved();
+      setEditing(false);
+      setVal('');
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(e) {
+    e.stopPropagation();
+    try { await deleteWeight(clientId, weightId); onDeleted(); }
+    catch { /* non-fatal */ }
+  }
+
+  if (editing) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <input
+          autoFocus
+          type="number"
+          step="0.1"
+          value={val}
+          onChange={(e) => setVal(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); if (e.key === 'Escape') { setEditing(false); setVal(''); } }}
+          onBlur={handleSubmit}
+          style={{ width: 68, height: 28, padding: '0 6px', fontSize: 13, border: '1px solid var(--blue)', borderRadius: 'var(--r-sm)', background: 'var(--surface-1)', outline: 'none', textAlign: 'center' }}
+          placeholder="ק״ג"
+        />
+        {saving && <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>שומר...</span>}
+        {err && <span style={{ fontSize: 11, color: 'var(--red-ink)' }}>{err}</span>}
+      </div>
+    );
+  }
+
+  if (weight !== null && weight !== undefined) {
+    return (
+      <div
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
+        title="לחץ לעריכה"
+        onClick={() => { setVal(String(weight)); setEditing(true); }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 500 }}>{weight}</span>
+        <button
+          type="button"
+          onClick={handleDelete}
+          style={{ fontSize: 13, lineHeight: 1, color: 'var(--ink-4)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, opacity: 0.5 }}
+          title="מחק"
+        >×</button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => { setVal(''); setEditing(true); }}
+      style={{ fontSize: 18, lineHeight: 1, color: 'var(--ink-4)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px' }}
+      title="הוסף שקילה"
+    >+</button>
+  );
+}
+
+function WeightsTab({ clientId }) {
+  const queryClient = useQueryClient();
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [weightVal, setWeightVal] = useState('');
+  const [addErr, setAddErr] = useState(null);
+  const [adding, setAdding] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['weight-log', String(clientId)],
+    queryFn: () => fetchWeightLog(clientId),
+  });
+
+  function invalidate() {
+    queryClient.invalidateQueries({ queryKey: ['weight-log', String(clientId)] });
+  }
+
+  async function handleAdd(e) {
+    e.preventDefault();
+    setAddErr(null);
+    const w = parseFloat(weightVal);
+    if (isNaN(w)) { setAddErr('הזן משקל תקין'); return; }
+    setAdding(true);
+    try {
+      await addWeight(clientId, { date, weight: w });
+      invalidate();
+      setWeightVal('');
+    } catch (err) {
+      setAddErr(err.message);
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  if (isLoading) {
+    return <div className="animate-pulse rounded-xl" style={{ height: 80, background: 'var(--surface-3)' }} />;
+  }
+
+  const { weeks = [], first_weight, latest_weight, total_change } = data ?? {};
+
+  const changeColor = total_change === null
+    ? 'var(--ink-3)'
+    : total_change <= 0 ? 'var(--green-ink, #1a7a4a)' : 'oklch(0.55 0.18 25)';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} dir="rtl">
+
+      {/* Quick add */}
+      <form
+        onSubmit={handleAdd}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '12px 16px', background: 'var(--surface-2)', borderRadius: 10, border: '1px solid var(--line)' }}
+      >
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="crm-input"
+          style={{ width: 148, height: 34 }}
+        />
+        <input
+          type="number"
+          step="0.1"
+          min="20"
+          max="300"
+          placeholder="משקל (ק״ג)"
+          value={weightVal}
+          onChange={(e) => setWeightVal(e.target.value)}
+          className="crm-input"
+          style={{ width: 130, height: 34 }}
+        />
+        <button type="submit" className="crm-btn crm-btn--primary" style={{ height: 34 }} disabled={adding}>
+          {adding ? 'שומר...' : 'הוסף שקילה'}
+        </button>
+        {addErr && <span style={{ fontSize: 12, color: 'var(--red-ink)' }}>{addErr}</span>}
+      </form>
+
+      {/* Summary bar */}
+      {first_weight !== null && (
+        <div style={{ display: 'flex', gap: 20, padding: '10px 16px', background: 'var(--surface-2)', borderRadius: 10, border: '1px solid var(--line)', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>
+            משקל התחלתי: <strong>{first_weight} ק״ג</strong>
+          </span>
+          <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>
+            משקל נוכחי: <strong>{latest_weight} ק״ג</strong>
+          </span>
+          {total_change !== null && (
+            <span style={{ fontSize: 13, color: changeColor, fontWeight: 600 }}>
+              שינוי כולל: {total_change > 0 ? '+' : ''}{total_change} ק״ג
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Table */}
+      {weeks.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--ink-3)', textAlign: 'center', padding: '24px 0' }}>
+          אין שקילות עדיין — הוסף את הראשונה למעלה
+        </p>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--line)' }}>
+                {['שבוע', 'שקילת שני', 'שקילת חמישי', 'ממוצע'].map((h) => (
+                  <th key={h} style={{ padding: '8px 14px', fontWeight: 600, color: 'var(--ink-2)', textAlign: 'right', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {weeks.map((w) => {
+                const thursdayDate = addThreeDays(w.week_start);
+                return (
+                  <tr key={w.week_start} style={{ borderBottom: '1px solid var(--line)' }}>
+                    <td style={{ padding: '8px 14px', color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
+                      {formatWeekDate(w.week_start)}
+                    </td>
+                    <td style={{ padding: '8px 14px' }}>
+                      <WeightCell
+                        weight={w.monday_weight}
+                        weightId={w.monday_id}
+                        date={w.week_start}
+                        clientId={clientId}
+                        onSaved={invalidate}
+                        onDeleted={invalidate}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 14px' }}>
+                      <WeightCell
+                        weight={w.thursday_weight}
+                        weightId={w.thursday_id}
+                        date={thursdayDate}
+                        clientId={clientId}
+                        onSaved={invalidate}
+                        onDeleted={invalidate}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 14px', fontWeight: 500, color: 'var(--ink-1)' }}>
+                      {w.average !== null
+                        ? <>{w.average}{w.average_approximate && <span style={{ fontSize: 11, color: 'var(--ink-3)', marginRight: 2 }}>*</span>}</>
+                        : <span style={{ color: 'var(--ink-4)' }}>—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function addThreeDays(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + 3);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatWeekDate(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  return `${d.getUTCDate()}.${d.getUTCMonth() + 1}.${String(d.getUTCFullYear()).slice(2)}`;
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ClientDetail() {
@@ -1348,6 +1589,7 @@ export default function ClientDetail() {
               { id: 'payments',  label: 'תשלומים' },
               { id: 'messages',  label: 'הודעות' },
               { id: 'menus',     label: 'תפריטים' },
+              { id: 'weights',   label: 'שקילות' },
             ].map((t) => (
               <button
                 key={t.id}
@@ -1444,6 +1686,10 @@ export default function ClientDetail() {
 
             {activeTab === 'menus' && (
               <MenusTab clientId={id} />
+            )}
+
+            {activeTab === 'weights' && (
+              <WeightsTab clientId={id} />
             )}
           </div>
         </section>
