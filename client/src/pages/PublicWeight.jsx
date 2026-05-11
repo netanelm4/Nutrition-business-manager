@@ -72,15 +72,17 @@ const S = {
     borderBottom: `1px solid ${C.pink}`,
   },
   logo: {
-    maxHeight: 72,
-    maxWidth: 180,
+    maxHeight: 120,
+    minWidth: 160,
+    maxWidth: 240,
     objectFit: 'contain',
-    margin: '0 auto 12px',
+    margin: '0 auto 16px',
     display: 'block',
+    padding: '8px 0',
   },
   greeting: { fontSize: 22, fontWeight: 700, color: C.text, margin: '0 0 2px' },
   subtitle:  { fontSize: 13, color: C.sub, margin: 0 },
-  body:      { maxWidth: 480, margin: '0 auto', padding: '0 16px' },
+  body:      { maxWidth: 860, margin: '0 auto', padding: '0 16px' },
   card: {
     background: '#fff',
     borderRadius: 16,
@@ -417,10 +419,7 @@ export default function PublicWeight() {
           />
         </div>
 
-        {/* Progress chart */}
-        <WeightChart allWeeks={tableWeeks} />
-
-        {/* Entry form */}
+        {/* Entry form — moved to top */}
         <div style={S.card}>
           <div style={S.sectionTitle}>רישום שקילה חדשה</div>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -466,15 +465,30 @@ export default function PublicWeight() {
           </form>
         </div>
 
-        {/* Full history */}
-        <div style={S.card}>
-          <div style={S.sectionTitle}>היסטוריית שקילות</div>
-          <WeekTable weeks={tableWeeks} />
-          {tableWeeks.length > 0 && (
-            <p style={{ fontSize: 11, color: '#aaa', marginTop: 8, textAlign: 'right' }}>
-              * ממוצע משקילה אחת בלבד
-            </p>
-          )}
+        {/* Chart + table side-by-side on tablet/desktop, stacked on mobile */}
+        <style>{`
+          .pw-split { display: flex; flex-direction: column; gap: 0; }
+          @media (min-width: 640px) {
+            .pw-split { flex-direction: row; align-items: flex-start; gap: 16px; }
+            .pw-split > .pw-chart { flex: 55; min-width: 0; }
+            .pw-split > .pw-table { flex: 45; min-width: 0; }
+          }
+        `}</style>
+        <div className="pw-split">
+          <div className="pw-chart">
+            <WeightChart allWeeks={tableWeeks} />
+          </div>
+          <div className="pw-table">
+            <div style={S.card}>
+              <div style={S.sectionTitle}>היסטוריית שקילות</div>
+              <WeekTable weeks={tableWeeks} />
+              {tableWeeks.length > 0 && (
+                <p style={{ fontSize: 11, color: '#aaa', marginTop: 8, textAlign: 'right' }}>
+                  * ממוצע משקילה אחת בלבד
+                </p>
+              )}
+            </div>
+          </div>
         </div>
 
       </div>
