@@ -52,6 +52,32 @@ function saveRecommendation(clientId, type, priority, title, messageDraft, actio
   console.log(`[ai-intelligence] saved rec type=${type} for client_id=${clientId}`);
 }
 
+// ─── Week helpers ─────────────────────────────────────────────────────────────
+
+function getMondayOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const day = d.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function buildWeeklyAverages(weightRows) {
+  // weightRows: [{ weigh_date, weight }] ordered newest first → reverse to oldest first
+  const byWeek = {};
+  for (const row of [...weightRows].reverse()) {
+    const week = getMondayOfWeek(row.weigh_date);
+    if (!byWeek[week]) byWeek[week] = [];
+    byWeek[week].push(row.weight);
+  }
+  return Object.entries(byWeek)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([week, weights]) => ({
+      week,
+      avg: Math.round((weights.reduce((s, w) => s + w, 0) / weights.length) * 10) / 10,
+    }));
+}
+
 // ─── Client context loader ────────────────────────────────────────────────────
 
 function getClientContext(clientId) {
@@ -59,7 +85,7 @@ function getClientContext(clientId) {
   if (!client) return null;
 
   const sessions = db.prepare(`
-    SELECT s.id, s.session_number, s.session_date, s.weight, s.highlights,
+    SELECT s.id, s.session_number, s.session_date, s.highlights,
            si.sleep_quality, si.sleep_hours
     FROM sessions s
     LEFT JOIN session_intakes si ON si.session_id = s.id
@@ -88,49 +114,75 @@ function getClientContext(clientId) {
     ORDER BY created_at DESC LIMIT 1
   `).get(clientId);
 
-  return { client, sessions, latestIntake, nextMeeting, latestMenu };
+  // Last 6 weight_logs entries (newest first)
+  const recentWeights = db.prepare(`
+    SELECT weigh_date, weight, day_of_week
+    FROM weight_logs
+    WHERE client_id = ?
+    ORDER BY weigh_date DESC
+    LIMIT 6
+  `).all(clientId);
+
+  return { client, sessions, latestIntake, nextMeeting, latestMenu, recentWeights };
 }
 
 // ─── Check 1: weight_missing ──────────────────────────────────────────────────
 
-function checkWeightMissing(client, sessions) {
-  if (sessions.length === 0) return;
+function checkWeightMissing(client, recentWeights) {
+  // Fire if no weight_logs at all, or latest weigh_date is > 4 days ago
+  const latest = recentWeights.length > 0 ? recentWeights[0] : null;
 
-  const hasRecentWeight = sessions.some((s) => {
-    if (!s.weight || !s.session_date) return false;
-    const sessionMs = new Date(s.session_date).getTime();
-    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    return sessionMs >= cutoff;
-  });
-
-  if (!hasRecentWeight) {
+  if (!latest) {
     saveRecommendation(
       client.id,
       'weight_missing',
       'medium',
       `חסר משקל עדכני — ${client.full_name}`,
       null,
-      'בקש מהלקוח לשלוח משקל עדכני לפני הפגישה הבאה'
+      'בקש מהלקוח לשלוח משקל עדכני — עדיין לא נרשמה שקילה במערכת'
+    );
+    return;
+  }
+
+  const daysSince = Math.floor(
+    (Date.now() - new Date(latest.weigh_date + 'T12:00:00Z').getTime()) / (1000 * 60 * 60 * 24)
+  );
+
+  if (daysSince > 4) {
+    saveRecommendation(
+      client.id,
+      'weight_missing',
+      'medium',
+      `חסר משקל עדכני — ${client.full_name}`,
+      null,
+      `עברו ${daysSince} ימים מהשקילה האחרונה (${latest.weigh_date}) — בקש עדכון`
     );
   }
 }
 
 // ─── Check 2: weight_not_progressing ─────────────────────────────────────────
 
-async function checkWeightNotProgressing(client, sessions) {
-  const withWeight = sessions.filter((s) => s.weight && s.session_date);
-  if (withWeight.length < 3) return;
+async function checkWeightNotProgressing(client, recentWeights) {
+  if (recentWeights.length < 3) return;
 
-  const weightHistory = withWeight.map((s) => `פגישה ${s.session_number} (${s.session_date}): ${s.weight} ק"ג`).join('\n');
+  const weeklyAvgs = buildWeeklyAverages(recentWeights);
+  if (weeklyAvgs.length < 3) return;
+
+  const last3 = weeklyAvgs.slice(-3);
+  const weightTrendLines = last3.map((w) => `שבוע ${w.week}: ממוצע ${w.avg} ק"ג`).join('\n');
+
+  // Quick structural check: if each avg >= previous, likely stagnant — pass to Claude
+  const noProgress = last3.every((w, i) => i === 0 || w.avg >= last3[i - 1].avg);
+  if (!noProgress) return; // improving — skip Claude call
 
   const result = await callClaude(`
 לקוח: ${client.full_name}, מטרה: ${client.goal || 'לא צוין'}
 משקל התחלתי: ${client.initial_weight || 'לא צוין'} ק"ג
 
-היסטוריית משקל:
-${weightHistory}
+ממוצעי משקל שבועיים (3 שבועות אחרונים):
+${weightTrendLines}
 
-האם יש קיפאון במשקל בשלושת הפגישות האחרונות? ענה ב-JSON בלבד:
+יש קיפאון לכאורה. האם מדובר בקיפאון משמעותי קלינית? ענה ב-JSON בלבד:
 {
   "recommend": true/false,
   "message_draft": "הודעה ללקוח בסגנונך (עד 2 משפטים)",
@@ -230,15 +282,13 @@ function checkBloodTestDue(client, sessions, latestIntake) {
   if (daysSinceFirst < 90) return;
 
   const alreadyHasLab = !!latestIntake?.lab_results_pdf_path;
-  const title = alreadyHasLab
-    ? `בדיקות דם — עדכון מומלץ — ${client.full_name}`
-    : `בדיקות דם — לא בוצעו — ${client.full_name}`;
-
   saveRecommendation(
     client.id,
     'blood_test_due',
     'low',
-    title,
+    alreadyHasLab
+      ? `בדיקות דם — עדכון מומלץ — ${client.full_name}`
+      : `בדיקות דם — לא בוצעו — ${client.full_name}`,
     null,
     alreadyHasLab
       ? 'שקול לבקש עדכון בדיקות דם — עברו יותר מ-3 חודשים'
@@ -248,7 +298,7 @@ function checkBloodTestDue(client, sessions, latestIntake) {
 
 // ─── Check 6: motivation_drop ─────────────────────────────────────────────────
 
-async function checkMotivationDrop(client, sessions) {
+async function checkMotivationDrop(client, sessions, recentWeights) {
   const withHighlights = sessions.filter((s) => s.highlights).slice(-3);
   if (withHighlights.length < 2) return;
 
@@ -256,12 +306,22 @@ async function checkMotivationDrop(client, sessions) {
     .map((s) => `פגישה ${s.session_number}: ${s.highlights}`)
     .join('\n\n');
 
+  // Build weight trend context from weight_logs
+  let weightContext = '';
+  if (recentWeights.length >= 2) {
+    const weeklyAvgs = buildWeeklyAverages(recentWeights);
+    if (weeklyAvgs.length >= 2) {
+      weightContext = '\n\nממוצעי משקל שבועיים אחרונים:\n' +
+        weeklyAvgs.slice(-3).map((w) => `שבוע ${w.week}: ${w.avg} ק"ג`).join('\n');
+    }
+  }
+
   const result = await callClaude(`
 לקוח: ${client.full_name}
 דגשים מהפגישות האחרונות:
-${history}
+${history}${weightContext}
 
-האם יש סימנים לירידה במוטיבציה, חוסר עמידה ביעדים, או קושי? ענה ב-JSON בלבד:
+האם יש סימנים לירידה במוטיבציה, חוסר עמידה ביעדים, קיפאון, או קושי? ענה ב-JSON בלבד:
 {
   "recommend": true/false,
   "message_draft": "הודעת עידוד ללקוח",
@@ -320,13 +380,13 @@ async function analyzeClient(clientId) {
   const ctx = getClientContext(clientId);
   if (!ctx) return;
 
-  const { client, sessions, latestIntake, nextMeeting, latestMenu } = ctx;
+  const { client, sessions, latestIntake, nextMeeting, latestMenu, recentWeights } = ctx;
 
-  try { checkWeightMissing(client, sessions); } catch (e) {
+  try { checkWeightMissing(client, recentWeights); } catch (e) {
     console.error(`[ai-intelligence] checkWeightMissing error client=${clientId}:`, e.message);
   }
 
-  try { await checkWeightNotProgressing(client, sessions); } catch (e) {
+  try { await checkWeightNotProgressing(client, recentWeights); } catch (e) {
     console.error(`[ai-intelligence] checkWeightNotProgressing error client=${clientId}:`, e.message);
   }
 
@@ -342,7 +402,7 @@ async function analyzeClient(clientId) {
     console.error(`[ai-intelligence] checkBloodTestDue error client=${clientId}:`, e.message);
   }
 
-  try { await checkMotivationDrop(client, sessions); } catch (e) {
+  try { await checkMotivationDrop(client, sessions, recentWeights); } catch (e) {
     console.error(`[ai-intelligence] checkMotivationDrop error client=${clientId}:`, e.message);
   }
 

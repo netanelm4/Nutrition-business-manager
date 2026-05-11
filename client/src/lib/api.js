@@ -174,11 +174,6 @@ export const generateProcessSummary = (clientId) => request('POST', `/clients/${
 export const fetchProcessSummary    = (clientId) => request('GET',  `/clients/${clientId}/process-summary`);
 
 // ── Daily Tasks ───────────────────────────────────────────────────────────────
-export const fetchDailyTasks = ()          => request('GET',    '/daily-tasks');
-export const createDailyTask = (data)      => request('POST',   '/daily-tasks', data);
-export const updateDailyTask = (id, data)  => request('PUT',    `/daily-tasks/${id}`, data);
-export const deleteDailyTask = (id)        => request('DELETE', `/daily-tasks/${id}`);
-export const runAIScan       = ()          => request('POST',   '/daily-tasks/ai-scan');
 
 // ── Engagements ───────────────────────────────────────────────────────────────
 export const fetchEngagements  = (clientId)        => request('GET',  `/engagements/client/${clientId}`);
