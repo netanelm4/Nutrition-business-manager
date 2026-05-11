@@ -196,4 +196,32 @@ router.post('/public/weight/:token', (req, res) => {
   }
 });
 
+// ─── TEMP DEBUG: GET /api/public/debug/weight-schema (no auth) ───────────────
+
+router.get('/public/debug/weight-schema', (req, res) => {
+  const result = {};
+
+  try {
+    result.clients_sql = db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='clients'"
+    ).get();
+  } catch (err) {
+    result.clients_sql_error = err.message;
+  }
+
+  try {
+    result.clients_sample = db.prepare('SELECT id, full_name FROM clients LIMIT 3').all();
+  } catch (err) {
+    result.clients_sample_error = err.message;
+  }
+
+  try {
+    result.weight_token_sample = db.prepare('SELECT weight_token FROM clients LIMIT 1').get();
+  } catch (err) {
+    result.weight_token_error = err.message;
+  }
+
+  return res.json(result);
+});
+
 module.exports = router;
