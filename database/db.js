@@ -1680,4 +1680,14 @@ try {
   `);
 } catch {}
 
+// weight_token — unique shareable token per client for public weight entry
+try { db.exec('ALTER TABLE clients ADD COLUMN weight_token TEXT UNIQUE'); } catch {}
+try {
+  db.exec("UPDATE clients SET weight_token = hex(randomblob(8)) WHERE weight_token IS NULL");
+  const tokenCount = db.prepare("SELECT COUNT(*) AS n FROM clients WHERE weight_token IS NOT NULL").get().n;
+  if (tokenCount > 0) console.log(`[migration] weight_token seeded for ${tokenCount} client(s)`);
+} catch (err) {
+  console.error('[migration] weight_token seed failed:', err.message);
+}
+
 module.exports = db;

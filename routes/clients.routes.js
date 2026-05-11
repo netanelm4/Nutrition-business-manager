@@ -278,6 +278,19 @@ function attachProtocol(client) {
   };
 }
 
+router.get('/:id/weight-link', (req, res) => {
+  try {
+    const client = db.prepare('SELECT weight_token FROM clients WHERE id = ?').get(req.params.id);
+    if (!client) return fail(res, 404, 'Client not found.');
+    if (!client.weight_token) return fail(res, 500, 'Weight token not generated yet.');
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    return ok(res, { url: `${baseUrl}/w/${client.weight_token}` });
+  } catch (err) {
+    console.error('[GET /:id/weight-link]', err.message);
+    return fail(res, 500, err.message);
+  }
+});
+
 router.get('/:id', (req, res) => {
   try {
     const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);

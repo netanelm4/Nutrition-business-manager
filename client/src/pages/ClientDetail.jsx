@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight, fetchWeightLink } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -1358,6 +1358,39 @@ function formatWeekDate(dateStr) {
   return `${d.getUTCDate()}.${d.getUTCMonth() + 1}.${String(d.getUTCFullYear()).slice(2)}`;
 }
 
+// ─── Weight link copy button ──────────────────────────────────────────────────
+
+function WeightLinkButton({ clientId }) {
+  const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  async function handleCopy() {
+    if (loading || copied) return;
+    setLoading(true);
+    try {
+      const { url } = await fetchWeightLink(clientId);
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // fallback: do nothing silently
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="crm-btn crm-btn--sm"
+      style={copied ? { background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' } : {}}
+    >
+      {copied ? 'הועתק! ✓' : loading ? '...' : 'קישור שקילה'}
+    </button>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ClientDetail() {
@@ -1514,6 +1547,7 @@ export default function ClientDetail() {
                 </a>
               )}
               <WhatsAppDropdown clientId={client.id} phone={client.phone} />
+              <WeightLinkButton clientId={client.id} />
               <button
                 type="button"
                 onClick={() => setEditOpen(true)}

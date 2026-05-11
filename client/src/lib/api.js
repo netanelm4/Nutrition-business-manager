@@ -235,9 +235,10 @@ export const updateMenuItem    = (menuId, mealId, itemId, data)    => reqMenus('
 export const deleteMenuItem    = (menuId, mealId, itemId)          => reqMenus('DELETE', `/menus/${menuId}/meals/${mealId}/items/${itemId}`);
 
 // ── Weight Logs ───────────────────────────────────────────────────────────────
-export const fetchWeightLog = (clientId)      => request('GET',    `/weight/${clientId}`);
-export const addWeight      = (clientId, data) => request('POST',   `/weight/${clientId}`, data);
-export const deleteWeight   = (clientId, id)   => request('DELETE', `/weight/${clientId}/${id}`);
+export const fetchWeightLog  = (clientId)      => request('GET',    `/weight/${clientId}`);
+export const addWeight       = (clientId, data) => request('POST',   `/weight/${clientId}`, data);
+export const deleteWeight    = (clientId, id)   => request('DELETE', `/weight/${clientId}/${id}`);
+export const fetchWeightLink = (clientId)      => request('GET',    `/clients/${clientId}/weight-link`);
 
 // ── AI Recommendations ────────────────────────────────────────────────────────
 export const fetchAIRecommendations  = ()   => request('GET',  '/ai-recommendations');
