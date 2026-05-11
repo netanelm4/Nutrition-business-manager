@@ -138,7 +138,7 @@ function buildWeightStats(clientId) {
 // ─── Ensure weight schema exists (in case migration didn't run on this volume) ─
 
 function ensureWeightSchema() {
-  try { db.exec('ALTER TABLE clients ADD COLUMN weight_token TEXT UNIQUE'); } catch {}
+  try { db.exec('ALTER TABLE clients ADD COLUMN weight_token TEXT'); } catch {}
   try { db.exec('CREATE TABLE IF NOT EXISTS weight_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, client_id INTEGER NOT NULL REFERENCES clients(id), weigh_date TEXT NOT NULL, weight REAL NOT NULL, day_of_week TEXT CHECK (day_of_week IN (\'monday\',\'thursday\')), notes TEXT, created_at TEXT DEFAULT (datetime(\'now\')), UNIQUE(client_id, weigh_date))'); } catch {}
   try { db.exec("UPDATE clients SET weight_token = hex(randomblob(8)) WHERE weight_token IS NULL"); } catch {}
 }

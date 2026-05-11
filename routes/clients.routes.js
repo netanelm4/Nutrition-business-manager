@@ -280,7 +280,7 @@ function attachProtocol(client) {
 
 router.get('/:id/weight-link', (req, res) => {
   try {
-    try { db.exec('ALTER TABLE clients ADD COLUMN weight_token TEXT UNIQUE'); } catch {}
+    try { db.exec('ALTER TABLE clients ADD COLUMN weight_token TEXT'); } catch {}
     try { db.exec("UPDATE clients SET weight_token = hex(randomblob(8)) WHERE weight_token IS NULL"); } catch {}
 
     const client = db.prepare('SELECT id, weight_token FROM clients WHERE id = ?').get(req.params.id);
