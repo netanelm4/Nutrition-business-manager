@@ -128,11 +128,12 @@ function buildWeightStats(clientId) {
     ? Math.round((latestWeight - firstWeight) * 10) / 10
     : null;
 
-  // Newest-first for the 4-week view
+  // Newest-first for week views
   const rowsDesc = [...rows].reverse();
-  const recent_weeks = groupWeightRows(rowsDesc).slice(0, 4);
+  const all_weeks    = groupWeightRows(rowsDesc);
+  const recent_weeks = all_weeks.slice(0, 4);
 
-  return { first_weight: firstWeight, latest_weight: latestWeight, total_change: totalChange, recent_weeks };
+  return { first_weight: firstWeight, latest_weight: latestWeight, total_change: totalChange, recent_weeks, all_weeks };
 }
 
 // ─── Ensure weight schema exists (in case migration didn't run on this volume) ─

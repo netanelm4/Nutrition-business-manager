@@ -7,3 +7,4 @@ data/
 .DS_Store
 .playwright-mcp/
 *.png
+!client/public/*.png
