@@ -1361,32 +1361,55 @@ function formatWeekDate(dateStr) {
 // ─── Weight link copy button ──────────────────────────────────────────────────
 
 function WeightLinkButton({ clientId }) {
-  const [copied, setCopied] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [state, setState] = useState('idle'); // idle | loading | copied | error
+
+  function copyViaTextarea(text) {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(el);
+    return ok;
+  }
 
   async function handleCopy() {
-    if (loading || copied) return;
-    setLoading(true);
+    if (state === 'loading' || state === 'copied') return;
+    setState('loading');
     try {
       const { url } = await fetchWeightLink(clientId);
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      let success = false;
+      if (navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(url);
+          success = true;
+        } catch {
+          success = copyViaTextarea(url);
+        }
+      } else {
+        success = copyViaTextarea(url);
+      }
+      setState(success ? 'copied' : 'error');
+      if (success) setTimeout(() => setState('idle'), 2000);
+      else setTimeout(() => setState('idle'), 3000);
     } catch {
-      // fallback: do nothing silently
-    } finally {
-      setLoading(false);
+      setState('error');
+      setTimeout(() => setState('idle'), 3000);
     }
   }
 
+  const label  = { idle: 'קישור שקילה', loading: '...', copied: 'הועתק! ✓', error: 'שגיאה — נסה שוב' };
+  const style  = state === 'copied'
+    ? { background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }
+    : state === 'error'
+      ? { background: 'oklch(0.55 0.18 25)', color: '#fff', borderColor: 'transparent' }
+      : {};
+
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="crm-btn crm-btn--sm"
-      style={copied ? { background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' } : {}}
-    >
-      {copied ? 'הועתק! ✓' : loading ? '...' : 'קישור שקילה'}
+    <button type="button" onClick={handleCopy} className="crm-btn crm-btn--sm" style={style}>
+      {label[state]}
     </button>
   );
 }
