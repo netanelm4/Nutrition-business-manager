@@ -280,12 +280,16 @@ function attachProtocol(client) {
 
 router.get('/:id/weight-link', (req, res) => {
   try {
-    const client = db.prepare('SELECT weight_token FROM clients WHERE id = ?').get(req.params.id);
+    const client = db.prepare('SELECT id, weight_token FROM clients WHERE id = ?').get(req.params.id);
     if (!client) return fail(res, 404, 'Client not found.');
-    if (!client.weight_token) return fail(res, 500, 'Weight token not generated yet.');
+    let token = client.weight_token;
+    if (!token) {
+      token = require('crypto').randomBytes(8).toString('hex');
+      db.prepare('UPDATE clients SET weight_token = ? WHERE id = ?').run(token, client.id);
+    }
     const proto   = req.get('x-forwarded-proto') || req.protocol;
     const baseUrl = `${proto}://${req.get('host')}`;
-    return ok(res, { url: `${baseUrl}/w/${client.weight_token}` });
+    return ok(res, { url: `${baseUrl}/w/${token}` });
   } catch (err) {
     console.error('[GET /:id/weight-link]', err.message);
     return fail(res, 500, err.message);

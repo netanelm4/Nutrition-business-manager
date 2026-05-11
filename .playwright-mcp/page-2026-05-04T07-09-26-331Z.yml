@@ -1,0 +1,236 @@
+- generic [ref=e13]:
+  - generic [ref=e14]:
+    - banner [ref=e15]:
+      - navigation "breadcrumb" [ref=e16]:
+        - generic [ref=e18]: עבודה
+        - generic [ref=e19]:
+          - generic [ref=e20]: /
+          - generic [ref=e21]: לוח בקרה
+      - generic [ref=e24]:
+        - generic: 🔍
+        - textbox "חיפוש לקוח או ליד… (⌘K)" [ref=e25]
+      - generic [ref=e26]:
+        - button "התראות" [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+        - button "עוזר AI" [ref=e31] [cursor=pointer]:
+          - img [ref=e32]
+          - generic [ref=e34]: עוזר AI
+        - link "חדש" [ref=e35] [cursor=pointer]:
+          - /url: /clients
+          - img [ref=e36]
+          - generic [ref=e38]: חדש
+    - main [ref=e39]:
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e42]:
+            - generic [ref=e43]: בוקר טוב, נתנאל
+            - generic [ref=e44]: יום שני, 4 במאי · 1 מטופלים פעילים · 0 פגישות היום
+          - generic [ref=e45]:
+            - link "עוזר AI" [ref=e46] [cursor=pointer]:
+              - /url: /ai
+              - img [ref=e47]
+              - text: עוזר AI
+            - link "קבע פגישה +" [ref=e49] [cursor=pointer]:
+              - /url: /calendly
+              - img [ref=e50]
+              - text: קבע פגישה +
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e54]: מטופלים פעילים
+            - generic [ref=e55]: "1"
+          - generic [ref=e56]:
+            - generic [ref=e57]: לידים חדשים החודש
+            - generic [ref=e58]: "0"
+          - generic [ref=e59]:
+            - generic [ref=e60]: פגישות השבוע
+            - generic [ref=e61]: "0"
+          - generic [ref=e62]:
+            - generic [ref=e63]: התראות פתוחות
+            - generic [ref=e64]: "4"
+            - generic [ref=e66]: דורשות טיפול
+        - generic [ref=e67]:
+          - generic [ref=e68]:
+            - generic [ref=e69]:
+              - generic [ref=e71]:
+                - generic [ref=e72]: משימות שלי היום
+                - generic [ref=e73]: 0 משימות · 0 הושלמו
+              - generic [ref=e74]:
+                - button "דחוף וחשוב 0" [disabled] [ref=e76]:
+                  - generic [ref=e77]: דחוף וחשוב
+                  - generic [ref=e78]:
+                    - generic [ref=e79]: "0"
+                    - img [ref=e80]
+                - button "דחוף 0" [disabled] [ref=e83]:
+                  - generic [ref=e84]: דחוף
+                  - generic [ref=e85]:
+                    - generic [ref=e86]: "0"
+                    - img [ref=e87]
+                - button "חשוב 0" [disabled] [ref=e90]:
+                  - generic [ref=e91]: חשוב
+                  - generic [ref=e92]:
+                    - generic [ref=e93]: "0"
+                    - img [ref=e94]
+                - button "שגרה 0" [disabled] [ref=e97]:
+                  - generic [ref=e98]: שגרה
+                  - generic [ref=e99]:
+                    - generic [ref=e100]: "0"
+                    - img [ref=e101]
+                - button "עבר מאתמול 0" [disabled] [ref=e104]:
+                  - generic [ref=e105]: עבר מאתמול
+                  - generic [ref=e106]:
+                    - generic [ref=e107]: "0"
+                    - img [ref=e108]
+              - generic [ref=e110]:
+                - generic [ref=e111]: יום שני, 4 במאי
+                - generic [ref=e112]:
+                  - button "+ הוסף" [ref=e113] [cursor=pointer]
+                  - button "סריקת AI" [ref=e114] [cursor=pointer]:
+                    - img [ref=e115]
+                    - text: סריקת AI
+            - generic [ref=e117]:
+              - generic [ref=e119]:
+                - generic [ref=e120]: התראות
+                - generic [ref=e121]: 5 פריטים דורשים טיפול
+              - generic [ref=e122]:
+                - link "שושנה בכור תהליך הסתיים 02/05/2026 שלח" [ref=e123] [cursor=pointer]:
+                  - /url: /clients/2
+                  - img [ref=e125]
+                  - generic [ref=e127]:
+                    - generic [ref=e128]: שושנה בכור
+                    - generic [ref=e129]: תהליך הסתיים 02/05/2026
+                  - button "שלח" [ref=e130]:
+                    - img [ref=e131]
+                    - generic [ref=e133]: שלח
+                - link "שושנה בכור פגישה 1 — הייתה 01/02/2026 שלח" [ref=e134] [cursor=pointer]:
+                  - /url: /clients/2
+                  - img [ref=e136]
+                  - generic [ref=e139]:
+                    - generic [ref=e140]: שושנה בכור
+                    - generic [ref=e141]: פגישה 1 — הייתה 01/02/2026
+                  - button "שלח" [ref=e142]:
+                    - img [ref=e143]
+                    - generic [ref=e145]: שלח
+                - link "בדיקה2 קפוא מזה 6 ימים" [ref=e146] [cursor=pointer]:
+                  - /url: /leads/2
+                  - img [ref=e148]
+                  - generic [ref=e150]:
+                    - generic [ref=e151]: בדיקה2
+                    - generic [ref=e152]: קפוא מזה 6 ימים
+                - link "שושנה בכור לא היה קשר מזה 92 ימים שלח" [ref=e153] [cursor=pointer]:
+                  - /url: /clients/2
+                  - img [ref=e155]
+                  - generic [ref=e157]:
+                    - generic [ref=e158]: שושנה בכור
+                    - generic [ref=e159]: לא היה קשר מזה 92 ימים
+                  - button "שלח" [ref=e160]:
+                    - img [ref=e161]
+                    - generic [ref=e163]: שלח
+                - link "שושנה בכור טרם שולם שלח" [ref=e164] [cursor=pointer]:
+                  - /url: /clients/2
+                  - img [ref=e166]
+                  - generic [ref=e169]:
+                    - generic [ref=e170]: שושנה בכור
+                    - generic [ref=e171]: טרם שולם
+                  - button "שלח" [ref=e172]:
+                    - img [ref=e173]
+                    - generic [ref=e175]: שלח
+            - button "תקן הערכות AI חסרות" [ref=e176] [cursor=pointer]
+          - generic [ref=e177]:
+            - generic [ref=e178]:
+              - generic [ref=e179]:
+                - generic [ref=e180]:
+                  - generic [ref=e181]: פגישות השבוע
+                  - generic [ref=e182]: 0 פגישות
+                - link "לוח השבוע" [ref=e183] [cursor=pointer]:
+                  - /url: /calendly
+                  - text: לוח השבוע
+                  - img [ref=e184]
+              - generic [ref=e187]: אין פגישות השבוע
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - generic [ref=e190]:
+                  - generic [ref=e191]: התקדמות מטופלים
+                  - generic [ref=e192]: 1 פעילים
+                - link "כל המטופלים" [ref=e193] [cursor=pointer]:
+                  - /url: /clients
+                  - text: כל המטופלים
+                  - img [ref=e194]
+              - link "שושנה בכור 0 / 6 פגישות · 0%" [ref=e197] [cursor=pointer]:
+                - /url: /clients/2
+                - generic [ref=e198]:
+                  - generic [ref=e199]:
+                    - generic [ref=e200]: שב
+                    - generic [ref=e201]: שושנה בכור
+                  - generic [ref=e202]:
+                    - text: 0 / 6 פגישות ·
+                    - generic [ref=e203]: 0%
+  - complementary [ref=e205]:
+    - generic [ref=e206]:
+      - generic [ref=e207]: נ
+      - generic [ref=e208]:
+        - generic [ref=e209]: ניהול לקוחות
+        - generic [ref=e210]: תזונה קלינית
+    - generic [ref=e211]: עבודה
+    - link "לוח בקרה" [ref=e212] [cursor=pointer]:
+      - /url: /
+      - img [ref=e213]
+      - generic [ref=e218]: לוח בקרה
+    - link "מטופלים" [ref=e219] [cursor=pointer]:
+      - /url: /clients
+      - img [ref=e220]
+      - generic [ref=e225]: מטופלים
+    - link "לידים" [ref=e226] [cursor=pointer]:
+      - /url: /leads
+      - img [ref=e227]
+      - generic [ref=e231]: לידים
+    - link "פגישות" [ref=e232] [cursor=pointer]:
+      - /url: /calendly
+      - img [ref=e233]
+      - generic [ref=e236]: פגישות
+    - generic [ref=e237]: כלים
+    - link "פרוטוקולים" [ref=e238] [cursor=pointer]:
+      - /url: /protocols
+      - img [ref=e239]
+      - generic [ref=e243]: פרוטוקולים
+    - link "תבניות WhatsApp" [ref=e244] [cursor=pointer]:
+      - /url: /templates
+      - img [ref=e245]
+      - generic [ref=e247]: תבניות WhatsApp
+    - link "מאגר מזון" [ref=e248] [cursor=pointer]:
+      - /url: /food-bank
+      - img [ref=e249]
+      - generic [ref=e252]: מאגר מזון
+    - button "עוזר AI" [ref=e254] [cursor=pointer]:
+      - img [ref=e255]
+      - generic [ref=e257]: עוזר AI
+    - generic [ref=e258]:
+      - generic [ref=e259]: נמ
+      - generic [ref=e260]:
+        - generic [ref=e261]: נתנאל מלכה
+        - generic [ref=e262]: דיאטן קליני
+      - button "הגדרות" [ref=e263] [cursor=pointer]:
+        - img [ref=e264]
+  - complementary "עוזר AI" [ref=e267]:
+    - generic [ref=e268]:
+      - generic [ref=e269]:
+        - heading "עוזר AI" [level=2] [ref=e270]
+        - paragraph [ref=e271]: מחובר למערכת | 4 במאי 2026
+      - button "סגור" [ref=e273] [cursor=pointer]: ×
+    - generic [ref=e275]:
+      - generic [ref=e276]: ✨
+      - generic [ref=e277]:
+        - paragraph [ref=e278]: שלום נתנאל
+        - paragraph [ref=e279]:
+          - text: אני מחובר למערכת שלך ומכיר את כל הלקוחות,
+          - text: הלידים והמשימות שלך.
+        - paragraph [ref=e280]: איך אוכל לעזור?
+      - generic [ref=e281]:
+        - button "מה יש לי היום?" [ref=e282] [cursor=pointer]
+        - button "מי הלקוחות שלא קבעו פגישה?" [ref=e283] [cursor=pointer]
+        - button "תכין אותי לפגישה הבאה" [ref=e284] [cursor=pointer]
+    - generic [ref=e285]:
+      - generic [ref=e286]:
+        - textbox "שאל אותי משהו..." [ref=e287]
+        - button "שלח" [disabled] [ref=e288] [cursor=pointer]:
+          - img [ref=e289]
+      - paragraph [ref=e291]: Enter לשליחה · Shift+Enter לשורה חדשה

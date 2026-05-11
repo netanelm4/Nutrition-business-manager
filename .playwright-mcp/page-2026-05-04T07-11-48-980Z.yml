@@ -1,0 +1,279 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - banner [ref=e5]:
+      - navigation "breadcrumb" [ref=e6]:
+        - generic [ref=e8]: כלים
+        - generic [ref=e9]:
+          - generic [ref=e10]: /
+          - generic [ref=e11]: מאגר מזון
+      - generic [ref=e14]:
+        - generic: 🔍
+        - textbox "חיפוש לקוח או ליד… (⌘K)" [ref=e15]
+      - generic [ref=e16]:
+        - button "התראות" [ref=e17] [cursor=pointer]:
+          - img [ref=e18]
+        - button "עוזר AI" [ref=e21] [cursor=pointer]:
+          - img [ref=e22]
+          - generic [ref=e24]: עוזר AI
+        - link "חדש" [ref=e25] [cursor=pointer]:
+          - /url: /clients
+          - img [ref=e26]
+          - generic [ref=e28]: חדש
+    - main [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - generic [ref=e33]:
+              - heading "מאגר מזון" [level=1] [ref=e34]
+              - paragraph [ref=e178]: חלבון מהחי — דגים
+            - generic [ref=e180]:
+              - button "ייצא PDF" [ref=e181] [cursor=pointer]
+              - button "+ הוסף פריט" [ref=e182] [cursor=pointer]
+          - generic [ref=e183]:
+            - generic [ref=e184]:
+              - textbox "חפש מוצר להוספה מ-Open Food Facts..." [ref=e185]: tuna
+              - button "חפש" [ref=e186] [cursor=pointer]
+            - generic [ref=e310]:
+              - generic [ref=e311]: תוצאות מ-Open Food Facts — בדוק ערכים לפני שמירה
+              - generic [ref=e312]: Failed to fetch
+          - table [ref=e189]:
+            - rowgroup [ref=e190]:
+              - row "שם כמות (מנה) גרמים קק״ל חלבון (ג׳) הערות" [ref=e191]:
+                - columnheader "שם" [ref=e192]
+                - columnheader "כמות (מנה)" [ref=e193]
+                - columnheader "גרמים" [ref=e194]
+                - columnheader "קק״ל" [ref=e195]
+                - columnheader "חלבון (ג׳)" [ref=e196]
+                - columnheader "הערות" [ref=e197]
+                - columnheader [ref=e198]
+            - rowgroup [ref=e199]:
+              - row "בקלה 175 גרם 175 140 32 עריכה מחק" [ref=e200]:
+                - cell "בקלה" [ref=e201]
+                - cell "175 גרם" [ref=e202]
+                - cell "175" [ref=e203]
+                - cell "140" [ref=e204]
+                - cell "32" [ref=e205]
+                - cell [ref=e206]
+                - cell "עריכה מחק" [ref=e207]:
+                  - generic [ref=e208]:
+                    - button "עריכה" [ref=e209] [cursor=pointer]
+                    - button "מחק" [ref=e210] [cursor=pointer]
+              - row "דג מוסר ים 150 גרם 150 142 27 עריכה מחק" [ref=e211]:
+                - cell "דג מוסר ים" [ref=e212]
+                - cell "150 גרם" [ref=e213]
+                - cell "150" [ref=e214]
+                - cell "142" [ref=e215]
+                - cell "27" [ref=e216]
+                - cell [ref=e217]
+                - cell "עריכה מחק" [ref=e218]:
+                  - generic [ref=e219]:
+                    - button "עריכה" [ref=e220] [cursor=pointer]
+                    - button "מחק" [ref=e221] [cursor=pointer]
+              - row "הליבוט 155 גרם 155 139 28 עריכה מחק" [ref=e222]:
+                - cell "הליבוט" [ref=e223]
+                - cell "155 גרם" [ref=e224]
+                - cell "155" [ref=e225]
+                - cell "139" [ref=e226]
+                - cell "28" [ref=e227]
+                - cell [ref=e228]
+                - cell "עריכה מחק" [ref=e229]:
+                  - generic [ref=e230]:
+                    - button "עריכה" [ref=e231] [cursor=pointer]
+                    - button "מחק" [ref=e232] [cursor=pointer]
+              - row "טונה במים פחית שלמה 130 112 25 עריכה מחק" [ref=e233]:
+                - cell "טונה במים" [ref=e234]
+                - cell "פחית שלמה" [ref=e235]
+                - cell "130" [ref=e236]
+                - cell "112" [ref=e237]
+                - cell "25" [ref=e238]
+                - cell [ref=e239]
+                - cell "עריכה מחק" [ref=e240]:
+                  - generic [ref=e241]:
+                    - button "עריכה" [ref=e242] [cursor=pointer]
+                    - button "מחק" [ref=e243] [cursor=pointer]
+              - row "טונה בשמן ½ פחית 65 100 13 עריכה מחק" [ref=e244]:
+                - cell "טונה בשמן" [ref=e245]
+                - cell "½ פחית" [ref=e246]
+                - cell "65" [ref=e247]
+                - cell "100" [ref=e248]
+                - cell "13" [ref=e249]
+                - cell [ref=e250]
+                - cell "עריכה מחק" [ref=e251]:
+                  - generic [ref=e252]:
+                    - button "עריכה" [ref=e253] [cursor=pointer]
+                    - button "מחק" [ref=e254] [cursor=pointer]
+              - row "סלמון מעושן 4 פרוסות 80 128 18 עריכה מחק" [ref=e255]:
+                - cell "סלמון מעושן" [ref=e256]
+                - cell "4 פרוסות" [ref=e257]
+                - cell "80" [ref=e258]
+                - cell "128" [ref=e259]
+                - cell "18" [ref=e260]
+                - cell [ref=e261]
+                - cell "עריכה מחק" [ref=e262]:
+                  - generic [ref=e263]:
+                    - button "עריכה" [ref=e264] [cursor=pointer]
+                    - button "מחק" [ref=e265] [cursor=pointer]
+              - row "פילה דג לבן (לברק/מושט/דניס) 155 גרם 155 139 28 עריכה מחק" [ref=e266]:
+                - cell "פילה דג לבן (לברק/מושט/דניס)" [ref=e267]
+                - cell "155 גרם" [ref=e268]
+                - cell "155" [ref=e269]
+                - cell "139" [ref=e270]
+                - cell "28" [ref=e271]
+                - cell [ref=e272]
+                - cell "עריכה מחק" [ref=e273]:
+                  - generic [ref=e274]:
+                    - button "עריכה" [ref=e275] [cursor=pointer]
+                    - button "מחק" [ref=e276] [cursor=pointer]
+              - row "פילה סלמון 1/2 פילה 80 130 16 עריכה מחק" [ref=e277]:
+                - cell "פילה סלמון" [ref=e278]
+                - cell "1/2 פילה" [ref=e279]
+                - cell "80" [ref=e280]
+                - cell "130" [ref=e281]
+                - cell "16" [ref=e282]
+                - cell [ref=e283]
+                - cell "עריכה מחק" [ref=e284]:
+                  - generic [ref=e285]:
+                    - button "עריכה" [ref=e286] [cursor=pointer]
+                    - button "מחק" [ref=e287] [cursor=pointer]
+              - row "פלמידה 1 פילה (95 גרם) 95 138 22 עריכה מחק" [ref=e288]:
+                - cell "פלמידה" [ref=e289]
+                - cell "1 פילה (95 גרם)" [ref=e290]
+                - cell "95" [ref=e291]
+                - cell "138" [ref=e292]
+                - cell "22" [ref=e293]
+                - cell [ref=e294]
+                - cell "עריכה מחק" [ref=e295]:
+                  - generic [ref=e296]:
+                    - button "עריכה" [ref=e297] [cursor=pointer]
+                    - button "מחק" [ref=e298] [cursor=pointer]
+              - row "שרימפס 16 יחידות 160 136 29 עריכה מחק" [ref=e299]:
+                - cell "שרימפס" [ref=e300]
+                - cell "16 יחידות" [ref=e301]
+                - cell "160" [ref=e302]
+                - cell "136" [ref=e303]
+                - cell "29" [ref=e304]
+                - cell [ref=e305]
+                - cell "עריכה מחק" [ref=e306]:
+                  - generic [ref=e307]:
+                    - button "עריכה" [ref=e308] [cursor=pointer]
+                    - button "מחק" [ref=e309] [cursor=pointer]
+        - complementary [ref=e36]:
+          - generic [ref=e129]:
+            - button "חלבון" [ref=e130] [cursor=pointer]
+            - button "חלבון מהחי — ביצים ומוצרי חלב 17" [ref=e131] [cursor=pointer]:
+              - generic [ref=e132]: חלבון מהחי — ביצים ומוצרי חלב
+              - generic [ref=e133]: "17"
+            - button "חלבון מהחי — דגים 10" [ref=e134] [cursor=pointer]:
+              - generic [ref=e135]: חלבון מהחי — דגים
+              - generic [ref=e136]: "10"
+            - button "חלבון מהחי — עוף ובשר 11" [ref=e137] [cursor=pointer]:
+              - generic [ref=e138]: חלבון מהחי — עוף ובשר
+              - generic [ref=e139]: "11"
+            - button "חלבון מהצומח — קטניות 0" [ref=e140] [cursor=pointer]:
+              - generic [ref=e141]: חלבון מהצומח — קטניות
+              - generic [ref=e142]: "0"
+            - button "חלבון מהצומח — אחר 5" [ref=e143] [cursor=pointer]:
+              - generic [ref=e144]: חלבון מהצומח — אחר
+              - generic [ref=e145]: "5"
+          - generic [ref=e146]:
+            - button "פחמימה" [ref=e147] [cursor=pointer]
+            - button "דגנים ולחמים 19" [ref=e148] [cursor=pointer]:
+              - generic [ref=e149]: דגנים ולחמים
+              - generic [ref=e150]: "19"
+            - button "קטניות (פחמימה) 8" [ref=e151] [cursor=pointer]:
+              - generic [ref=e152]: קטניות (פחמימה)
+              - generic [ref=e153]: "8"
+            - button "ירקות עמילניים 5" [ref=e154] [cursor=pointer]:
+              - generic [ref=e155]: ירקות עמילניים
+              - generic [ref=e156]: "5"
+          - generic [ref=e157]:
+            - button "שומן" [ref=e158] [cursor=pointer]
+            - button "שמנים וממרחים 9" [ref=e159] [cursor=pointer]:
+              - generic [ref=e160]: שמנים וממרחים
+              - generic [ref=e161]: "9"
+            - button "אגוזים וזרעים 8" [ref=e162] [cursor=pointer]:
+              - generic [ref=e163]: אגוזים וזרעים
+              - generic [ref=e164]: "8"
+            - button "פירות שמנים 4" [ref=e165] [cursor=pointer]:
+              - generic [ref=e166]: פירות שמנים
+              - generic [ref=e167]: "4"
+          - generic [ref=e168]:
+            - button "ירקות" [ref=e169] [cursor=pointer]
+            - button "ירקות 20" [ref=e170] [cursor=pointer]:
+              - generic [ref=e171]: ירקות
+              - generic [ref=e172]: "20"
+          - generic [ref=e173]:
+            - button "פירות" [ref=e174] [cursor=pointer]
+            - button "פירות 21" [ref=e175] [cursor=pointer]:
+              - generic [ref=e176]: פירות
+              - generic [ref=e177]: "21"
+  - complementary [ref=e42]:
+    - generic [ref=e43]:
+      - generic [ref=e44]: נ
+      - generic [ref=e45]:
+        - generic [ref=e46]: ניהול לקוחות
+        - generic [ref=e47]: תזונה קלינית
+    - generic [ref=e48]: עבודה
+    - link "לוח בקרה" [ref=e49] [cursor=pointer]:
+      - /url: /
+      - img [ref=e50]
+      - generic [ref=e55]: לוח בקרה
+    - link "מטופלים" [ref=e56] [cursor=pointer]:
+      - /url: /clients
+      - img [ref=e57]
+      - generic [ref=e62]: מטופלים
+    - link "לידים" [ref=e63] [cursor=pointer]:
+      - /url: /leads
+      - img [ref=e64]
+      - generic [ref=e68]: לידים
+    - link "פגישות" [ref=e69] [cursor=pointer]:
+      - /url: /calendly
+      - img [ref=e70]
+      - generic [ref=e73]: פגישות
+    - generic [ref=e74]: כלים
+    - link "פרוטוקולים" [ref=e75] [cursor=pointer]:
+      - /url: /protocols
+      - img [ref=e76]
+      - generic [ref=e80]: פרוטוקולים
+    - link "תבניות WhatsApp" [ref=e81] [cursor=pointer]:
+      - /url: /templates
+      - img [ref=e82]
+      - generic [ref=e84]: תבניות WhatsApp
+    - link "מאגר מזון" [ref=e85] [cursor=pointer]:
+      - /url: /food-bank
+      - img [ref=e86]
+      - generic [ref=e89]: מאגר מזון
+    - button "עוזר AI" [ref=e91] [cursor=pointer]:
+      - img [ref=e92]
+      - generic [ref=e94]: עוזר AI
+    - generic [ref=e95]:
+      - generic [ref=e96]: נמ
+      - generic [ref=e97]:
+        - generic [ref=e98]: נתנאל מלכה
+        - generic [ref=e99]: דיאטן קליני
+      - button "הגדרות" [ref=e100] [cursor=pointer]:
+        - img [ref=e101]
+  - complementary "עוזר AI" [ref=e104]:
+    - generic [ref=e105]:
+      - generic [ref=e106]:
+        - heading "עוזר AI" [level=2] [ref=e107]
+        - paragraph [ref=e108]: מחובר למערכת | 4 במאי 2026
+      - button "סגור" [ref=e110] [cursor=pointer]: ×
+    - generic [ref=e112]:
+      - generic [ref=e113]: ✨
+      - generic [ref=e114]:
+        - paragraph [ref=e115]: שלום נתנאל
+        - paragraph [ref=e116]:
+          - text: אני מחובר למערכת שלך ומכיר את כל הלקוחות,
+          - text: הלידים והמשימות שלך.
+        - paragraph [ref=e117]: איך אוכל לעזור?
+      - generic [ref=e118]:
+        - button "מה יש לי היום?" [ref=e119] [cursor=pointer]
+        - button "מי הלקוחות שלא קבעו פגישה?" [ref=e120] [cursor=pointer]
+        - button "תכין אותי לפגישה הבאה" [ref=e121] [cursor=pointer]
+    - generic [ref=e122]:
+      - generic [ref=e123]:
+        - textbox "שאל אותי משהו..." [ref=e124]
+        - button "שלח" [disabled] [ref=e125] [cursor=pointer]:
+          - img [ref=e126]
+      - paragraph [ref=e128]: Enter לשליחה · Shift+Enter לשורה חדשה

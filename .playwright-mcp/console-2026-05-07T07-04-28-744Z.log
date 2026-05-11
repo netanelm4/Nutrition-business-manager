@@ -1,0 +1,11 @@
+[   12773ms] [ERROR] Failed to load resource: the server responded with a status of 503 () @ https://ogads-pa.clients6.google.com/$rpc/google.internal.onegoogle.asyncdata.v1.AsyncDataService/GetAsyncData:0
+[   15362ms] [LOG] https://functions.glassix.com/api/widget/getoptions_v2?departmentId=d22ebad2-d072-4a72-b18d-8f18e6135546&snippetId=L8eHkYsEPKng7Mm3z12G&culture= @ https://cdn.glassix.net/clients/widget.1.2.min.js:32
+[   16085ms] [DIR] AnnotoBackend: Moodle version 4.5.4 (Build: 20250414) @ https://moodle.tau.ac.il/:562
+[   16085ms] [DIR] AnnotoBackend: Plugin version 5.3.1 - 2025021201 @ https://moodle.tau.ac.il/:563
+[   16086ms] [DIR] AnnotoBackend: theme Tauboostunion @ https://moodle.tau.ac.il/:564
+[   16086ms] [DIR] AnnotoBackend: Page  @ https://moodle.tau.ac.il/:565
+[   16115ms] [LOG] Starting Moodle session timeout warning. @ https://moodle.tau.ac.il/lib/requirejs.php/1777792540/core/first.js:40
+[   17281ms] [LOG] allowDBStorage true @ https://cdn.glassix.com/dist/widget.entry.min.js?v=1.0.0.00705202694076:53
+[   19188ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://nidp.tau.ac.il/nidp/saml2/sso?id=10&sid=0&option=credential&sid=0:0
+[   19188ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://nidp.tau.ac.il/nidp/saml2/sso?id=10&sid=0&option=credential&sid=0:0
+[   19188ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ https://nidp.tau.ac.il/nidp/saml2/sso?id=10&sid=0&option=credential&sid=0:0

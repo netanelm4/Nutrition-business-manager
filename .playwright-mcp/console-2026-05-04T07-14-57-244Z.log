@@ -1,0 +1,8 @@
+[     153ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b4f9a257:20102
+[     192ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:5173/food-bank:0
+[  424776ms] [ERROR] Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://localhost:5173/api/food-bank/pdf/macro/protein:0
+[  424776ms] [ERROR] [exportPdf] Error: PDF generation is only available in production
+    at handleExportPdf (http://localhost:5173/src/pages/FoodBank.jsx?t=1777878764600:635:15) @ http://localhost:5173/src/pages/FoodBank.jsx?t=1777878764600:644
+[ 1470609ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5173/@vite/client:559
+[ 1471050ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=b4f9a257:20102
+[ 1471090ms] [WARNING] <meta name="apple-mobile-web-app-capable" content="yes"> is deprecated. Please include <meta name="mobile-web-app-capable" content="yes"> @ http://localhost:5173/food-bank:0
