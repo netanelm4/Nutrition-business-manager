@@ -1358,59 +1358,92 @@ function formatWeekDate(dateStr) {
   return `${d.getUTCDate()}.${d.getUTCMonth() + 1}.${String(d.getUTCFullYear()).slice(2)}`;
 }
 
-// ─── Weight link copy button ──────────────────────────────────────────────────
+// ─── Weight link button — shows modal with URL ────────────────────────────────
 
 function WeightLinkButton({ clientId }) {
-  const [state, setState] = useState('idle'); // idle | loading | copied | error
+  const [url,     setUrl]     = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [copied,  setCopied]  = useState(false);
 
-  function copyViaTextarea(text) {
-    const el = document.createElement('textarea');
-    el.value = text;
-    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
-    document.body.appendChild(el);
-    el.focus();
-    el.select();
-    const ok = document.execCommand('copy');
-    document.body.removeChild(el);
-    return ok;
+  async function handleOpen() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const { url: fetched } = await fetchWeightLink(clientId);
+      setUrl(fetched);
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
   }
 
   async function handleCopy() {
-    if (state === 'loading' || state === 'copied') return;
-    setState('loading');
+    if (!url) return;
     try {
-      const { url } = await fetchWeightLink(clientId);
-      let success = false;
       if (navigator.clipboard) {
-        try {
-          await navigator.clipboard.writeText(url);
-          success = true;
-        } catch {
-          success = copyViaTextarea(url);
-        }
+        await navigator.clipboard.writeText(url);
       } else {
-        success = copyViaTextarea(url);
+        const el = document.createElement('textarea');
+        el.value = url;
+        el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+        document.body.appendChild(el);
+        el.focus(); el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
       }
-      setState(success ? 'copied' : 'error');
-      if (success) setTimeout(() => setState('idle'), 2000);
-      else setTimeout(() => setState('idle'), 3000);
-    } catch {
-      setState('error');
-      setTimeout(() => setState('idle'), 3000);
-    }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* user can still copy manually */ }
   }
 
-  const label  = { idle: 'קישור שקילה', loading: '...', copied: 'הועתק! ✓', error: 'שגיאה — נסה שוב' };
-  const style  = state === 'copied'
-    ? { background: 'var(--green)', color: '#fff', borderColor: 'var(--green)' }
-    : state === 'error'
-      ? { background: 'oklch(0.55 0.18 25)', color: '#fff', borderColor: 'transparent' }
-      : {};
+  function handleClose() { setUrl(null); setCopied(false); }
 
   return (
-    <button type="button" onClick={handleCopy} className="crm-btn crm-btn--sm" style={style}>
-      {label[state]}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={handleOpen}
+        disabled={loading}
+        className="crm-btn crm-btn--sm"
+      >
+        {loading ? '...' : 'קישור שקילה'}
+      </button>
+
+      {url && (
+        <Modal title="קישור שקילה ללקוח" onClose={handleClose}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--ink-2)', margin: 0 }}>
+              שלח קישור זה ללקוח כדי שיוכל לרשום שקילות עצמאית.
+            </p>
+            <input
+              type="text"
+              readOnly
+              value={url}
+              onFocus={(e) => e.target.select()}
+              onClick={(e) => e.target.select()}
+              style={{
+                width: '100%', fontSize: 12, padding: '8px 12px',
+                border: '1px solid var(--hairline)', borderRadius: 8,
+                background: 'var(--surface-2)', color: 'var(--ink-1)',
+                direction: 'ltr', textAlign: 'left', outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="crm-btn crm-btn--primary"
+                style={{ flex: 1, ...(copied ? { background: 'var(--green)', borderColor: 'var(--green)' } : {}) }}
+              >
+                {copied ? 'הועתק! ✓' : 'העתק'}
+              </button>
+              <button type="button" onClick={handleClose} className="crm-btn" style={{ flex: 1 }}>
+                סגור
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
