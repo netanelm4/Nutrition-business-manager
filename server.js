@@ -30,6 +30,7 @@ const foodBankPdfRouter     = require('./routes/food-bank-pdf.routes');
 const menusRouter           = require('./routes/menus.routes');
 const aiRecommendationsRouter = require('./routes/ai-recommendations.routes');
 const weightRouter             = require('./routes/weight.routes');
+const whatsappBotRouter        = require('./routes/whatsapp-bot.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
 const { loadStoredToken, syncCanceledEvents, pollNewBookings } = require('./services/google-calendar.service');
@@ -49,8 +50,9 @@ app.use(express.json());
 // ─── Public API routes (no auth) ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api', publicRouter);
-app.use('/api/calendly', webhookRouter);
-app.use('/api/google',   googleRouter);   // callback must be public (no auth)
+app.use('/api/calendly',  webhookRouter);
+app.use('/api/google',    googleRouter);      // callback must be public (no auth)
+app.use('/api/whatsapp',  whatsappBotRouter); // webhook is public; /test applies auth internally
 
 // ─── TEMPORARY: diagnostic + repair routes (NO AUTH — remove after use) ──────
 const tempAdminRouter = require('./routes/temp-admin.routes');

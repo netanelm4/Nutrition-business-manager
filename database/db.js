@@ -1680,6 +1680,11 @@ try {
   `);
 } catch {}
 
+// whatsapp_log — add direction, message_type, status columns for bot support
+try { db.exec("ALTER TABLE whatsapp_log ADD COLUMN direction TEXT NOT NULL DEFAULT 'outgoing'"); } catch {}
+try { db.exec("ALTER TABLE whatsapp_log ADD COLUMN message_type TEXT"); } catch {}
+try { db.exec("ALTER TABLE whatsapp_log ADD COLUMN status TEXT NOT NULL DEFAULT 'sent'"); } catch {}
+
 // weight_token — unique shareable token per client for public weight entry
 try { db.exec('ALTER TABLE clients ADD COLUMN weight_token TEXT'); } catch {}
 try {
