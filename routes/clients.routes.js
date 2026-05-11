@@ -280,6 +280,9 @@ function attachProtocol(client) {
 
 router.get('/:id/weight-link', (req, res) => {
   try {
+    try { db.exec('ALTER TABLE clients ADD COLUMN weight_token TEXT UNIQUE'); } catch {}
+    try { db.exec("UPDATE clients SET weight_token = hex(randomblob(8)) WHERE weight_token IS NULL"); } catch {}
+
     const client = db.prepare('SELECT id, weight_token FROM clients WHERE id = ?').get(req.params.id);
     if (!client) return fail(res, 404, 'Client not found.');
     let token = client.weight_token;
@@ -291,7 +294,7 @@ router.get('/:id/weight-link', (req, res) => {
     const baseUrl = `${proto}://${req.get('host')}`;
     return ok(res, { url: `${baseUrl}/w/${token}` });
   } catch (err) {
-    console.error('[GET /:id/weight-link]', err.message);
+    console.error('[weight-link] ERROR:', err.message, err.stack);
     return fail(res, 500, err.message);
   }
 });
