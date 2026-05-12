@@ -258,6 +258,12 @@ router.post('/:id/finalize', (req, res) => {
 
     db.prepare("UPDATE menus SET status = 'final' WHERE id = ?").run(req.params.id);
 
+    try {
+      db.prepare(
+        "INSERT INTO ai_memory (client_id, memory_type, content, source_type, source_id) VALUES (?, 'menu_insight', ?, 'menu', ?)"
+      ).run(menu.client_id, menu_summary, Number(req.params.id));
+    } catch {}
+
     ok(res, { finalized: true, menu_example_id: exResult.lastInsertRowid });
   } catch (err) {
     fail(res, 500, err.message);

@@ -101,6 +101,15 @@ router.put('/:id/complete', (req, res) => {
 
     db.prepare("UPDATE sessions SET status = 'completed' WHERE id = ?").run(req.params.id);
 
+    try {
+      const parts = [`פגישה ${session.session_number}`];
+      if (session.weight)     parts.push(`משקל: ${session.weight} ק"ג`);
+      if (session.highlights) parts.push(`דגשים: ${session.highlights}`);
+      db.prepare(
+        "INSERT INTO ai_memory (client_id, memory_type, content, source_type, source_id) VALUES (?, 'progress', ?, 'session', ?)"
+      ).run(session.client_id, parts.join(' | '), session.id);
+    } catch {}
+
     const updated = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
     return ok(res, serializeSession(updated));
   } catch (err) {

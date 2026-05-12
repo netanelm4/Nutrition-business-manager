@@ -1695,4 +1695,26 @@ try {
   console.error('[migration] weight_token seed failed:', err.message);
 }
 
+// ai_memory — persistent memory store for future RAG/Vector DB upgrade
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ai_memory (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id       INTEGER REFERENCES clients(id),
+      memory_type     TEXT NOT NULL CHECK (memory_type IN (
+                        'anamnesis_summary',
+                        'menu_insight',
+                        'conversation',
+                        'progress',
+                        'protocol_note'
+                      )),
+      content         TEXT NOT NULL,
+      source_type     TEXT,
+      source_id       INTEGER,
+      embedding_ready INTEGER DEFAULT 0,
+      created_at      TEXT DEFAULT (datetime('now'))
+    )
+  `);
+} catch {}
+
 module.exports = db;
