@@ -1,20 +1,29 @@
-const db        = require('../database/db');
-const Anthropic  = require('@anthropic-ai/sdk');
+const db = require('../database/db');
+const Anthropic = require('@anthropic-ai/sdk');
 
 const ai = new Anthropic();
 
 // ─── Phone normalization ──────────────────────────────────────────────────────
-// Converts any format to local Israeli format: 05XXXXXXXX
 
 function normalizePhone(phone) {
   if (!phone) return null;
   let p = String(phone).replace(/[\s\-\(\)\.]/g, '');
   if (p.startsWith('+972')) p = '0' + p.slice(4);
-  else if (p.startsWith('972'))  p = '0' + p.slice(3);
+  else if (p.startsWith('972')) p = '0' + p.slice(3);
   return p;
 }
 
-// ─── Client context helpers ───────────────────────────────────────────────────
+// ─── Day-of-week helper (for weight_logs) ────────────────────────────────────
+
+function getDayOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const day = d.getUTCDay();
+  if (day === 1) return 'monday';
+  if (day === 4) return 'thursday';
+  return null;
+}
+
+// ─── Client context loader ────────────────────────────────────────────────────
 
 function loadClientContext(clientId) {
   const latestMenu = db.prepare(`
@@ -52,58 +61,103 @@ function loadClientContext(clientId) {
   return { latestMenu, menuBuilding, recentWeights, protocol };
 }
 
-// ─── Claude classification ────────────────────────────────────────────────────
+// ─── Tool definitions ─────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `אתה עוזר לדיאטן נתנאל מלכה לסווג הודעות מלקוחות.
+const TOOLS = [
+  {
+    name: 'send_auto_reply',
+    description: 'שלח תגובה אוטומטית ישירות ללקוח — לשאלות פשוטות על התפריט, כמויות, מזונות מותרים',
+    input_schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'התגובה בעברית בסגנון נתנאל' },
+      },
+      required: ['message'],
+    },
+  },
+  {
+    name: 'send_draft_for_approval',
+    description: 'שלח טיוטה לאישור נתנאל — לשאלות על מסעדות/אירועים/חגים, עדכונים רגשיים, מצבים מורכבים',
+    input_schema: {
+      type: 'object',
+      properties: {
+        draft_message: { type: 'string', description: 'הטיוטה בעברית בסגנון נתנאל' },
+        reason:        { type: 'string', description: 'למה זה דורש אישור' },
+      },
+      required: ['draft_message', 'reason'],
+    },
+  },
+  {
+    name: 'forward_to_natanel',
+    description: 'העבר את ההודעה לנתנאל לטיפול ידני — לבקשות שינוי תפריט, שאלות רפואיות, תיאום פגישות',
+    input_schema: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: 'למה זה צריך טיפול ידני' },
+      },
+      required: ['reason'],
+    },
+  },
+  {
+    name: 'update_weight',
+    description: 'עדכן משקל של לקוח — כשהלקוח שולח מספר שנראה כמשקל',
+    input_schema: {
+      type: 'object',
+      properties: {
+        weight: { type: 'number', description: 'המשקל בקילוגרמים' },
+        date:   { type: 'string', description: 'תאריך השקילה YYYY-MM-DD' },
+      },
+      required: ['weight', 'date'],
+    },
+  },
+];
 
-סווג כל הודעה לאחת מ-3 קטגוריות:
+// ─── System prompt ────────────────────────────────────────────────────────────
 
-1. "auto_reply" — שאלות פשוטות על התפריט, כמויות, מזונות מותרים
-2. "draft_for_approval" — שאלות על מסעדות/אירועים/חגים, עדכונים רגשיים, מצבים מורכבים
-3. "forward" — בקשות לשינוי תפריט, שאלות רפואיות, תיאום פגישות
+const SYSTEM_PROMPT = `אתה עוזר לדיאטן נתנאל מלכה לטפל בהודעות מלקוחות.
+השתמש בכלים המתאימים לפי סוג ההודעה.
 
-החזר JSON בלבד:
-{
-  "type": "auto_reply" | "draft_for_approval" | "forward",
-  "response": "תגובה בעברית בסגנון נתנאל (חמה, לא רשמית, 1-2 אמוג׳י)",
-  "reason": "הסבר קצר למה סווג כך"
-}
-
-סגנון נתנאל:
+סגנון נתנאל לתגובות:
 - כפל אותיות: "מעולהה", "סגוררר"
 - מילות מפתח: "סגור", "יאללה", "אליפות", "מדהים"
 - אמוג׳י: 💪🏽 🙏🏽 🙌🏼 — לא יותר מ-2
 - קצר וממוקד
 - לא שיפוטי`;
 
-async function classifyMessage(client, messageText, context) {
-  const { latestMenu, menuBuilding, recentWeights, protocol } = context;
+// ─── Claude tool-use call ─────────────────────────────────────────────────────
+
+async function callWithTools(client, messageText, context) {
+  const { latestMenu, menuBuilding, protocol } = context;
 
   const menuSummary   = latestMenu
     ? `${latestMenu.title} (${latestMenu.calorie_target} קק"ל)`
     : 'אין תפריט סופי';
-  const protocolName  = protocol?.name || 'לא שויך';
-  const kashrut       = menuBuilding.kashrut       || 'לא צוין';
-  const vegetarian    = menuBuilding.vegetarian     ? 'כן' : 'לא';
+  const protocolName  = protocol?.name        || 'לא שויך';
+  const kashrut       = menuBuilding.kashrut  || 'לא צוין';
+  const vegetarian    = menuBuilding.vegetarian ? 'כן' : 'לא';
   const dislikedFoods = menuBuilding.disliked_foods || 'לא צוין';
 
-  const userContent = `לקוח: ${client.full_name}
-הודעה: ${messageText}
-
-תפריט נוכחי: ${menuSummary}
-פרוטוקול: ${protocolName}
-העדפות: כשרות=${kashrut}, צמחוני=${vegetarian}, מזונות לא מועדפים=${dislikedFoods}`;
+  const userContent =
+    `לקוח: ${client.full_name}\n` +
+    `הודעה: ${messageText}\n\n` +
+    `תפריט נוכחי: ${menuSummary}\n` +
+    `פרוטוקול: ${protocolName}\n` +
+    `העדפות: כשרות=${kashrut}, צמחוני=${vegetarian}, מזונות לא מועדפים=${dislikedFoods}`;
 
   const aiResponse = await ai.messages.create({
-    model:      'claude-sonnet-4-20250514',
-    max_tokens: 512,
-    system:     SYSTEM_PROMPT,
-    messages:   [{ role: 'user', content: userContent }],
+    model:       'claude-sonnet-4-20250514',
+    max_tokens:  1024,
+    system:      SYSTEM_PROMPT,
+    tools:       TOOLS,
+    tool_choice: { type: 'auto' },
+    messages:    [{ role: 'user', content: userContent }],
   });
 
-  const raw     = aiResponse.content[0]?.text?.trim() || '';
-  const jsonStr = raw.replace(/^```json?\n?/i, '').replace(/\n?```$/, '').trim();
-  return JSON.parse(jsonStr);
+  const toolUse = aiResponse.content.find((block) => block.type === 'tool_use');
+  if (!toolUse) {
+    return { tool: 'forward_to_natanel', input: { reason: 'no tool selected by model' } };
+  }
+  return { tool: toolUse.name, input: toolUse.input };
 }
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
@@ -120,56 +174,77 @@ async function processIncomingMessage({ from_phone, message_text, timestamp }) {
   // Step 2 — load context
   const context = loadClientContext(client.id);
 
-  // Step 3 — classify
-  let classification;
+  // Step 3 — call Claude with tools
+  let tool, input;
   try {
-    classification = await classifyMessage(client, message_text, context);
+    ({ tool, input } = await callWithTools(client, message_text, context));
   } catch (err) {
-    console.error('[whatsapp-bot] classification failed:', err.message);
-    classification = { type: 'forward', response: '', reason: 'classification error' };
+    console.error('[whatsapp-bot] tool call failed:', err.message);
+    tool  = 'forward_to_natanel';
+    input = { reason: 'tool call error' };
   }
 
-  const { type, response, reason } = classification;
   const natanelPhone = process.env.NATANEL_PHONE || '';
 
-  // Step 4 — build result
+  // Step 4 — act on tool selection
   let result;
-  if (type === 'auto_reply') {
-    result = {
-      action:   'send_to_client',
-      to_phone: from_phone,
-      message:  response,
-    };
-  } else if (type === 'draft_for_approval') {
+  let logType;
+
+  if (tool === 'send_auto_reply') {
+    result  = { action: 'send_to_client', to_phone: from_phone, message: input.message };
+    logType = 'auto_reply';
+
+  } else if (tool === 'send_draft_for_approval') {
     const approvalMsg =
-      `📝 טיוטה ל${client.full_name}:\n\n${response}\n\n─────\n` +
+      `📝 טיוטה ל${client.full_name}:\n\n${input.draft_message}\n\n─────\n` +
       `לשליחה השב: שלח ${client.id}\nלעריכה השב: ערוך ${client.id}`;
     result = {
       action:    'send_to_natanel',
       to_phone:  natanelPhone,
       message:   approvalMsg,
-      draft:     response,
+      draft:     input.draft_message,
       client_id: client.id,
+      reason:    input.reason,
     };
+    logType = 'draft_for_approval';
+
+  } else if (tool === 'update_weight') {
+    const dayOfWeek = getDayOfWeek(input.date);
+    try {
+      db.prepare(`
+        INSERT INTO weight_logs (client_id, weigh_date, weight, day_of_week)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(client_id, weigh_date) DO UPDATE SET weight = excluded.weight
+      `).run(client.id, input.date, input.weight, dayOfWeek);
+    } catch (err) {
+      console.error('[whatsapp-bot] weight insert failed:', err.message);
+    }
+    const confirmMsg = `מעולה! שקילה של ${input.weight} ק״ג נרשמה 💪🏽`;
+    result  = { action: 'send_to_client', to_phone: from_phone, message: confirmMsg };
+    logType = 'auto_reply';
+
   } else {
+    // forward_to_natanel (default / fallback)
     result = {
       action:   'forward_to_natanel',
       to_phone: natanelPhone,
       message:  `📨 הודעה מ${client.full_name} (לטיפול ידני):\n\n${message_text}`,
+      reason:   input.reason,
     };
+    logType = 'forward';
   }
 
-  // Step 5 — log
+  // Step 5 — log incoming message
   try {
     db.prepare(`
       INSERT INTO whatsapp_log (client_id, rendered_message, direction, message_type, status)
       VALUES (?, ?, 'incoming', ?, 'processed')
-    `).run(client.id, message_text, type);
+    `).run(client.id, message_text, logType);
   } catch (err) {
     console.error('[whatsapp-bot] log insert failed:', err.message);
   }
 
-  return { ...result, classification_reason: reason };
+  return { ...result, tool_used: tool };
 }
 
 module.exports = { processIncomingMessage, normalizePhone };
