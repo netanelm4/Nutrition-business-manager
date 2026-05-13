@@ -110,6 +110,19 @@ const TOOLS = [
       required: ['weight', 'date'],
     },
   },
+  {
+    name: 'flag_for_attention',
+    description: 'סמן הודעה זו לתשומת לב דחופה של נתנאל — השתמש כשאתה מזהה: מצוקה רגשית, תלונות רפואיות, כאב, עייפות קיצונית, ביטויים של ייאוש, שאלות שאתה לא בטוח לגביהן, או כל מצב שדורש התערבות אנושית מיידית',
+    input_schema: {
+      type: 'object',
+      properties: {
+        reason:            { type: 'string', description: 'תיאור קצר למה זה דורש תשומת לב' },
+        urgency:           { type: 'string', enum: ['high', 'medium'], description: 'רמת הדחיפות' },
+        suggested_response: { type: 'string', description: 'תגובה מוצעת אופציונלית' },
+      },
+      required: ['reason', 'urgency'],
+    },
+  },
 ];
 
 // ─── System prompt ────────────────────────────────────────────────────────────
@@ -122,7 +135,9 @@ const SYSTEM_PROMPT = `אתה עוזר לדיאטן נתנאל מלכה לטפל
 - מילות מפתח: "סגור", "יאללה", "אליפות", "מדהים"
 - אמוג׳י: 💪🏽 🙏🏽 🙌🏼 — לא יותר מ-2
 - קצר וממוקד
-- לא שיפוטי`;
+- לא שיפוטי
+
+כשאתה לא בטוח — השתמש ב-flag_for_attention. עדיף לדגל יותר מדי מאשר פחות מדי.`;
 
 // ─── Claude tool-use call ─────────────────────────────────────────────────────
 
@@ -207,6 +222,32 @@ async function processIncomingMessage({ from_phone, message_text, timestamp }) {
       reason:    input.reason,
     };
     logType = 'draft_for_approval';
+
+  } else if (tool === 'flag_for_attention') {
+    const title = `🚨 דגל אדום — ${client.full_name}: ${input.reason}`;
+    try {
+      db.prepare(`
+        INSERT INTO ai_recommendations
+          (client_id, type, priority, title, message_draft, action_suggestion, expires_at)
+        VALUES (?, 'whatsapp_flag', ?, ?, ?, ?, datetime('now', '+24 hours'))
+      `).run(
+        client.id,
+        input.urgency === 'high' ? 'urgent' : 'medium',
+        title,
+        input.suggested_response || null,
+        `בדוק את השיחה עם ${client.full_name} ודאג לחזור אליו`,
+      );
+    } catch (err) {
+      console.error('[whatsapp-bot] flag insert failed:', err.message);
+    }
+    result = {
+      action:   'flagged',
+      to_phone: natanelPhone,
+      message:  `🚨 ${title}\n\nהודעה מקורית:\n${message_text}`,
+      reason:   input.reason,
+      urgency:  input.urgency,
+    };
+    logType = 'flagged';
 
   } else if (tool === 'update_weight') {
     const dayOfWeek = getDayOfWeek(input.date);
