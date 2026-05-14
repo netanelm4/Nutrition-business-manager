@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   fetchFoodCategories, fetchFoodItems, fetchFoodMacro,
   createFoodItem, updateFoodItem, deleteFoodItem,
+  fetchPendingFoodItems, approveFoodItem,
 } from '../lib/api';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -278,6 +279,132 @@ function FoodSearch({ macroType, onAdd }) {
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
+const MACRO_LABELS_FULL = { protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירקות', fruit: 'פירות' };
+
+function PendingApprovalSection({ onApproved }) {
+  const queryClient = useQueryClient();
+  const [collapsed, setCollapsed] = useState(false);
+
+  const { data: pending = [], isLoading } = useQuery({
+    queryKey: ['food-pending'],
+    queryFn: fetchPendingFoodItems,
+    refetchInterval: 60_000,
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: (id) => approveFoodItem(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['food-pending'] });
+      queryClient.invalidateQueries({ queryKey: ['food-categories'] });
+      if (onApproved) onApproved();
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => deleteFoodItem(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['food-pending'] }),
+  });
+
+  if (!isLoading && pending.length === 0) return null;
+
+  return (
+    <div style={{
+      marginBottom: 28, border: '1px solid #fde68a',
+      borderRadius: 12, background: '#fffbeb', overflow: 'hidden',
+    }}>
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          width: '100%', padding: '12px 16px', border: 'none', background: 'transparent',
+          cursor: 'pointer', textAlign: 'right',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#92400e' }}>מזונות לאישור</span>
+          {!isLoading && (
+            <span style={{
+              fontSize: 12, fontWeight: 700, padding: '2px 9px',
+              borderRadius: 99, background: '#f59e0b', color: 'white',
+            }}>
+              {pending.length}
+            </span>
+          )}
+        </div>
+        <span style={{ fontSize: 12, color: '#92400e' }}>{collapsed ? '▲' : '▼'}</span>
+      </button>
+
+      {!collapsed && (
+        <div style={{ overflowX: 'auto' }}>
+          {isLoading ? (
+            <div style={{ padding: '16px', fontSize: 13, color: '#92400e' }}>טוען...</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: '#fef3c7', borderTop: '1px solid #fde68a' }}>
+                  <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, color: '#78350f', fontSize: 12 }}>שם</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, color: '#78350f', fontSize: 12 }}>קטגוריה</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: '#78350f', fontSize: 12 }}>סוג</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, color: '#78350f', fontSize: 12 }}>מנה</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: '#78350f', fontSize: 12 }}>קק״ל</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: '#78350f', fontSize: 12 }}>חלבון</th>
+                  <th style={{ padding: '7px 12px', fontWeight: 600, color: '#78350f', fontSize: 12 }} />
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map((item) => (
+                  <tr key={item.id} style={{ borderTop: '1px solid #fde68a' }}>
+                    <td style={{ padding: '8px 12px', fontWeight: 500 }}>{item.name_he}</td>
+                    <td style={{ padding: '8px 12px', color: '#78350f', fontSize: 12 }}>{item.category_name}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '1px 7px',
+                        borderRadius: 99, background: '#fde68a', color: '#78350f',
+                      }}>
+                        {MACRO_LABELS_FULL[item.macro_type] ?? item.macro_type}
+                      </span>
+                    </td>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: '#44403c' }}>
+                      {item.portion_description || (item.portion_grams ? `${item.portion_grams}ג׳` : '—')}
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>
+                      {item.calories_per_half_portion ?? '—'}
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                      {item.protein_grams ?? '—'}
+                    </td>
+                    <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                      <button
+                        type="button"
+                        onClick={() => approveMutation.mutate(item.id)}
+                        disabled={approveMutation.isPending}
+                        className="crm-btn crm-btn--sm"
+                        style={{ marginInlineEnd: 8, color: 'var(--green, #31B996)', fontWeight: 600 }}
+                      >
+                        אשר
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteMutation.mutate(item.id)}
+                        disabled={deleteMutation.isPending}
+                        className="crm-btn crm-btn--sm"
+                        style={{ color: 'var(--ink-3, #888)' }}
+                      >
+                        מחק
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FoodBank() {
   const queryClient = useQueryClient();
 
@@ -489,6 +616,14 @@ export default function FoodBank() {
             </div>
           )}
         </div>
+
+        {/* Pending client submissions */}
+        <PendingApprovalSection
+          onApproved={() => {
+            queryClient.invalidateQueries({ queryKey: ['food-items', selectedId] });
+            queryClient.invalidateQueries({ queryKey: ['food-macro', selectedMacro] });
+          }}
+        />
 
         {/* No selection */}
         {!selectedId && !selectedMacro && (

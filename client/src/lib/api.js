@@ -194,6 +194,8 @@ export const fetchFoodMacro      = (nutrientType) => request('GET',    `/food-ba
 export const createFoodItem      = (data)         => request('POST',   '/food-bank/items', data);
 export const updateFoodItem      = (id, data)     => request('PUT',    `/food-bank/items/${id}`, data);
 export const deleteFoodItem      = (id)           => request('DELETE', `/food-bank/items/${id}`);
+export const fetchPendingFoodItems = ()           => request('GET',    '/food-bank/pending');
+export const approveFoodItem       = (id)         => request('PUT',    `/food-bank/items/${id}/approve`);
 
 // ── Menus ─────────────────────────────────────────────────────────────────────
 

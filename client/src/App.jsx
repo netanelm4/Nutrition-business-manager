@@ -12,13 +12,16 @@ import CalendlySettings from './pages/CalendlySettings';
 import FoodBank from './pages/FoodBank';
 import MenuEditor from './pages/MenuEditor';
 import PublicWeight from './pages/PublicWeight';
+import PublicFoodBank from './pages/PublicFoodBank';
 import Login from './pages/Login';
 
 export default function App() {
   const [authed, setAuthed] = useState(() => !!localStorage.getItem('auth_password'));
 
   // Public pages bypass auth entirely
-  const isPublicPage = window.location.pathname.startsWith('/w/');
+  const isPublicPage =
+    window.location.pathname.startsWith('/w/') ||
+    window.location.pathname.startsWith('/food/');
 
   if (!authed && !isPublicPage) {
     return <Login onLogin={() => setAuthed(true)} />;
@@ -29,6 +32,7 @@ export default function App() {
       <Routes>
         {/* Public — no auth, no AppShell */}
         <Route path="/w/:token" element={<PublicWeight />} />
+        <Route path="/food/:token" element={<PublicFoodBank />} />
 
         {/* Protected — requires auth */}
         <Route element={<AppShell />}>

@@ -1695,6 +1695,38 @@ try {
   console.error('[migration] weight_token seed failed:', err.message);
 }
 
+// food_items — client submission columns
+try { db.exec('ALTER TABLE food_items ADD COLUMN submitted_by_client INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE food_items ADD COLUMN approved INTEGER DEFAULT 0'); } catch {}
+
+// recipes table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS recipes (
+      id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+      name                 TEXT NOT NULL,
+      description          TEXT,
+      servings             INTEGER NOT NULL DEFAULT 1,
+      submitted_by_client  INTEGER DEFAULT 1,
+      created_at           TEXT DEFAULT (datetime('now'))
+    )
+  `);
+} catch {}
+
+// recipe_ingredients table
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS recipe_ingredients (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipe_id        INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+      food_item_id     INTEGER REFERENCES food_items(id),
+      custom_food_name TEXT,
+      amount_grams     REAL NOT NULL,
+      notes            TEXT
+    )
+  `);
+} catch {}
+
 // ai_memory — persistent memory store for future RAG/Vector DB upgrade
 try {
   db.exec(`

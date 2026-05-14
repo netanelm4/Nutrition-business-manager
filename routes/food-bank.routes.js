@@ -177,4 +177,38 @@ router.delete('/items/:id', (req, res) => {
   }
 });
 
+// ─── GET /api/food-bank/pending ───────────────────────────────────────────────
+
+router.get('/pending', (req, res) => {
+  try {
+    const items = db.prepare(`
+      SELECT fi.id, fi.name_he, fi.portion_description, fi.portion_grams,
+             fi.calories_per_half_portion, fi.protein_grams, fi.created_at,
+             fc.name_he AS category_name, fc.nutrient_type AS macro_type
+      FROM   food_items fi
+      JOIN   food_categories fc ON fc.id = fi.category_id
+      WHERE  fi.submitted_by_client = 1 AND fi.approved = 0 AND fi.is_active = 1
+      ORDER  BY fi.created_at DESC
+    `).all();
+    return ok(res, items);
+  } catch (err) {
+    console.error('[GET /food-bank/pending]', err);
+    return fail(res, 500, 'Failed to fetch pending items.');
+  }
+});
+
+// ─── PUT /api/food-bank/items/:id/approve ─────────────────────────────────────
+
+router.put('/items/:id/approve', (req, res) => {
+  try {
+    db.prepare('UPDATE food_items SET approved = 1 WHERE id = ?').run(req.params.id);
+    const item = db.prepare('SELECT * FROM food_items WHERE id = ?').get(req.params.id);
+    if (!item) return fail(res, 404, 'Item not found.');
+    return ok(res, item);
+  } catch (err) {
+    console.error('[PUT /food-bank/items/:id/approve]', err);
+    return fail(res, 500, 'Failed to approve item.');
+  }
+});
+
 module.exports = router;

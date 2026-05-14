@@ -225,4 +225,216 @@ router.get('/public/debug/weight-schema', (req, res) => {
   return res.json(result);
 });
 
+// ─── Food & Recipe public endpoints ──────────────────────────────────────────
+
+const MACRO_LABELS = {
+  protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירק', fruit: 'פרי',
+};
+const MACRO_CEILINGS = { protein: 140, carb: 100, fat: 60, vegetable: 40, fruit: 120 };
+
+function findClientByToken(token) {
+  if (!token) return null;
+  return db.prepare('SELECT id, full_name FROM clients WHERE weight_token = ?').get(token);
+}
+
+function calcNutritionPerServing(recipeId, servings) {
+  const ingredients = db.prepare(
+    'SELECT ri.amount_grams, fi.calories_per_half_portion, fi.protein_grams, fi.portion_grams ' +
+    'FROM recipe_ingredients ri LEFT JOIN food_items fi ON fi.id = ri.food_item_id ' +
+    'WHERE ri.recipe_id = ?'
+  ).all(recipeId);
+
+  let totalCal = 0, totalProt = 0;
+  for (const ing of ingredients) {
+    if (!ing.calories_per_half_portion || !ing.portion_grams || ing.portion_grams === 0) continue;
+    const factor = ing.amount_grams / ing.portion_grams;
+    totalCal  += ing.calories_per_half_portion * factor;
+    totalProt += (ing.protein_grams || 0) * factor;
+  }
+  const s = servings || 1;
+  return {
+    calories_per_serving: Math.round(totalCal / s),
+    protein_per_serving:  Math.round(totalProt / s * 10) / 10,
+  };
+}
+
+function getRecipeWithDetails(recipeId) {
+  const recipe = db.prepare('SELECT * FROM recipes WHERE id = ?').get(recipeId);
+  if (!recipe) return null;
+  const ingredients = db.prepare(
+    'SELECT ri.id, ri.food_item_id, ri.custom_food_name, ri.amount_grams, ri.notes, ' +
+    'fi.name_he, fi.calories_per_half_portion, fi.protein_grams, fi.portion_grams ' +
+    'FROM recipe_ingredients ri LEFT JOIN food_items fi ON fi.id = ri.food_item_id ' +
+    'WHERE ri.recipe_id = ?'
+  ).all(recipeId);
+  const nutrition = calcNutritionPerServing(recipeId, recipe.servings);
+  return { ...recipe, ingredients, ...nutrition };
+}
+
+// ─── GET /api/public/foods/search?q=&token= ───────────────────────────────────
+
+router.get('/public/foods/search', (req, res) => {
+  const { q, token } = req.query;
+  if (!q || q.trim().length < 1) {
+    return res.json({ success: true, data: [] });
+  }
+  try {
+    const items = db.prepare(`
+      SELECT fi.id, fi.name_he, fi.portion_description, fi.portion_grams,
+             fi.calories_per_half_portion AS calories, fi.protein_grams,
+             fc.nutrient_type AS macro_type, fc.name_he AS category_name
+      FROM   food_items fi
+      JOIN   food_categories fc ON fc.id = fi.category_id
+      WHERE  fi.name_he LIKE ? AND fi.is_active = 1
+        AND  (fi.submitted_by_client = 0 OR fi.approved = 1)
+      ORDER  BY fi.name_he
+      LIMIT  30
+    `).all(`%${q.trim()}%`);
+
+    const data = items.map((item) => ({
+      ...item,
+      menu_fit: item.macro_type
+        ? `מנת ${MACRO_LABELS[item.macro_type] || item.macro_type} — ${item.calories ?? '?'} קק״ל`
+        : null,
+    }));
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('[GET /public/foods/search]', err.message);
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
+  }
+});
+
+// ─── POST /api/public/foods/submit ───────────────────────────────────────────
+
+router.post('/public/foods/submit', (req, res) => {
+  const { token, name_he, calories_per_100g, protein_per_100g,
+          fat_per_100g, carb_per_100g, category_id } = req.body;
+
+  const client = findClientByToken(token);
+  if (!client) return res.status(403).json({ success: false, error: 'טוקן לא תקין' });
+  if (!name_he || !calories_per_100g) {
+    return res.status(400).json({ success: false, error: 'שם המזון וקלוריות הם שדות חובה' });
+  }
+
+  try {
+    const cal100  = Number(calories_per_100g);
+    const prot100 = Number(protein_per_100g) || 0;
+
+    // Determine macro type: use category if supplied, else auto-detect by density
+    let macroType = null;
+    let resolvedCategoryId = category_id ? Number(category_id) : null;
+
+    if (resolvedCategoryId) {
+      const cat = db.prepare('SELECT nutrient_type FROM food_categories WHERE id = ?').get(resolvedCategoryId);
+      macroType = cat?.nutrient_type || null;
+    }
+    if (!macroType) {
+      if (cal100 <= 40)        macroType = 'vegetable';
+      else if (prot100 >= 15)  macroType = 'protein';
+      else if (Number(fat_per_100g) >= 30) macroType = 'fat';
+      else if (Number(carb_per_100g) >= 30) macroType = 'carb';
+      else                     macroType = 'fruit';
+    }
+
+    // If no category_id, find the first matching category for this macro type
+    if (!resolvedCategoryId) {
+      const cat = db.prepare('SELECT id FROM food_categories WHERE nutrient_type = ? LIMIT 1').get(macroType);
+      resolvedCategoryId = cat?.id || 1;
+    }
+
+    // Calculate portion_grams to hit the calorie ceiling for this macro type
+    const ceiling      = MACRO_CEILINGS[macroType] || 100;
+    const portionGrams = cal100 > 0 ? Math.round((ceiling / cal100) * 100) : 100;
+    const calPerPortion  = Math.round(cal100 * portionGrams / 100);
+    const protPerPortion = Math.round(prot100 * portionGrams / 100 * 10) / 10;
+
+    db.prepare(`
+      INSERT INTO food_items
+        (category_id, name_he, portion_description, portion_grams,
+         calories_per_half_portion, protein_grams, submitted_by_client, approved, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 0, 1)
+    `).run(resolvedCategoryId, name_he.trim(), `${portionGrams} גרם`,
+           portionGrams, calPerPortion, protPerPortion);
+
+    // Notify Natanel via ai_recommendations
+    try {
+      db.prepare(`
+        INSERT INTO ai_recommendations
+          (client_id, type, priority, title, action_suggestion, expires_at)
+        VALUES (?, 'new_food_submitted', 'low', ?, ?, datetime('now', '+7 days'))
+      `).run(client.id, `מזון חדש הוגש: ${name_he.trim()}`, 'בדוק ואשר את המזון במאגר');
+    } catch {}
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('[POST /public/foods/submit]', err.message);
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
+  }
+});
+
+// ─── GET /api/public/recipes?token= ──────────────────────────────────────────
+
+router.get('/public/recipes', (req, res) => {
+  try {
+    const recipes = db.prepare('SELECT * FROM recipes ORDER BY created_at DESC').all();
+    const data = recipes.map((r) => getRecipeWithDetails(r.id));
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('[GET /public/recipes]', err.message);
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
+  }
+});
+
+// ─── GET /api/public/recipes/:id?token= ──────────────────────────────────────
+
+router.get('/public/recipes/:id', (req, res) => {
+  try {
+    const recipe = getRecipeWithDetails(Number(req.params.id));
+    if (!recipe) return res.status(404).json({ success: false, error: 'מתכון לא נמצא' });
+    return res.json({ success: true, data: recipe });
+  } catch (err) {
+    console.error('[GET /public/recipes/:id]', err.message);
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
+  }
+});
+
+// ─── POST /api/public/recipes?token= ─────────────────────────────────────────
+
+router.post('/public/recipes', (req, res) => {
+  const { token, name, description, servings, ingredients = [] } = req.body;
+
+  const client = findClientByToken(token);
+  if (!client) return res.status(403).json({ success: false, error: 'טוקן לא תקין' });
+  if (!name || !name.trim()) {
+    return res.status(400).json({ success: false, error: 'שם המתכון הוא שדה חובה' });
+  }
+
+  try {
+    const result = db.prepare(
+      'INSERT INTO recipes (name, description, servings, submitted_by_client) VALUES (?, ?, ?, 1)'
+    ).run(name.trim(), description?.trim() || null, Number(servings) || 1);
+
+    const recipeId = result.lastInsertRowid;
+
+    const insertIng = db.prepare(
+      'INSERT INTO recipe_ingredients (recipe_id, food_item_id, custom_food_name, amount_grams, notes) VALUES (?, ?, ?, ?, ?)'
+    );
+    for (const ing of ingredients) {
+      if (!ing.amount_grams) continue;
+      insertIng.run(
+        recipeId,
+        ing.food_item_id || null,
+        ing.custom_food_name?.trim() || null,
+        Number(ing.amount_grams),
+        ing.notes?.trim() || null,
+      );
+    }
+
+    return res.json({ success: true, data: getRecipeWithDetails(recipeId) });
+  } catch (err) {
+    console.error('[POST /public/recipes]', err.message);
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
+  }
+});
+
 module.exports = router;
