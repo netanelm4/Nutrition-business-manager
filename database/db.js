@@ -1727,6 +1727,24 @@ try {
   `);
 } catch {}
 
+// client_food_favorites — starred foods per client (DB items and OFA items)
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS client_food_favorites (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id        INTEGER NOT NULL REFERENCES clients(id),
+      food_item_id     INTEGER REFERENCES food_items(id),
+      ofa_product_name TEXT,
+      ofa_kcal_100g    REAL,
+      ofa_protein_100g REAL,
+      ofa_macro_type   TEXT,
+      created_at       TEXT DEFAULT (datetime('now')),
+      UNIQUE(client_id, food_item_id),
+      UNIQUE(client_id, ofa_product_name)
+    )
+  `);
+} catch {}
+
 // ai_memory — persistent memory store for future RAG/Vector DB upgrade
 try {
   db.exec(`

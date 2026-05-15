@@ -437,4 +437,78 @@ router.post('/public/recipes', (req, res) => {
   }
 });
 
+// ─── GET /api/public/favorites/:token ────────────────────────────────────────
+
+router.get('/public/favorites/:token', (req, res) => {
+  const client = findClientByToken(req.params.token);
+  if (!client) return res.status(403).json({ success: false, error: 'טוקן לא תקין' });
+  try {
+    const favs = db.prepare(`
+      SELECT f.id, f.food_item_id,
+             f.ofa_product_name, f.ofa_kcal_100g, f.ofa_protein_100g, f.ofa_macro_type,
+             fi.name_he, fi.calories_per_half_portion AS calories,
+             fi.protein_grams, fi.portion_grams,
+             fc.nutrient_type AS macro_type, fc.name_he AS category_name
+      FROM   client_food_favorites f
+      LEFT JOIN food_items fi       ON fi.id = f.food_item_id
+      LEFT JOIN food_categories fc  ON fc.id = fi.category_id
+      WHERE  f.client_id = ?
+      ORDER  BY f.created_at DESC
+    `).all(client.id);
+    return res.json({ success: true, data: favs });
+  } catch (err) {
+    console.error('[GET /public/favorites]', err.message);
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
+  }
+});
+
+// ─── POST /api/public/favorites/:token ───────────────────────────────────────
+
+router.post('/public/favorites/:token', (req, res) => {
+  const client = findClientByToken(req.params.token);
+  if (!client) return res.status(403).json({ success: false, error: 'טוקן לא תקין' });
+
+  const { food_item_id, ofa_product_name, ofa_kcal_100g, ofa_protein_100g, ofa_macro_type } = req.body;
+  if (!food_item_id && !ofa_product_name) {
+    return res.status(400).json({ success: false, error: 'food_item_id או ofa_product_name נדרש' });
+  }
+  try {
+    const result = db.prepare(`
+      INSERT OR IGNORE INTO client_food_favorites
+        (client_id, food_item_id, ofa_product_name, ofa_kcal_100g, ofa_protein_100g, ofa_macro_type)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      client.id,
+      food_item_id     || null,
+      ofa_product_name || null,
+      ofa_kcal_100g    != null ? Number(ofa_kcal_100g)    : null,
+      ofa_protein_100g != null ? Number(ofa_protein_100g) : null,
+      ofa_macro_type   || null,
+    );
+    const id = result.lastInsertRowid || db.prepare(
+      'SELECT id FROM client_food_favorites WHERE client_id = ? AND ' +
+      (food_item_id ? 'food_item_id = ?' : 'ofa_product_name = ?')
+    ).get(client.id, food_item_id || ofa_product_name)?.id;
+    return res.json({ success: true, data: { id } });
+  } catch (err) {
+    console.error('[POST /public/favorites]', err.message);
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
+  }
+});
+
+// ─── DELETE /api/public/favorites/:token/:id ──────────────────────────────────
+
+router.delete('/public/favorites/:token/:id', (req, res) => {
+  const client = findClientByToken(req.params.token);
+  if (!client) return res.status(403).json({ success: false, error: 'טוקן לא תקין' });
+  try {
+    db.prepare('DELETE FROM client_food_favorites WHERE id = ? AND client_id = ?')
+      .run(req.params.id, client.id);
+    return res.json({ success: true, data: { deleted: true } });
+  } catch (err) {
+    console.error('[DELETE /public/favorites]', err.message);
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
+  }
+});
+
 module.exports = router;

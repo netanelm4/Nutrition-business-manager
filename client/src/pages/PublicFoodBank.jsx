@@ -22,13 +22,19 @@ async function apiPost(path, body) {
   return json.data;
 }
 
+async function apiDelete(path) {
+  const res  = await fetch(`${BASE}${path}`, { method: 'DELETE' });
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'שגיאה');
+  return json.data;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const MACRO_CEILINGS = { protein: 140, carb: 100, fat: 60, vegetable: 40, fruit: 120 };
 
 const MACRO_LABELS = { protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירקות', fruit: 'פירות' };
 
-// Singular — used in "מנת ירק 1", "מנת פרי 1"
 const MACRO_PORTION_LABELS = { protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירק', fruit: 'פרי' };
 
 const MACRO_COLORS = {
@@ -82,15 +88,105 @@ function detectMacroFromNutriments(n) {
   return 'fruit';
 }
 
+async function fetchOfa(q) {
+  const res = await fetch(
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
+    `&search_simple=1&action=process&json=1&page_size=5&fields=product_name,nutriments&lc=he,en`
+  );
+  const body = await res.json();
+  return (body.products || [])
+    .filter((p) => p.product_name && (p.nutriments?.['energy-kcal_100g'] ?? 0) > 0)
+    .slice(0, 5)
+    .map((p) => {
+      const macro        = detectMacroFromNutriments(p.nutriments);
+      const kcal100      = Math.round(p.nutriments['energy-kcal_100g']);
+      const protein100   = Math.round((p.nutriments['proteins_100g'] || 0) * 10) / 10;
+      const ceiling      = MACRO_CEILINGS[macro] ?? 100;
+      const portionGrams = kcal100 > 0 ? Math.round((ceiling / kcal100) * 100) : null;
+      return { source: 'ofa', name: p.product_name, kcal100, protein100, macro_type: macro, portionGrams };
+    });
+}
+
+// ─── Star button ──────────────────────────────────────────────────────────────
+
+function StarBtn({ favorited, onClick, loading }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={favorited || loading}
+      title={favorited ? 'נשמר במועדפים' : 'הוסף למועדפים'}
+      style={{
+        background: 'none', border: 'none', cursor: favorited ? 'default' : 'pointer',
+        fontSize: 18, lineHeight: 1, padding: '2px 4px', flexShrink: 0,
+        opacity: loading ? 0.5 : 1,
+      }}
+    >
+      {favorited ? '⭐' : '☆'}
+    </button>
+  );
+}
+
+// ─── Food result card (shared between search + favorites) ─────────────────────
+
+function FoodCard({ item, favorited, onStar, onRemove }) {
+  const isOfa      = !!item.ofa_product_name || item.source === 'ofa';
+  const name       = isOfa ? (item.ofa_product_name || item.name) : item.name_he;
+  const macro      = isOfa ? (item.ofa_macro_type || item.macro_type) : item.macro_type;
+  const kcal       = isOfa ? item.ofa_kcal_100g   : item.calories;
+  const protein    = isOfa ? item.ofa_protein_100g : item.protein_grams;
+  const portionG   = isOfa ? item.portionGrams     : item.portion_grams;
+  const categoryN  = isOfa ? null                  : item.category_name;
+  const kcalLabel  = isOfa ? `${kcal} קק״ל/100ג׳`  : (kcal != null ? `${kcal} קק״ל למנה` : null);
+  const portionLine = portionG && macro
+    ? `${portionG} גרם = מנת ${MACRO_PORTION_LABELS[macro] ?? macro} 1`
+    : null;
+
+  return (
+    <div style={{ padding: '10px 14px', borderRadius: 10, background: '#fafafa', border: '1px solid #e5e7eb' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 600, fontSize: 14, color: '#111' }} dir="auto">{name}</div>
+          {categoryN && <div style={{ fontSize: 12, color: '#888', marginTop: 1 }}>{categoryN}</div>}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <MacroBadge type={macro} />
+          {onStar   && <StarBtn favorited={favorited} onClick={onStar} />}
+          {onRemove && (
+            <button
+              type="button" onClick={onRemove}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: 18, padding: '2px 4px' }}
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </div>
+      {portionLine && (
+        <div style={{ marginTop: 6, fontSize: 13, color: '#567DBF', fontWeight: 500 }}>{portionLine}</div>
+      )}
+      <div style={{ marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        {kcalLabel  && <span style={{ fontSize: 12, color: '#555' }}>{kcalLabel}</span>}
+        {protein != null && protein > 0 && (
+          <span style={{ fontSize: 12, color: '#555' }}>{protein}ג׳ חלבון{isOfa ? '/100ג׳' : ''}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Section 1 — Food Search ──────────────────────────────────────────────────
 
-function FoodSearchSection({ token }) {
+function FoodSearchSection({ token, favorites, onStar }) {
   const [query,      setQuery]      = useState('');
   const [dbResults,  setDbResults]  = useState(null);
   const [ofaResults, setOfaResults] = useState(null);
   const [loading,    setLoading]    = useState(false);
   const [error,      setError]      = useState(null);
   const timerRef = useRef(null);
+
+  const favDbIds   = new Set((favorites || []).filter((f) => f.food_item_id).map((f) => f.food_item_id));
+  const favOfaNames = new Set((favorites || []).filter((f) => f.ofa_product_name).map((f) => f.ofa_product_name));
 
   function handleChange(e) {
     const val = e.target.value;
@@ -105,11 +201,8 @@ function FoodSearchSection({ token }) {
     setError(null);
     setOfaResults(null);
 
-    const dbPromise = apiGet(`/public/foods/search?q=${encodeURIComponent(q)}&token=${token}`);
-    const ofaPromise = fetch(
-      `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
-      `&search_simple=1&action=process&json=1&page_size=5&fields=product_name,nutriments&lc=he,en`
-    ).then((r) => r.json()).catch(() => null);
+    const dbPromise  = apiGet(`/public/foods/search?q=${encodeURIComponent(q)}&token=${token}`);
+    const ofaPromise = fetchOfa(q).catch(() => []);
 
     const [dbSettled, ofaSettled] = await Promise.allSettled([dbPromise, ofaPromise]);
 
@@ -121,18 +214,8 @@ function FoodSearchSection({ token }) {
     }
     setDbResults(db);
 
-    if (db.length < 3 && ofaSettled.status === 'fulfilled' && ofaSettled.value) {
-      const products = (ofaSettled.value.products || [])
-        .filter((p) => p.product_name && (p.nutriments?.['energy-kcal_100g'] ?? 0) > 0)
-        .slice(0, 5)
-        .map((p) => {
-          const macro        = detectMacroFromNutriments(p.nutriments);
-          const kcal100      = Math.round(p.nutriments['energy-kcal_100g']);
-          const protein100   = Math.round((p.nutriments['proteins_100g'] || 0) * 10) / 10;
-          const ceiling      = MACRO_CEILINGS[macro] ?? 100;
-          const portionGrams = kcal100 > 0 ? Math.round((ceiling / kcal100) * 100) : null;
-          return { name: p.product_name, kcal100, protein100, macro_type: macro, portionGrams };
-        });
+    if (db.length < 3 && ofaSettled.status === 'fulfilled') {
+      const products = ofaSettled.value ?? [];
       setOfaResults(products.length > 0 ? products : null);
     }
 
@@ -149,8 +232,7 @@ function FoodSearchSection({ token }) {
       <div style={{ position: 'relative', maxWidth: 480 }}>
         <input
           type="text" value={query} onChange={handleChange}
-          placeholder="שם המזון..." style={inputStyle} dir="auto"
-          autoFocus
+          placeholder="שם המזון..." style={inputStyle} dir="auto" autoFocus
         />
         {loading && (
           <span style={{ position: 'absolute', insetInlineEnd: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: '#999' }}>
@@ -169,71 +251,37 @@ function FoodSearchSection({ token }) {
             <>
               {dbResults.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: ofaResults ? 16 : 0 }}>
-                  {dbResults.map((item) => {
-                    const portionLine = item.portion_grams && item.macro_type
-                      ? `${item.portion_grams} גרם = מנת ${MACRO_PORTION_LABELS[item.macro_type] ?? item.macro_type} 1`
-                      : null;
-                    return (
-                      <div key={item.id} style={{ padding: '10px 14px', borderRadius: 10, background: '#fafafa', border: '1px solid #e5e7eb' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: 14, color: '#111' }}>{item.name_he}</div>
-                            <div style={{ fontSize: 12, color: '#888', marginTop: 1 }}>{item.category_name}</div>
-                          </div>
-                          <MacroBadge type={item.macro_type} />
-                        </div>
-                        {portionLine && (
-                          <div style={{ marginTop: 6, fontSize: 13, color: '#567DBF', fontWeight: 500 }}>
-                            {portionLine}
-                          </div>
-                        )}
-                        <div style={{ marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                          {item.calories != null && (
-                            <span style={{ fontSize: 12, color: '#555' }}>{item.calories} קק״ל למנה</span>
-                          )}
-                          {item.protein_grams != null && (
-                            <span style={{ fontSize: 12, color: '#555' }}>{item.protein_grams}ג׳ חלבון</span>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {dbResults.map((item) => (
+                    <FoodCard
+                      key={item.id}
+                      item={item}
+                      favorited={favDbIds.has(item.id)}
+                      onStar={() => onStar({ food_item_id: item.id })}
+                    />
+                  ))}
                 </div>
               )}
 
               {ofaResults && (
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#888', marginBottom: 8, display: 'flex', gap: 8 }}>
                     <span>מהמאגר הבינלאומי</span>
                     <span style={{ fontWeight: 400, color: '#aaa' }}>Open Food Facts</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {ofaResults.map((item, i) => {
-                      const portionLine = item.portionGrams
-                        ? `${item.portionGrams} גרם = מנת ${MACRO_PORTION_LABELS[item.macro_type] ?? item.macro_type} 1`
-                        : null;
-                      return (
-                        <div key={i} style={{ padding: '10px 14px', borderRadius: 10, background: '#f9fafb', border: '1px solid #e5e7eb' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 500, fontSize: 13, color: '#222', flex: 1, minWidth: 0 }} dir="auto">
-                              {item.name}
-                            </span>
-                            <MacroBadge type={item.macro_type} />
-                          </div>
-                          {portionLine && (
-                            <div style={{ marginTop: 6, fontSize: 13, color: '#567DBF', fontWeight: 500 }}>
-                              {portionLine}
-                            </div>
-                          )}
-                          <div style={{ marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 12, color: '#555' }}>{item.kcal100} קק״ל/100ג׳</span>
-                            {item.protein100 > 0 && (
-                              <span style={{ fontSize: 12, color: '#555' }}>{item.protein100}ג׳ חלבון/100ג׳</span>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                    {ofaResults.map((item, i) => (
+                      <FoodCard
+                        key={i}
+                        item={item}
+                        favorited={favOfaNames.has(item.name)}
+                        onStar={() => onStar({
+                          ofa_product_name: item.name,
+                          ofa_kcal_100g:    item.kcal100,
+                          ofa_protein_100g: item.protein100,
+                          ofa_macro_type:   item.macro_type,
+                        })}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
@@ -263,11 +311,11 @@ function AddFoodSection({ token }) {
     try {
       await apiPost('/public/foods/submit', {
         token,
-        name_he:          form.name.trim(),
-        calories_per_100g: form.kcal100     || null,
-        protein_per_100g:  form.protein100  || null,
-        fat_per_100g:      form.fat100      || null,
-        carb_per_100g:     form.carb100     || null,
+        name_he:           form.name.trim(),
+        calories_per_100g: form.kcal100    || null,
+        protein_per_100g:  form.protein100 || null,
+        fat_per_100g:      form.fat100     || null,
+        carb_per_100g:     form.carb100    || null,
       });
       setSuccess(true);
       setForm(EMPTY_FOOD);
@@ -358,13 +406,8 @@ function RecipeBankSection({ token }) {
     queryFn:  () => apiGet(`/public/recipes?token=${token}`),
   });
 
-  if (isLoading) {
-    return <p style={{ fontSize: 13, color: '#888' }}>טוען מתכונים...</p>;
-  }
-
-  if (recipes.length === 0) {
-    return <p style={{ fontSize: 13, color: '#888' }}>עדיין אין מתכונים במאגר.</p>;
-  }
+  if (isLoading) return <p style={{ fontSize: 13, color: '#888' }}>טוען מתכונים...</p>;
+  if (recipes.length === 0) return <p style={{ fontSize: 13, color: '#888' }}>עדיין אין מתכונים במאגר.</p>;
 
   return (
     <section>
@@ -372,9 +415,7 @@ function RecipeBankSection({ token }) {
         {recipes.map((r) => {
           const isOpen = openId === r.id;
           return (
-            <div key={r.id} style={{
-              border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', background: 'white',
-            }}>
+            <div key={r.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', background: 'white' }}>
               <button
                 type="button"
                 onClick={() => setOpenId(isOpen ? null : r.id)}
@@ -386,22 +427,14 @@ function RecipeBankSection({ token }) {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: '#111', marginBottom: 2 }}>
-                    {r.name}
-                  </div>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: '#111', marginBottom: 2 }}>{r.name}</div>
                   <div style={{ fontSize: 12, color: '#888', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     {r.servings > 1 && <span>{r.servings} מנות</span>}
-                    {r.calories_per_serving != null && (
-                      <span>{r.calories_per_serving} קק״ל / מנה</span>
-                    )}
-                    {r.protein_per_serving != null && (
-                      <span>{r.protein_per_serving}ג׳ חלבון / מנה</span>
-                    )}
+                    {r.calories_per_serving != null && <span>{r.calories_per_serving} קק״ל / מנה</span>}
+                    {r.protein_per_serving  != null && <span>{r.protein_per_serving}ג׳ חלבון / מנה</span>}
                   </div>
                 </div>
-                <span style={{ fontSize: 13, color: '#567DBF', flexShrink: 0 }}>
-                  {isOpen ? '▲' : '▼'}
-                </span>
+                <span style={{ fontSize: 13, color: '#567DBF', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
               </button>
 
               {isOpen && (
@@ -409,26 +442,18 @@ function RecipeBankSection({ token }) {
                   {r.ingredients?.length > 0 && (
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#aaa', marginBottom: 6 }}>רכיבים</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        {r.ingredients.map((ing, i) => (
-                          <div key={i} style={{
-                            display: 'flex', justifyContent: 'space-between',
-                            fontSize: 13, padding: '4px 0', borderBottom: '1px solid #f5f5f5', color: '#333',
-                          }}>
-                            <span>{ing.custom_food_name || ing.name_he || '—'}</span>
-                            <span style={{ color: '#888' }}>{ing.amount_grams}ג׳</span>
-                          </div>
-                        ))}
-                      </div>
+                      {r.ingredients.map((ing, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid #f5f5f5', color: '#333' }}>
+                          <span>{ing.custom_food_name || ing.name_he || '—'}</span>
+                          <span style={{ color: '#888' }}>{ing.amount_grams}ג׳</span>
+                        </div>
+                      ))}
                     </div>
                   )}
-
                   {r.description && (
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#aaa', marginBottom: 6 }}>אופן הכנה</div>
-                      <p style={{ fontSize: 13, color: '#333', margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
-                        {r.description}
-                      </p>
+                      <p style={{ fontSize: 13, color: '#333', margin: 0, whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{r.description}</p>
                     </div>
                   )}
                 </div>
@@ -441,13 +466,43 @@ function RecipeBankSection({ token }) {
   );
 }
 
-// ─── Ingredient search autocomplete ──────────────────────────────────────────
+// ─── Section 5 — Favorites ────────────────────────────────────────────────────
+
+function FavoritesSection({ token, favorites, isLoading, onRemove }) {
+  if (isLoading) return <p style={{ fontSize: 13, color: '#888' }}>טוען מועדפים...</p>;
+  if (!favorites || favorites.length === 0) {
+    return (
+      <div style={{ padding: '40px 0', textAlign: 'center' }}>
+        <div style={{ fontSize: 32, marginBottom: 12 }}>☆</div>
+        <p style={{ fontSize: 14, color: '#888' }}>עדיין לא הוספת מזונות מועדפים</p>
+        <p style={{ fontSize: 13, color: '#aaa' }}>לחצו על ☆ ליד כל מזון בחיפוש כדי לשמור אותו כאן</p>
+      </div>
+    );
+  }
+
+  return (
+    <section>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {favorites.map((fav) => (
+          <FoodCard
+            key={fav.id}
+            item={fav}
+            onRemove={() => onRemove(fav.id)}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ─── Ingredient search autocomplete (DB + OFA fallback) ───────────────────────
 
 function IngredientSearch({ token, onSelect }) {
-  const [q,       setQ]       = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [open,    setOpen]    = useState(false);
+  const [q,          setQ]          = useState('');
+  const [dbResults,  setDbResults]  = useState([]);
+  const [ofaResults, setOfaResults] = useState([]);
+  const [loading,    setLoading]    = useState(false);
+  const [open,       setOpen]       = useState(false);
   const timerRef = useRef(null);
   const wrapRef  = useRef(null);
 
@@ -463,12 +518,21 @@ function IngredientSearch({ token, onSelect }) {
     const val = e.target.value;
     setQ(val);
     clearTimeout(timerRef.current);
-    if (!val.trim()) { setResults([]); setOpen(false); return; }
+    if (!val.trim()) { setDbResults([]); setOfaResults([]); setOpen(false); return; }
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const data = await apiGet(`/public/foods/search?q=${encodeURIComponent(val.trim())}&token=${token}`);
-        setResults(data.slice(0, 8));
+        const db = await apiGet(`/public/foods/search?q=${encodeURIComponent(val.trim())}&token=${token}`);
+        const dbSliced = (db || []).slice(0, 8);
+        setDbResults(dbSliced);
+
+        if (dbSliced.length < 3) {
+          const ofa = await fetchOfa(val.trim()).catch(() => []);
+          setOfaResults(ofa.slice(0, 5));
+        } else {
+          setOfaResults([]);
+        }
+
         setOpen(true);
       } catch {}
       setLoading(false);
@@ -478,9 +542,12 @@ function IngredientSearch({ token, onSelect }) {
   function select(item) {
     onSelect(item);
     setQ('');
-    setResults([]);
+    setDbResults([]);
+    setOfaResults([]);
     setOpen(false);
   }
+
+  const hasResults = dbResults.length > 0 || ofaResults.length > 0;
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
@@ -493,17 +560,17 @@ function IngredientSearch({ token, onSelect }) {
           מחפש...
         </span>
       )}
-      {open && results.length > 0 && (
+      {open && hasResults && (
         <div style={{
           position: 'absolute', zIndex: 50, top: '100%', insetInlineStart: 0, insetInlineEnd: 0,
           background: 'white', border: '1px solid #e5e7eb', borderRadius: 8,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.1)', marginTop: 4, overflow: 'hidden',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1)', marginTop: 4, overflow: 'hidden', maxHeight: 320, overflowY: 'auto',
         }}>
-          {results.map((item) => (
+          {dbResults.map((item) => (
             <button
               key={item.id}
               type="button"
-              onClick={() => select(item)}
+              onClick={() => select({ source: 'db', ...item })}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 width: '100%', padding: '9px 12px', border: 'none', background: 'transparent',
@@ -520,6 +587,35 @@ function IngredientSearch({ token, onSelect }) {
               </span>
             </button>
           ))}
+
+          {ofaResults.length > 0 && (
+            <>
+              <div style={{ padding: '5px 12px', fontSize: 11, fontWeight: 700, color: '#aaa', background: '#f9fafb', borderBottom: '1px solid #f0f0f0' }}>
+                מהמאגר הבינלאומי
+              </div>
+              {ofaResults.map((item, i) => (
+                <button
+                  key={`ofa-${i}`}
+                  type="button"
+                  onClick={() => select(item)}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    width: '100%', padding: '9px 12px', border: 'none', background: 'transparent',
+                    cursor: 'pointer', textAlign: 'right', borderBottom: '1px solid #f5f5f5', gap: 8,
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#f0f9ff'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <span style={{ fontSize: 13, fontWeight: 500, color: '#444', flex: 1, minWidth: 0, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }} dir="auto">
+                    {item.name}
+                  </span>
+                  <span style={{ fontSize: 11, color: '#aaa', flexShrink: 0 }}>
+                    {item.kcal100} קק״ל/100ג׳
+                  </span>
+                </button>
+              ))}
+            </>
+          )}
         </div>
       )}
     </div>
@@ -534,39 +630,46 @@ function AddRecipeSection({ token, onSuccess }) {
   const queryClient = useQueryClient();
   const [form,        setForm]        = useState(EMPTY_RECIPE);
   const [ingredients, setIngredients] = useState([]);
-  const [ingMode,     setIngMode]     = useState('db');   // 'db' | 'manual'
+  const [ingMode,     setIngMode]     = useState('db');
   const [manualIng,   setManualIng]   = useState(EMPTY_MANUAL_ING);
   const [error,       setError]       = useState(null);
   const [loading,     setLoading]     = useState(false);
 
-  function setField(key, val) { setForm((f) => ({ ...f, [key]: val })); }
+  function setField(key, val)       { setForm((f) => ({ ...f, [key]: val })); }
   function setManualField(key, val) { setManualIng((f) => ({ ...f, [key]: val })); }
 
-  function addFromDb(item) {
-    setIngredients((prev) => [...prev, {
-      type:                 'db',
-      food_item_id:         item.id,
-      name_he:              item.name_he,
-      amount_grams:         100,
-      calories_per_portion: item.calories    ?? 0,
-      protein_per_portion:  item.protein_grams ?? 0,
-      portion_grams:        item.portion_grams ?? 100,
-      kcal100: 0, protein100: 0,
-    }]);
+  function addIngredient(item) {
+    if (item.source === 'ofa') {
+      setIngredients((prev) => [...prev, {
+        type: 'manual', food_item_id: null,
+        name_he: item.name,
+        amount_grams: 100,
+        kcal100:    item.kcal100    ?? 0,
+        protein100: item.protein100 ?? 0,
+        calories_per_portion: 0, protein_per_portion: 0, portion_grams: 0,
+      }]);
+    } else {
+      setIngredients((prev) => [...prev, {
+        type: 'db', food_item_id: item.id,
+        name_he: item.name_he,
+        amount_grams: 100,
+        calories_per_portion: item.calories      ?? 0,
+        protein_per_portion:  item.protein_grams ?? 0,
+        portion_grams:        item.portion_grams ?? 100,
+        kcal100: 0, protein100: 0,
+      }]);
+    }
   }
 
   function addManual() {
     if (!manualIng.name.trim()) return;
     setIngredients((prev) => [...prev, {
-      type:                 'manual',
-      food_item_id:         null,
-      name_he:              manualIng.name.trim(),
-      amount_grams:         Number(manualIng.grams) || 100,
-      calories_per_portion: 0,
-      protein_per_portion:  0,
-      portion_grams:        0,
-      kcal100:    Number(manualIng.kcal100)    || 0,
-      protein100: Number(manualIng.protein100) || 0,
+      type: 'manual', food_item_id: null,
+      name_he:      manualIng.name.trim(),
+      amount_grams: Number(manualIng.grams) || 100,
+      kcal100:      Number(manualIng.kcal100)    || 0,
+      protein100:   Number(manualIng.protein100) || 0,
+      calories_per_portion: 0, protein_per_portion: 0, portion_grams: 0,
     }]);
     setManualIng(EMPTY_MANUAL_ING);
   }
@@ -581,18 +684,14 @@ function AddRecipeSection({ token, onSuccess }) {
 
   function ingKcal(ing) {
     if (ing.type === 'db') {
-      return ing.portion_grams > 0
-        ? Math.round((ing.amount_grams / ing.portion_grams) * ing.calories_per_portion)
-        : 0;
+      return ing.portion_grams > 0 ? Math.round((ing.amount_grams / ing.portion_grams) * ing.calories_per_portion) : 0;
     }
     return Math.round((ing.amount_grams / 100) * ing.kcal100);
   }
 
   function ingProtein(ing) {
     if (ing.type === 'db') {
-      return ing.portion_grams > 0
-        ? Math.round((ing.amount_grams / ing.portion_grams) * ing.protein_per_portion * 10) / 10
-        : 0;
+      return ing.portion_grams > 0 ? Math.round((ing.amount_grams / ing.portion_grams) * ing.protein_per_portion * 10) / 10 : 0;
     }
     return Math.round((ing.amount_grams / 100) * ing.protein100 * 10) / 10;
   }
@@ -634,7 +733,6 @@ function AddRecipeSection({ token, onSuccess }) {
     <section>
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 560 }}>
 
-        {/* Name + Servings */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px', gap: 10 }}>
           <div>
             <label style={labelStyle}>שם המתכון *</label>
@@ -655,20 +753,17 @@ function AddRecipeSection({ token, onSuccess }) {
           </div>
         </div>
 
-        {/* Preparation instructions */}
         <div>
           <label style={labelStyle}>אופן הכנה (אופציונלי)</label>
           <textarea
             value={form.description}
             onChange={(e) => setField('description', e.target.value)}
             placeholder="תארו את שלבי ההכנה..."
-            rows={3}
-            dir="auto"
+            rows={3} dir="auto"
             style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
           />
         </div>
 
-        {/* Ingredient mode toggle */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
             <label style={labelStyle}>רכיבים</label>
@@ -685,16 +780,14 @@ function AddRecipeSection({ token, onSuccess }) {
           </div>
 
           {ingMode === 'db' ? (
-            <IngredientSearch token={token} onSelect={addFromDb} />
+            <IngredientSearch token={token} onSelect={addIngredient} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#f8fafc', border: '1px solid #e5e7eb' }}>
               <div>
                 <label style={labelStyle}>שם המזון</label>
-                <input
-                  type="text" value={manualIng.name}
+                <input type="text" value={manualIng.name}
                   onChange={(e) => setManualField('name', e.target.value)}
-                  placeholder="למשל: שמן זית" style={inputStyle} dir="auto"
-                />
+                  placeholder="למשל: שמן זית" style={inputStyle} dir="auto" />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
                 <div>
@@ -717,9 +810,7 @@ function AddRecipeSection({ token, onSuccess }) {
                 </div>
               </div>
               <button
-                type="button"
-                onClick={addManual}
-                disabled={!manualIng.name.trim()}
+                type="button" onClick={addManual} disabled={!manualIng.name.trim()}
                 style={{
                   alignSelf: 'flex-start', padding: '6px 16px', borderRadius: 6, border: 'none',
                   background: '#567DBF', color: 'white', fontWeight: 600, fontSize: 13,
@@ -733,7 +824,6 @@ function AddRecipeSection({ token, onSuccess }) {
           )}
         </div>
 
-        {/* Ingredient list */}
         {ingredients.length > 0 && (
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#888', marginBottom: 6 }}>רכיבים שנוספו</div>
@@ -756,12 +846,9 @@ function AddRecipeSection({ token, onSuccess }) {
                       />
                       <span style={{ fontSize: 12, color: '#888' }}>ג׳</span>
                     </div>
-                    {kcal > 0 && (
-                      <span style={{ fontSize: 11, color: '#888', minWidth: 54 }}>{kcal} קק״ל</span>
-                    )}
+                    {kcal > 0 && <span style={{ fontSize: 11, color: '#888', minWidth: 54 }}>{kcal} קק״ל</span>}
                     <button
-                      type="button"
-                      onClick={() => removeIngredient(idx)}
+                      type="button" onClick={() => removeIngredient(idx)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#bbb', fontSize: 18, padding: '0 2px', lineHeight: 1 }}
                     >
                       ×
@@ -771,7 +858,6 @@ function AddRecipeSection({ token, onSuccess }) {
               })}
             </div>
 
-            {/* Live totals */}
             <div style={{
               marginTop: 10, padding: '10px 14px', borderRadius: 8,
               background: '#eff6ff', border: '1px solid #bfdbfe',
@@ -793,13 +879,11 @@ function AddRecipeSection({ token, onSuccess }) {
         {error && <p style={{ fontSize: 13, color: '#dc2626' }}>{error}</p>}
 
         <button
-          type="submit"
-          disabled={loading || !form.name.trim()}
+          type="submit" disabled={loading || !form.name.trim()}
           style={{
             padding: '11px 28px', borderRadius: 8, border: 'none', cursor: 'pointer',
             background: '#567DBF', color: 'white', fontWeight: 600, fontSize: 14,
-            opacity: (loading || !form.name.trim()) ? 0.6 : 1,
-            alignSelf: 'flex-start',
+            opacity: (loading || !form.name.trim()) ? 0.6 : 1, alignSelf: 'flex-start',
           }}
         >
           {loading ? 'שולח...' : 'שלח מתכון'}
@@ -811,21 +895,30 @@ function AddRecipeSection({ token, onSuccess }) {
 
 // ─── Nav button ───────────────────────────────────────────────────────────────
 
-function NavBtn({ label, active, onClick }) {
+function NavBtn({ label, active, onClick, badge }) {
   return (
     <button
-      type="button"
-      onClick={onClick}
+      type="button" onClick={onClick}
       style={{
-        flex: '1 1 0', padding: '9px 8px', borderRadius: 8, border: '1.5px solid #567DBF',
-        cursor: 'pointer', fontWeight: active ? 700 : 500, fontSize: 13,
+        flex: '1 1 0', padding: '9px 6px', borderRadius: 8, border: '1.5px solid #567DBF',
+        cursor: 'pointer', fontWeight: active ? 700 : 500, fontSize: 12,
         background: active ? '#567DBF' : 'white',
         color:      active ? 'white'   : '#567DBF',
         transition: 'background 0.12s, color 0.12s',
-        whiteSpace: 'nowrap',
+        whiteSpace: 'nowrap', position: 'relative',
       }}
     >
       {label}
+      {badge > 0 && (
+        <span style={{
+          position: 'absolute', top: -6, insetInlineStart: -4,
+          fontSize: 10, fontWeight: 700, minWidth: 16, height: 16,
+          borderRadius: 99, background: '#f59e0b', color: 'white',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
+        }}>
+          {badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -837,6 +930,7 @@ const SECTIONS = [
   { key: 'add-food',   label: '+ הוסף מזון'   },
   { key: 'recipes',    label: '📖 מתכונים'     },
   { key: 'add-recipe', label: '+ הוסף מתכון'  },
+  { key: 'favorites',  label: '⭐ המזונות שלי' },
 ];
 
 const SECTION_TITLES = {
@@ -844,20 +938,52 @@ const SECTION_TITLES = {
   'add-food':   'הצעת מזון חדש',
   'recipes':    'מאגר מתכונים',
   'add-recipe': 'הוספת מתכון',
+  'favorites':  'המזונות שלי',
 };
 
 export default function PublicFoodBank() {
   const { token } = useParams();
+  const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState('search');
   const [recipeSuccess, setRecipeSuccess] = useState(false);
+  const [starLoading,   setStarLoading]   = useState(false);
 
-  const { data: client, isLoading, isError } = useQuery({
+  const { data: client, isLoading: clientLoading, isError } = useQuery({
     queryKey: ['public-food-client', token],
     queryFn:  () => apiGet(`/public/weight/${token}`),
     retry: 1,
   });
 
-  if (isLoading) {
+  const { data: favorites = [], isLoading: favsLoading } = useQuery({
+    queryKey: ['public-favorites', token],
+    queryFn:  () => apiGet(`/public/favorites/${token}`),
+    enabled:  !!client,
+  });
+
+  async function handleStar(payload) {
+    if (starLoading) return;
+    setStarLoading(true);
+    try {
+      await apiPost(`/public/favorites/${token}`, payload);
+      queryClient.invalidateQueries({ queryKey: ['public-favorites', token] });
+    } catch {}
+    setStarLoading(false);
+  }
+
+  async function handleRemoveFavorite(favId) {
+    try {
+      await apiDelete(`/public/favorites/${token}/${favId}`);
+      queryClient.invalidateQueries({ queryKey: ['public-favorites', token] });
+    } catch {}
+  }
+
+  function handleRecipeSuccess() {
+    setRecipeSuccess(true);
+    setActiveSection('recipes');
+    setTimeout(() => setRecipeSuccess(false), 5000);
+  }
+
+  if (clientLoading) {
     return (
       <div dir="rtl" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fcf4f9' }}>
         <p style={{ color: '#888', fontSize: 14 }}>טוען...</p>
@@ -876,16 +1002,9 @@ export default function PublicFoodBank() {
     );
   }
 
-  function handleRecipeSuccess() {
-    setRecipeSuccess(true);
-    setActiveSection('recipes');
-    setTimeout(() => setRecipeSuccess(false), 5000);
-  }
-
   return (
     <div dir="rtl" style={{ minHeight: '100vh', background: '#fcf4f9', fontFamily: 'Heebo, sans-serif' }}>
 
-      {/* Header */}
       <header style={{
         background: 'white', borderBottom: '1px solid #F5DBEA',
         padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14,
@@ -897,7 +1016,6 @@ export default function PublicFoodBank() {
         </div>
       </header>
 
-      {/* Nav */}
       <div style={{ background: 'white', borderBottom: '1px solid #f0f0f0', padding: '12px 20px' }}>
         <div style={{ maxWidth: 680, margin: '0 auto', display: 'flex', gap: 8 }}>
           {SECTIONS.map((s) => (
@@ -906,33 +1024,35 @@ export default function PublicFoodBank() {
               label={s.label}
               active={activeSection === s.key}
               onClick={() => setActiveSection(s.key)}
+              badge={s.key === 'favorites' ? favorites.length : 0}
             />
           ))}
         </div>
       </div>
 
-      {/* Content */}
       <main style={{ maxWidth: 680, margin: '0 auto', padding: '24px 20px 60px' }}>
-
-        {/* Section heading */}
-        <h2 style={{
-          fontSize: 17, fontWeight: 700, color: '#111', marginBottom: 16,
-          paddingBottom: 10, borderBottom: '2px solid #F5DBEA',
-        }}>
+        <h2 style={{ fontSize: 17, fontWeight: 700, color: '#111', marginBottom: 16, paddingBottom: 10, borderBottom: '2px solid #F5DBEA' }}>
           {SECTION_TITLES[activeSection]}
         </h2>
 
-        {/* Recipe submit success toast */}
         {recipeSuccess && activeSection === 'recipes' && (
           <div style={{ padding: '10px 14px', borderRadius: 8, background: '#f0fdf4', border: '1px solid #86efac', fontSize: 14, color: '#15803d', marginBottom: 16 }}>
             תודה! המתכון נשלח לבדיקה 🙏🏽
           </div>
         )}
 
-        {activeSection === 'search'     && <FoodSearchSection  token={token} />}
-        {activeSection === 'add-food'   && <AddFoodSection     token={token} />}
-        {activeSection === 'recipes'    && <RecipeBankSection  token={token} />}
-        {activeSection === 'add-recipe' && <AddRecipeSection   token={token} onSuccess={handleRecipeSuccess} />}
+        {activeSection === 'search'     && <FoodSearchSection token={token} favorites={favorites} onStar={handleStar} />}
+        {activeSection === 'add-food'   && <AddFoodSection    token={token} />}
+        {activeSection === 'recipes'    && <RecipeBankSection token={token} />}
+        {activeSection === 'add-recipe' && <AddRecipeSection  token={token} onSuccess={handleRecipeSuccess} />}
+        {activeSection === 'favorites'  && (
+          <FavoritesSection
+            token={token}
+            favorites={favorites}
+            isLoading={favsLoading}
+            onRemove={handleRemoveFavorite}
+          />
+        )}
       </main>
     </div>
   );
