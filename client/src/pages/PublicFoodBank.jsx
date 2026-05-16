@@ -957,13 +957,14 @@ export default function PublicFoodBank() {
 
       <header style={{
         background: 'white', borderBottom: '1px solid #F5DBEA',
-        padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14,
+        padding: '20px 20px 16px', display: 'flex', flexDirection: 'column',
+        alignItems: 'center', textAlign: 'center', gap: 6,
       }}>
-        <img src="/logo-color.png" alt="לוגו" style={{ height: 52, objectFit: 'contain' }} />
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>מאגר המזון שלי</div>
-          <div style={{ fontSize: 13, color: '#666', marginTop: 1 }}>שלום, {client.full_name}</div>
-        </div>
+        <img src="/logo-color.png" alt="לוגו" style={{ height: 56, objectFit: 'contain' }} />
+        <p style={{ fontSize: 22, fontWeight: 700, color: '#222', margin: '4px 0 0' }}>
+          שלום, {client.full_name} 👋
+        </p>
+        <p style={{ fontSize: 14, color: '#666', margin: 0 }}>מאגר המזון שלי</p>
       </header>
 
       <div style={{ background: 'white', borderBottom: '1px solid #f0f0f0', padding: '12px 20px' }}>
