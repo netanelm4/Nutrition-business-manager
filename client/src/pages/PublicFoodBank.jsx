@@ -31,8 +31,6 @@ async function apiDelete(path) {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MACRO_CEILINGS = { protein: 140, carb: 100, fat: 60, vegetable: 40, fruit: 120 };
-
 const MACRO_LABELS = { protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירקות', fruit: 'פירות' };
 
 const MACRO_PORTION_LABELS = { protein: 'חלבון', carb: 'פחמימה', fat: 'שומן', vegetable: 'ירק', fruit: 'פרי' };
@@ -75,38 +73,6 @@ function MacroBadge({ type }) {
   );
 }
 
-function detectMacroFromNutriments(n) {
-  if (!n) return 'fruit';
-  const kcal = n['energy-kcal_100g']     ?? 0;
-  const prot = n['proteins_100g']         ?? 0;
-  const fat  = n['fat_100g']              ?? 0;
-  const carb = n['carbohydrates_100g']    ?? 0;
-  if (kcal <= 40)  return 'vegetable';
-  if (prot >= 15)  return 'protein';
-  if (fat  >= 30)  return 'fat';
-  if (carb >= 30)  return 'carb';
-  return 'fruit';
-}
-
-async function fetchOfa(q) {
-  const res = await fetch(
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
-    `&search_simple=1&action=process&json=1&page_size=5&fields=product_name,nutriments&lc=he,en`
-  );
-  const body = await res.json();
-  return (body.products || [])
-    .filter((p) => p.product_name && (p.nutriments?.['energy-kcal_100g'] ?? 0) > 0)
-    .slice(0, 5)
-    .map((p) => {
-      const macro        = detectMacroFromNutriments(p.nutriments);
-      const kcal100      = Math.round(p.nutriments['energy-kcal_100g']);
-      const protein100   = Math.round((p.nutriments['proteins_100g'] || 0) * 10) / 10;
-      const ceiling      = MACRO_CEILINGS[macro] ?? 100;
-      const portionGrams = kcal100 > 0 ? Math.round((ceiling / kcal100) * 100) : null;
-      return { source: 'ofa', name: p.product_name, kcal100, protein100, macro_type: macro, portionGrams };
-    });
-}
-
 // ─── Star button ──────────────────────────────────────────────────────────────
 
 function StarBtn({ favorited, onClick, loading }) {
@@ -133,8 +99,8 @@ function FoodCard({ item, favorited, onStar, onRemove }) {
   const isOfa      = !!item.ofa_product_name || item.source === 'ofa';
   const name       = isOfa ? (item.ofa_product_name || item.name) : item.name_he;
   const macro      = isOfa ? (item.ofa_macro_type || item.macro_type) : item.macro_type;
-  const kcal       = isOfa ? item.ofa_kcal_100g   : item.calories;
-  const protein    = isOfa ? item.ofa_protein_100g : item.protein_grams;
+  const kcal       = isOfa ? (item.ofa_kcal_100g    ?? item.kcal100)    : item.calories;
+  const protein    = isOfa ? (item.ofa_protein_100g ?? item.protein100) : item.protein_grams;
   const portionG   = isOfa ? item.portionGrams     : item.portion_grams;
   const categoryN  = isOfa ? null                  : item.category_name;
   const kcalLabel  = isOfa ? `${kcal} קק״ל/100ג׳`  : (kcal != null ? `${kcal} קק״ל למנה` : null);
@@ -193,32 +159,23 @@ function FoodSearchSection({ token, favorites, onStar }) {
     setQuery(val);
     clearTimeout(timerRef.current);
     if (!val.trim()) { setDbResults(null); setOfaResults(null); return; }
-    timerRef.current = setTimeout(() => doSearch(val.trim()), 500);
+    timerRef.current = setTimeout(() => doSearch(val.trim()), 300);
   }
 
   async function doSearch(q) {
     setLoading(true);
     setError(null);
     setOfaResults(null);
-
-    const dbPromise  = apiGet(`/public/foods/search?q=${encodeURIComponent(q)}&token=${token}`);
-    const ofaPromise = fetchOfa(q).catch(() => []);
-
-    const [dbSettled, ofaSettled] = await Promise.allSettled([dbPromise, ofaPromise]);
-
-    let db = [];
-    if (dbSettled.status === 'fulfilled') {
-      db = dbSettled.value ?? [];
-    } else {
-      setError(dbSettled.reason?.message || 'שגיאה בחיפוש');
+    try {
+      const result = await apiGet(`/public/foods/search?q=${encodeURIComponent(q)}&token=${token}`);
+      const items  = result?.items ?? [];
+      const ofa    = result?.ofaResults ?? [];
+      setDbResults(items);
+      setOfaResults(ofa.length > 0 ? ofa : null);
+    } catch (err) {
+      setError(err.message || 'שגיאה בחיפוש');
+      setDbResults([]);
     }
-    setDbResults(db);
-
-    if (db.length < 3 && ofaSettled.status === 'fulfilled') {
-      const products = ofaSettled.value ?? [];
-      setOfaResults(products.length > 0 ? products : null);
-    }
-
     setLoading(false);
   }
 
@@ -522,21 +479,14 @@ function IngredientSearch({ token, onSelect }) {
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const db = await apiGet(`/public/foods/search?q=${encodeURIComponent(val.trim())}&token=${token}`);
-        const dbSliced = (db || []).slice(0, 8);
+        const result   = await apiGet(`/public/foods/search?q=${encodeURIComponent(val.trim())}&token=${token}`);
+        const dbSliced = (result?.items ?? []).slice(0, 8);
         setDbResults(dbSliced);
-
-        if (dbSliced.length < 3) {
-          const ofa = await fetchOfa(val.trim()).catch(() => []);
-          setOfaResults(ofa.slice(0, 5));
-        } else {
-          setOfaResults([]);
-        }
-
+        setOfaResults(result?.ofaResults ?? []);
         setOpen(true);
       } catch {}
       setLoading(false);
-    }, 350);
+    }, 300);
   }
 
   function select(item) {

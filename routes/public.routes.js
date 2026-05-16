@@ -271,12 +271,46 @@ function getRecipeWithDetails(recipeId) {
   return { ...recipe, ingredients, ...nutrition };
 }
 
+// ─── OFA server-side cache (24h TTL) ─────────────────────────────────────────
+
+const ofaCache = new Map();
+const OFA_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function detectMacroServer(kcal, protein, fat, carb) {
+  if (kcal <= 40)    return 'vegetable';
+  if (protein >= 15) return 'protein';
+  if (fat >= 30)     return 'fat';
+  if (carb >= 30)    return 'carb';
+  return 'fruit';
+}
+
+async function fetchOfaServer(q) {
+  const url =
+    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}` +
+    `&search_simple=1&action=process&json=1&page_size=8&fields=product_name,nutriments&lc=he,en`;
+  const res  = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  const body = await res.json();
+  return (body.products || [])
+    .filter((p) => p.product_name && (p.nutriments?.['energy-kcal_100g'] ?? 0) > 0)
+    .slice(0, 5)
+    .map((p) => {
+      const kcal    = Math.round(p.nutriments['energy-kcal_100g'] ?? 0);
+      const protein = Math.round((p.nutriments['proteins_100g']    ?? 0) * 10) / 10;
+      const fat     = p.nutriments['fat_100g']            ?? 0;
+      const carb    = p.nutriments['carbohydrates_100g']  ?? 0;
+      const macro   = detectMacroServer(kcal, protein, fat, carb);
+      const ceiling = MACRO_CEILINGS[macro] ?? 100;
+      const portionGrams = kcal > 0 ? Math.round((ceiling / kcal) * 100) : null;
+      return { source: 'ofa', name: p.product_name, kcal100: kcal, protein100: protein, macro_type: macro, portionGrams };
+    });
+}
+
 // ─── GET /api/public/foods/search?q=&token= ───────────────────────────────────
 
-router.get('/public/foods/search', (req, res) => {
+router.get('/public/foods/search', async (req, res) => {
   const { q, token } = req.query;
   if (!q || q.trim().length < 1) {
-    return res.json({ success: true, data: [] });
+    return res.json({ success: true, data: { items: [], ofaResults: [] } });
   }
   try {
     const items = db.prepare(`
@@ -291,13 +325,28 @@ router.get('/public/foods/search', (req, res) => {
       LIMIT  30
     `).all(`%${q.trim()}%`);
 
-    const data = items.map((item) => ({
+    const mappedItems = items.map((item) => ({
       ...item,
       menu_fit: item.macro_type
         ? `מנת ${MACRO_LABELS[item.macro_type] || item.macro_type} — ${item.calories ?? '?'} קק״ל`
         : null,
     }));
-    return res.json({ success: true, data });
+
+    let ofaResults = [];
+    if (mappedItems.length < 3) {
+      const key = q.trim().toLowerCase();
+      const cached = ofaCache.get(key);
+      if (cached && Date.now() - cached.timestamp < OFA_CACHE_TTL) {
+        ofaResults = cached.results;
+      } else {
+        try {
+          ofaResults = await fetchOfaServer(q.trim());
+          ofaCache.set(key, { results: ofaResults, timestamp: Date.now() });
+        } catch { /* OFA failure is non-fatal */ }
+      }
+    }
+
+    return res.json({ success: true, data: { items: mappedItems, ofaResults } });
   } catch (err) {
     console.error('[GET /public/foods/search]', err.message);
     return res.status(500).json({ success: false, error: 'שגיאה פנימית' });

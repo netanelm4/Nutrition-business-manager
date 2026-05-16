@@ -1360,6 +1360,93 @@ function formatWeekDate(dateStr) {
 
 // ─── Weight link button — shows modal with URL ────────────────────────────────
 
+function FoodBankLinkButton({ clientId }) {
+  const [url,     setUrl]     = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [copied,  setCopied]  = useState(false);
+
+  async function handleOpen() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const { url: weightUrl } = await fetchWeightLink(clientId);
+      setUrl(weightUrl.replace('/w/', '/food/'));
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }
+
+  async function handleCopy() {
+    if (!url) return;
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        const el = document.createElement('textarea');
+        el.value = url;
+        el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+        document.body.appendChild(el);
+        el.focus(); el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* user can still copy manually */ }
+  }
+
+  function handleClose() { setUrl(null); setCopied(false); }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={handleOpen}
+        disabled={loading}
+        className="crm-btn crm-btn--sm"
+      >
+        {loading ? '...' : 'מאגר מזון 🍎'}
+      </button>
+
+      {url && (
+        <Modal title="קישור מאגר מזון ללקוח" onClose={handleClose}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--ink-2)', margin: 0 }}>
+              שלח קישור זה ללקוח כדי שיוכל לגשת למאגר המזון האישי שלו.
+            </p>
+            <input
+              type="text"
+              readOnly
+              value={url}
+              onFocus={(e) => e.target.select()}
+              onClick={(e) => e.target.select()}
+              style={{
+                width: '100%', fontSize: 12, padding: '8px 12px',
+                border: '1px solid var(--hairline)', borderRadius: 8,
+                background: 'var(--surface-2)', color: 'var(--ink-1)',
+                direction: 'ltr', textAlign: 'left', outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={handleCopy}
+                className="crm-btn crm-btn--primary"
+                style={{ flex: 1, ...(copied ? { background: 'var(--green)', borderColor: 'var(--green)' } : {}) }}
+              >
+                {copied ? 'הועתק! ✓' : 'העתק'}
+              </button>
+              <button type="button" onClick={handleClose} className="crm-btn" style={{ flex: 1 }}>
+                סגור
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 function WeightLinkButton({ clientId }) {
   const [url,     setUrl]     = useState(null);
   const [loading, setLoading] = useState(false);
@@ -1604,6 +1691,7 @@ export default function ClientDetail() {
               )}
               <WhatsAppDropdown clientId={client.id} phone={client.phone} />
               <WeightLinkButton clientId={client.id} />
+              <FoodBankLinkButton clientId={client.id} />
               <button
                 type="button"
                 onClick={() => setEditOpen(true)}

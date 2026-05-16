@@ -1745,6 +1745,11 @@ try {
   `);
 } catch {}
 
+// index on food_items.name_he for faster LIKE searches
+try {
+  db.exec('CREATE INDEX IF NOT EXISTS idx_food_items_name_he ON food_items(name_he)');
+} catch {}
+
 // ai_memory — persistent memory store for future RAG/Vector DB upgrade
 try {
   db.exec(`
