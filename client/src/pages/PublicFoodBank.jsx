@@ -962,7 +962,7 @@ export default function PublicFoodBank() {
       }}>
         <img src="/logo-color.png" alt="לוגו" style={{ height: 56, objectFit: 'contain' }} />
         <p style={{ fontSize: 22, fontWeight: 700, color: '#222', margin: '4px 0 0' }}>
-          שלום, {client.full_name} 👋
+          שלום, {client.client_name} 👋
         </p>
         <p style={{ fontSize: 14, color: '#666', margin: 0 }}>מאגר המזון שלי</p>
       </header>
