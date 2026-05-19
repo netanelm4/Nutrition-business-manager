@@ -1,5 +1,6 @@
 const db = require('../database/db');
 const Anthropic = require('@anthropic-ai/sdk');
+const { sendWhatsAppMessage } = require('./whatsapp-send.service');
 
 const ai = new Anthropic();
 
@@ -275,7 +276,13 @@ async function processIncomingMessage({ from_phone, message_text, timestamp }) {
     logType = 'forward';
   }
 
-  // Step 5 — log incoming message
+  // Step 5 — send outbound message(s)
+  if (result.to_phone && result.message) {
+    sendWhatsAppMessage(result.to_phone, result.message)
+      .catch((err) => console.error('[whatsapp-bot] send failed:', err.message));
+  }
+
+  // Step 6 — log incoming message
   try {
     db.prepare(`
       INSERT INTO whatsapp_log (client_id, rendered_message, direction, message_type, status)

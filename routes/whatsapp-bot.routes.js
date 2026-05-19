@@ -4,12 +4,49 @@ const { processIncomingMessage } = require('../services/whatsapp-bot.service');
 
 const router = express.Router();
 
-// ─── POST /api/whatsapp/webhook ───────────────────────────────────────────────
-// Stub — will be wired to WhatsApp Business API when number is ready.
-// Must remain public (no auth) since WhatsApp calls it without credentials.
+// ─── GET /api/whatsapp/webhook — Meta verification challenge ──────────────────
+
+router.get('/webhook', (req, res) => {
+  const mode      = req.query['hub.mode'];
+  const token     = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+    console.log('[whatsapp-bot] webhook verified');
+    return res.status(200).send(challenge);
+  }
+  return res.sendStatus(403);
+});
+
+// ─── POST /api/whatsapp/webhook — incoming messages from Meta ─────────────────
 
 router.post('/webhook', (req, res) => {
+  // Acknowledge immediately — Meta requires fast 200
   res.sendStatus(200);
+
+  try {
+    const entry   = req.body?.entry?.[0];
+    const change  = entry?.changes?.[0];
+    const value   = change?.value;
+    const message = value?.messages?.[0];
+
+    if (!message) return;
+    if (message.type !== 'text') return;
+
+    const from_phone   = message.from;
+    const message_text = message.text?.body;
+    if (!from_phone || !message_text) return;
+
+    // Process async — do not await (Meta needs 200 before we finish)
+    processIncomingMessage({
+      from_phone,
+      message_text,
+      timestamp: new Date().toISOString(),
+    }).catch((err) => console.error('[whatsapp-bot] processIncomingMessage error:', err.message));
+
+  } catch (err) {
+    console.error('[whatsapp-bot] webhook parse error:', err.message);
+  }
 });
 
 // ─── POST /api/whatsapp/test ──────────────────────────────────────────────────
