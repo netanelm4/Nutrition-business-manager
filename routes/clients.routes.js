@@ -611,4 +611,118 @@ router.get('/:id/whatsapp-log', (req, res) => {
   }
 });
 
+// ─── POST /api/clients/:id/stop ───────────────────────────────────────────────
+
+router.post('/:id/stop', (req, res) => {
+  const { reason, reason_text } = req.body;
+  const VALID_REASONS = ['goal_achieved', 'cant_continue', 'not_suitable', 'other'];
+  if (!reason || !VALID_REASONS.includes(reason)) {
+    return fail(res, 400, 'reason must be one of: ' + VALID_REASONS.join(', '));
+  }
+  try {
+    const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
+    if (!client) return fail(res, 404, 'Client not found.');
+
+    db.prepare(`
+      UPDATE clients
+      SET status = 'ended',
+          stop_reason = ?,
+          stop_reason_text = ?,
+          stop_date = date('now'),
+          stopped_at = datetime('now')
+      WHERE id = ?
+    `).run(reason, reason_text || null, req.params.id);
+
+    const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
+    console.log(`[POST /clients/${req.params.id}/stop] reason=${reason}`);
+    return ok(res, updated);
+  } catch (err) {
+    console.error('[POST /clients/:id/stop]', err);
+    return fail(res, 500, 'Failed to stop client process.');
+  }
+});
+
+// ─── POST /api/clients/:id/freeze ─────────────────────────────────────────────
+
+router.post('/:id/freeze', (req, res) => {
+  const days = Number(req.body.days);
+  if (!days || days < 1) return fail(res, 400, 'days must be a positive number');
+  try {
+    const client = db.prepare('SELECT id, full_name FROM clients WHERE id = ?').get(req.params.id);
+    if (!client) return fail(res, 404, 'Client not found.');
+
+    const frozenUntil = db.prepare("SELECT date('now', ?) AS d").get(`+${days} days`).d;
+
+    db.prepare(`
+      UPDATE clients
+      SET status = 'frozen',
+          stop_reason = 'frozen',
+          frozen_until = ?,
+          stop_date = date('now'),
+          stopped_at = datetime('now')
+      WHERE id = ?
+    `).run(frozenUntil, req.params.id);
+
+    // Reminder recommendation — visible until the freeze expires
+    try {
+      db.prepare(
+        'DELETE FROM ai_recommendations WHERE client_id = ? AND type = ? AND is_dismissed = 0'
+      ).run(req.params.id, 'freeze_reminder');
+      db.prepare(`
+        INSERT INTO ai_recommendations
+          (client_id, type, priority, title, action_suggestion, expires_at)
+        VALUES (?, 'freeze_reminder', 'medium', ?, ?, ?)
+      `).run(
+        req.params.id,
+        `ההקפאה של ${client.full_name} מסתיימת ב-${frozenUntil}`,
+        'בדוק אם הלקוח מעוניין לחזור לתהליך',
+        frozenUntil
+      );
+    } catch (err) {
+      console.error('[freeze] recommendation insert failed:', err.message);
+    }
+
+    const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
+    console.log(`[POST /clients/${req.params.id}/freeze] frozen_until=${frozenUntil}`);
+    return ok(res, updated);
+  } catch (err) {
+    console.error('[POST /clients/:id/freeze]', err);
+    return fail(res, 500, 'Failed to freeze client process.');
+  }
+});
+
+// ─── POST /api/clients/:id/reactivate ────────────────────────────────────────
+
+router.post('/:id/reactivate', (req, res) => {
+  try {
+    const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
+    if (!client) return fail(res, 404, 'Client not found.');
+
+    db.prepare(`
+      UPDATE clients
+      SET status = 'active',
+          stop_reason = NULL,
+          stop_reason_text = NULL,
+          frozen_until = NULL,
+          stop_date = NULL,
+          stopped_at = NULL
+      WHERE id = ?
+    `).run(req.params.id);
+
+    // Dismiss any pending freeze reminders
+    try {
+      db.prepare(
+        "DELETE FROM ai_recommendations WHERE client_id = ? AND type IN ('freeze_reminder', 'freeze_expired') AND is_dismissed = 0"
+      ).run(req.params.id);
+    } catch {}
+
+    const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
+    console.log(`[POST /clients/${req.params.id}/reactivate]`);
+    return ok(res, updated);
+  } catch (err) {
+    console.error('[POST /clients/:id/reactivate]', err);
+    return fail(res, 500, 'Failed to reactivate client.');
+  }
+});
+
 module.exports = router;

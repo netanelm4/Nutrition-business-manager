@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight, fetchWeightLink } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight, fetchWeightLink, stopClient, freezeClient, reactivateClient } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -1358,6 +1358,151 @@ function formatWeekDate(dateStr) {
   return `${d.getUTCDate()}.${d.getUTCMonth() + 1}.${String(d.getUTCFullYear()).slice(2)}`;
 }
 
+// ─── Stop / Freeze / Reactivate process button ───────────────────────────────
+
+const STOP_OPTIONS = [
+  { value: 'goal_achieved',  label: '✅ השיג את המטרה' },
+  { value: 'cant_continue',  label: '🚫 החליט שלא רוצה/יכול להמשיך' },
+  { value: 'not_suitable',   label: '🤔 מרגיש שלא מתאים לו התהליך' },
+  { value: 'frozen',         label: '❄️ הקפאת תהליך' },
+];
+
+function StopProcessButton({ client, onSuccess }) {
+  const [open,      setOpen]      = useState(false);
+  const [reason,    setReason]    = useState('goal_achieved');
+  const [reasonText, setReasonText] = useState('');
+  const [freezeDays, setFreezeDays] = useState(30);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState(null);
+
+  const isStopped = client.status === 'ended' || client.status === 'frozen';
+
+  async function handleReactivate() {
+    setLoading(true);
+    try {
+      await reactivateClient(client.id);
+      onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      if (reason === 'frozen') {
+        await freezeClient(client.id, { days: Number(freezeDays) });
+      } else {
+        await stopClient(client.id, { reason, reason_text: reasonText.trim() || undefined });
+      }
+      setOpen(false);
+      onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (isStopped) {
+    return (
+      <button
+        type="button"
+        onClick={handleReactivate}
+        disabled={loading}
+        className="crm-btn crm-btn--sm"
+        style={{ background: 'var(--green)', borderColor: 'var(--green)', color: 'white' }}
+      >
+        {loading ? '...' : 'הפעל מחדש'}
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => { setOpen(true); setError(null); }}
+        className="crm-btn crm-btn--sm"
+        style={{ background: '#dc2626', borderColor: '#dc2626', color: 'white' }}
+      >
+        עצור תהליך
+      </button>
+
+      {open && (
+        <Modal title={`עצירת תהליך — ${client.full_name}`} onClose={() => setOpen(false)}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {STOP_OPTIONS.map((opt) => (
+                <label
+                  key={opt.value}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                    borderRadius: 8, cursor: 'pointer',
+                    border: `1.5px solid ${reason === opt.value ? '#567DBF' : 'var(--hairline)'}`,
+                    background: reason === opt.value ? '#eff6ff' : 'white',
+                  }}
+                >
+                  <input
+                    type="radio" name="stop_reason" value={opt.value}
+                    checked={reason === opt.value}
+                    onChange={() => setReason(opt.value)}
+                    style={{ accentColor: '#567DBF' }}
+                  />
+                  <span style={{ fontSize: 14 }}>{opt.label}</span>
+                </label>
+              ))}
+            </div>
+
+            {reason === 'frozen' ? (
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 }}>
+                  משך ההקפאה (ימים)
+                </label>
+                <input
+                  type="number" min="1" max="365" value={freezeDays}
+                  onChange={(e) => setFreezeDays(e.target.value)}
+                  style={{ width: 100, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--hairline)', fontSize: 14 }}
+                />
+              </div>
+            ) : (
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 }}>
+                  פרטים נוספים (אופציונלי)
+                </label>
+                <textarea
+                  value={reasonText} onChange={(e) => setReasonText(e.target.value)}
+                  rows={2} dir="auto"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--hairline)', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }}
+                />
+              </div>
+            )}
+
+            {error && <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>{error}</p>}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="submit" disabled={loading}
+                className="crm-btn crm-btn--primary"
+                style={{ flex: 1, background: '#dc2626', borderColor: '#dc2626' }}
+              >
+                {loading ? '...' : (reason === 'frozen' ? 'הקפא תהליך' : 'עצור תהליך')}
+              </button>
+              <button type="button" onClick={() => setOpen(false)} className="crm-btn" style={{ flex: 1 }}>
+                ביטול
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 // ─── Weight link button — shows modal with URL ────────────────────────────────
 
 function FoodBankLinkButton({ clientId }) {
@@ -1676,9 +1821,18 @@ export default function ClientDetail() {
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
-              <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-medium">
+              <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                client.status === 'frozen' ? 'bg-blue-200 text-blue-800' :
+                client.status === 'ended'  ? 'bg-gray-100 text-gray-600' :
+                'bg-blue-100 text-blue-700'
+              }`}>
                 {CLIENT_STATUS_LABEL[client.status] ?? client.status}
               </span>
+              {client.status === 'frozen' && client.frozen_until && (
+                <span style={{ fontSize: 11, color: '#2563eb', background: '#dbeafe', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
+                  מוקפא עד {new Date(client.frozen_until + 'T12:00:00Z').toLocaleDateString('he-IL')}
+                </span>
+              )}
               {client.phone && (
                 <a
                   href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
@@ -1692,6 +1846,13 @@ export default function ClientDetail() {
               <WhatsAppDropdown clientId={client.id} phone={client.phone} />
               <WeightLinkButton clientId={client.id} />
               <FoodBankLinkButton clientId={client.id} />
+              <StopProcessButton
+                client={client}
+                onSuccess={() => {
+                  queryClient.invalidateQueries({ queryKey: ['client', String(id)] });
+                  queryClient.invalidateQueries({ queryKey: ['clients'] });
+                }}
+              />
               <button
                 type="button"
                 onClick={() => setEditOpen(true)}

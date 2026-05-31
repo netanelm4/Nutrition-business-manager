@@ -1772,4 +1772,63 @@ try {
   `);
 } catch {}
 
+// process stop / freeze columns
+try { db.exec('ALTER TABLE clients ADD COLUMN stop_reason TEXT'); } catch {}
+try { db.exec('ALTER TABLE clients ADD COLUMN stop_reason_text TEXT'); } catch {}
+try { db.exec('ALTER TABLE clients ADD COLUMN stop_date TEXT'); } catch {}
+try { db.exec('ALTER TABLE clients ADD COLUMN frozen_until TEXT'); } catch {}
+try { db.exec('ALTER TABLE clients ADD COLUMN stopped_at TEXT DEFAULT NULL'); } catch {}
+
+// Expand clients.status CHECK to include 'frozen' (requires table recreation in SQLite)
+try {
+  const clientsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='clients'").get()?.sql || '';
+  if (!clientsSql.includes("'frozen'")) {
+    const existingCols = db.prepare('PRAGMA table_info(clients)').all().map((c) => c.name);
+    const colList = existingCols.join(', ');
+    db.exec('PRAGMA foreign_keys = OFF');
+    db.exec(`
+      CREATE TABLE clients_v2 (
+        id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+        full_name               TEXT    NOT NULL,
+        phone                   TEXT    DEFAULT '',
+        age                     INTEGER,
+        gender                  TEXT    CHECK (gender IN ('male', 'female', 'other')),
+        start_date              TEXT,
+        goal                    TEXT,
+        medical_notes           TEXT,
+        menu_sent               INTEGER NOT NULL DEFAULT 0,
+        menu_sent_date          TEXT,
+        initial_weight          REAL,
+        process_end_date        TEXT,
+        status                  TEXT    NOT NULL DEFAULT 'active'
+                                        CHECK (status IN ('active', 'ending_soon', 'ended', 'paused', 'frozen')),
+        payment_status          TEXT    DEFAULT 'unpaid',
+        package_price           REAL    DEFAULT 0,
+        converted_from_lead_id  INTEGER REFERENCES leads(id) ON DELETE SET NULL,
+        created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+        calendly_link           TEXT,
+        pending_intake_data     TEXT,
+        protocol_id             INTEGER REFERENCES protocols(id) ON DELETE SET NULL,
+        ai_summary              TEXT,
+        ai_summary_updated_at   DATETIME,
+        process_summary         TEXT,
+        weight_token            TEXT,
+        stop_reason             TEXT    CHECK (stop_reason IN ('goal_achieved', 'cant_continue', 'not_suitable', 'frozen', 'other')),
+        stop_reason_text        TEXT,
+        stop_date               TEXT,
+        frozen_until            TEXT,
+        stopped_at              TEXT    DEFAULT NULL
+      )
+    `);
+    db.exec(`INSERT INTO clients_v2 (${colList}) SELECT ${colList} FROM clients`);
+    db.exec('DROP TABLE clients');
+    db.exec('ALTER TABLE clients_v2 RENAME TO clients');
+    db.exec('PRAGMA foreign_keys = ON');
+    console.log('[migrate] clients table: added frozen status + stop columns');
+  }
+} catch (err) {
+  try { db.exec('PRAGMA foreign_keys = ON'); } catch {}
+  console.error('[migrate] clients CHECK migration failed:', err.message);
+}
+
 module.exports = db;

@@ -31,6 +31,7 @@ const menusRouter           = require('./routes/menus.routes');
 const aiRecommendationsRouter = require('./routes/ai-recommendations.routes');
 const weightRouter             = require('./routes/weight.routes');
 const whatsappBotRouter        = require('./routes/whatsapp-bot.routes');
+const statsRouter              = require('./routes/stats.routes');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
 const { loadStoredToken, syncCanceledEvents, pollNewBookings } = require('./services/google-calendar.service');
@@ -84,6 +85,7 @@ app.use('/api/food-bank',        foodBankPdfRouter);
 app.use('/api/menus',            menusRouter);
 app.use('/api/ai-recommendations', aiRecommendationsRouter);
 app.use('/api/weight',             weightRouter);
+app.use('/api/stats',              statsRouter);
 
 // Session sub-routes are mounted on the clients router (/:id/sessions, /:id/windows)
 // Direct session access (/api/sessions/:id) is mounted here for GET/PUT/POST insights

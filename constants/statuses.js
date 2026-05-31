@@ -3,6 +3,7 @@ const CLIENT_STATUS = Object.freeze({
   ENDING_SOON: 'ending_soon',
   ENDED: 'ended',
   PAUSED: 'paused',
+  FROZEN: 'frozen',
 });
 
 const LEAD_STATUS = Object.freeze({

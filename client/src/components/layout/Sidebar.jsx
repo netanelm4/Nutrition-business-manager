@@ -26,6 +26,7 @@ const Icons = {
   sparkle:  () => <Ic><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M6 18l2.5-2.5M15.5 8.5 18 6"/></Ic>,
   settings: () => <Ic><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></Ic>,
   food:     () => <Ic><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></Ic>,
+  stats:    () => <Ic><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-8"/></Ic>,
 };
 
 const WORK_NAV = [
@@ -36,9 +37,10 @@ const WORK_NAV = [
 ];
 
 const TOOLS_NAV = [
-  { to: '/protocols',  end: false, Icon: Icons.protocol,  label: 'פרוטוקולים'       },
-  { to: '/templates',  end: false, Icon: Icons.templates, label: 'תבניות WhatsApp'   },
-  { to: '/food-bank',  end: false, Icon: Icons.food,      label: 'מאגר מזון'         },
+  { to: '/protocols',   end: false, Icon: Icons.protocol,  label: 'פרוטוקולים'       },
+  { to: '/templates',   end: false, Icon: Icons.templates, label: 'תבניות WhatsApp'   },
+  { to: '/food-bank',   end: false, Icon: Icons.food,      label: 'מאגר מזון'         },
+  { to: '/statistics',  end: false, Icon: Icons.stats,     label: 'סטטיסטיקות'        },
 ];
 
 function NavItem({ to, end, Icon, label }) {

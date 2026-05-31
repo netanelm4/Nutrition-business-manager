@@ -41,10 +41,13 @@ export const fetchDashboard = () => request('GET', '/dashboard');
 // ── Clients ──────────────────────────────────────────────────────────────────
 export const fetchClients = (includeEnded = false) =>
   request('GET', `/clients${includeEnded ? '?include_ended=true' : ''}`);
-export const fetchClient = (id) => request('GET', `/clients/${id}`);
-export const createClient = (data) => request('POST', '/clients', data);
-export const updateClient = (id, data) => request('PUT', `/clients/${id}`, data);
-export const deleteClient = (id) => request('DELETE', `/clients/${id}`);
+export const fetchClient      = (id)       => request('GET',    `/clients/${id}`);
+export const createClient     = (data)     => request('POST',   '/clients', data);
+export const updateClient     = (id, data) => request('PUT',    `/clients/${id}`, data);
+export const deleteClient     = (id)       => request('DELETE', `/clients/${id}`);
+export const stopClient       = (id, body) => request('POST',   `/clients/${id}/stop`, body);
+export const freezeClient     = (id, body) => request('POST',   `/clients/${id}/freeze`, body);
+export const reactivateClient = (id)       => request('POST',   `/clients/${id}/reactivate`);
 
 // ── Session Windows ───────────────────────────────────────────────────────────
 export const fetchWindows = (clientId) => request('GET', `/clients/${clientId}/windows`);
@@ -241,6 +244,9 @@ export const fetchWeightLog  = (clientId)      => request('GET',    `/weight/${c
 export const addWeight       = (clientId, data) => request('POST',   `/weight/${clientId}`, data);
 export const deleteWeight    = (clientId, id)   => request('DELETE', `/weight/${clientId}/${id}`);
 export const fetchWeightLink = (clientId)      => request('GET',    `/clients/${clientId}/weight-link`);
+
+// ── Statistics ────────────────────────────────────────────────────────────────
+export const fetchStopReasons = () => request('GET', '/stats/stop-reasons');
 
 // ── AI Recommendations ────────────────────────────────────────────────────────
 export const fetchAIRecommendations  = ()   => request('GET',  '/ai-recommendations');

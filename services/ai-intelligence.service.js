@@ -411,6 +411,25 @@ async function analyzeClient(clientId) {
   }
 }
 
+// ─── Freeze expiry check (no Claude call — pure date logic) ──────────────────
+
+function checkFreezeExpired(clientId) {
+  const client = db.prepare('SELECT id, full_name, frozen_until FROM clients WHERE id = ?').get(clientId);
+  if (!client || !client.frozen_until) return;
+
+  const today = new Date().toISOString().slice(0, 10);
+  if (client.frozen_until <= today) {
+    saveRecommendation(
+      clientId,
+      'freeze_expired',
+      'urgent',
+      `ההקפאה של ${client.full_name} הסתיימה (${client.frozen_until})`,
+      null,
+      'בדוק אם הלקוח מעוניין לחזור לתהליך'
+    );
+  }
+}
+
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
 async function runAnalysis() {
@@ -423,6 +442,16 @@ async function runAnalysis() {
       await analyzeClient(id);
     } catch (e) {
       console.error(`[ai-intelligence] analyzeClient error for client_id=${id}:`, e.message);
+    }
+  }
+
+  // Check frozen clients for expired freezes
+  const frozenClients = db.prepare("SELECT id FROM clients WHERE status = 'frozen'").all();
+  for (const { id } of frozenClients) {
+    try {
+      checkFreezeExpired(id);
+    } catch (e) {
+      console.error(`[ai-intelligence] checkFreezeExpired error for client_id=${id}:`, e.message);
     }
   }
 

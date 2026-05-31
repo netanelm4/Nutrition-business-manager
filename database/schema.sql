@@ -33,11 +33,16 @@ CREATE TABLE IF NOT EXISTS clients (
   initial_weight          REAL,
   process_end_date        TEXT,
   status                  TEXT    NOT NULL DEFAULT 'active'
-                                  CHECK (status IN ('active', 'ending_soon', 'ended', 'paused')),
+                                  CHECK (status IN ('active', 'ending_soon', 'ended', 'paused', 'frozen')),
   payment_status          TEXT    DEFAULT 'unpaid',
   package_price           REAL    DEFAULT 0,
   converted_from_lead_id  INTEGER REFERENCES leads (id) ON DELETE SET NULL,
-  created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+  created_at              TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+  stop_reason             TEXT    CHECK (stop_reason IN ('goal_achieved', 'cant_continue', 'not_suitable', 'frozen', 'other')),
+  stop_reason_text        TEXT,
+  stop_date               TEXT,
+  frozen_until            TEXT,
+  stopped_at              TEXT    DEFAULT NULL
 );
 
 -- ─────────────────────────────────────────────

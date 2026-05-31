@@ -5,6 +5,7 @@ export const CLIENT_STATUS = Object.freeze({
   ENDING_SOON: 'ending_soon',
   ENDED: 'ended',
   PAUSED: 'paused',
+  FROZEN: 'frozen',
 });
 
 export const LEAD_STATUS = Object.freeze({
@@ -41,6 +42,7 @@ export const CLIENT_STATUS_LABEL = Object.freeze({
   ending_soon: 'מסיים בקרוב',
   ended: 'סיים',
   paused: 'מושהה',
+  frozen: 'מוקפא',
 });
 
 export const LEAD_STATUS_LABEL = Object.freeze({

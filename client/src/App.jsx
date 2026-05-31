@@ -13,6 +13,7 @@ import FoodBank from './pages/FoodBank';
 import MenuEditor from './pages/MenuEditor';
 import PublicWeight from './pages/PublicWeight';
 import PublicFoodBank from './pages/PublicFoodBank';
+import Statistics from './pages/Statistics';
 import Login from './pages/Login';
 
 export default function App() {
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="protocols" element={<Protocols />} />
           <Route path="calendly" element={<CalendlySettings />} />
           <Route path="food-bank" element={<FoodBank />} />
+          <Route path="statistics" element={<Statistics />} />
         </Route>
       </Routes>
     </BrowserRouter>
