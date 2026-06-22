@@ -2,6 +2,7 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const { calculateSessionWindows } = require('../utils/dates');
+const { AI_MODEL } = require('../config/ai');
 
 const DEFAULT_DB_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = process.env.DB_PATH || path.join(DEFAULT_DB_DIR, 'nutrition.db');
@@ -867,7 +868,7 @@ BMI: ${intake.weight && intake.height ? (intake.weight / ((Number(intake.height)
           const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
           const response = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: AI_MODEL,
             max_tokens: 1000,
             system: `You are a clinical nutrition assistant helping a licensed nutritionist prepare for a first session with a new client.
 
@@ -960,7 +961,7 @@ function scheduleProcessSummaryRepairs(database) {
           const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
           const message = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: AI_MODEL,
             max_tokens: 1500,
             system: `אתה תזונאי קליני מסכם תהליך טיפולי שהסתיים. החזר JSON בלבד: { "headline": "כותרת", "journey": "תיאור", "achievements": "הישגים", "recommendations": "המלצות", "closing": "משפט סיום" }. כתוב בעברית בלבד.`,
             messages: [{ role: 'user', content: lines.join('\n') + '\n\nכתוב סיכום תהליך.' }],
@@ -1009,7 +1010,7 @@ function scheduleCheckinMessageRepairs(database) {
           const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
           const message = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
+            model: AI_MODEL,
             max_tokens: 500,
             system: `אתה תזונאי קליני שכותב הודעת צ'ק-אין חמה ללקוח בסיום פגישה. כתוב 3-5 משפטים בגוף שני, בסגנון אישי וחם. כתוב בעברית בלבד, ללא כוכביות.`,
             messages: [{

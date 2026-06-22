@@ -1,6 +1,7 @@
 const express  = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
 const db        = require('../database/db');
+const { AI_MODEL } = require('../config/ai');
 
 const router = express.Router();
 
@@ -119,7 +120,7 @@ router.post('/ai-scan', async (req, res) => {
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
     const response  = await anthropic.messages.create({
-      model:      'claude-sonnet-4-20250514',
+      model:      AI_MODEL,
       max_tokens: 2000,
       system: `אתה עוזר AI לתזונאי קליני לניהול משימות יומיות של מעקב אחר לקוחות.
 

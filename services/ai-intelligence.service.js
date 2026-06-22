@@ -1,7 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const db = require('../database/db');
 
-const MODEL = 'claude-sonnet-4-20250514';
+const { AI_MODEL: MODEL } = require('../config/ai');
 const MAX_TOKENS = 600;
 
 let _client = null;

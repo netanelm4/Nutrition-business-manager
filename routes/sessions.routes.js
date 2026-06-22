@@ -4,7 +4,7 @@ const db         = require('../database/db');
 const { generateInsights } = require('../services/ai.service');
 const { parseJsonArray } = require('../utils/parseJson');
 
-const AI_MODEL = 'claude-sonnet-4-20250514';
+const { AI_MODEL } = require('../config/ai');
 let _aiClient = null;
 function getAIClient() {
   if (!_aiClient) _aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });

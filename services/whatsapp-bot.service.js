@@ -1,6 +1,7 @@
 const db = require('../database/db');
 const Anthropic = require('@anthropic-ai/sdk');
 const { sendWhatsAppMessage } = require('./whatsapp-send.service');
+const { AI_MODEL } = require('../config/ai');
 
 const ai = new Anthropic();
 
@@ -161,7 +162,7 @@ async function callWithTools(client, messageText, context) {
     `העדפות: כשרות=${kashrut}, צמחוני=${vegetarian}, מזונות לא מועדפים=${dislikedFoods}`;
 
   const aiResponse = await ai.messages.create({
-    model:       'claude-sonnet-4-20250514',
+    model:       AI_MODEL,
     max_tokens:  1024,
     system:      SYSTEM_PROMPT,
     tools:       TOOLS,

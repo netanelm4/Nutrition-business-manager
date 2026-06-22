@@ -3,7 +3,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const db        = require('../database/db');
 
 const router   = express.Router();
-const AI_MODEL = 'claude-sonnet-4-20250514';
+const { AI_MODEL } = require('../config/ai');
 
 let _client = null;
 function getClient() {

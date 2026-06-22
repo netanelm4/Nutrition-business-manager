@@ -5,7 +5,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 const router = express.Router();
 
-const MODEL = 'claude-sonnet-4-20250514';
+const { AI_MODEL } = require('../config/ai');
 const MAX_TOKENS = 1500;
 
 let _client = null;
@@ -255,7 +255,7 @@ ${intakeSection}
 }`;
 
     const message = await getAIClient().messages.create({
-      model: MODEL,
+      model: AI_MODEL,
       max_tokens: MAX_TOKENS,
       system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],

@@ -1,7 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { formatDateHebrew } = require('../utils/dates');
 
-const MODEL = 'claude-sonnet-4-20250514';
+const { AI_MODEL: MODEL } = require('../config/ai');
 const MAX_TOKENS = 1500;
 
 let _client = null;
@@ -142,11 +142,17 @@ async function generateInsights(client, previousSessions, currentHighlights) {
 
   const prompt = buildPrompt(client, previousSessions, currentHighlights);
 
-  const message = await getClient().messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    messages: [{ role: 'user', content: prompt }],
-  });
+  let message;
+  try {
+    message = await getClient().messages.create({
+      model: MODEL,
+      max_tokens: MAX_TOKENS,
+      messages: [{ role: 'user', content: prompt }],
+    });
+  } catch (err) {
+    console.error('[ai.service] generateInsights error:', err?.status, err?.error ?? err?.message);
+    throw err;
+  }
 
   const responseText = message.content[0]?.text;
   if (!responseText) {

@@ -7,7 +7,7 @@ const { computeClientAlerts } = require('../services/alerts.service');
 const { CLIENT_STATUS, TASK_STATUS } = require('../constants/statuses');
 const { parseJsonArray } = require('../utils/parseJson');
 
-const AI_MODEL = 'claude-sonnet-4-20250514';
+const { AI_MODEL } = require('../config/ai');
 let _aiClient = null;
 function getAIClient() {
   if (!_aiClient) _aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -135,12 +135,6 @@ router.get('/', (req, res) => {
   try {
     const conditions = [];
     const params = [];
-
-    // Exclude ended clients unless ?include_ended=true
-    if (req.query.include_ended !== 'true') {
-      conditions.push('status != ?');
-      params.push(CLIENT_STATUS.ENDED);
-    }
 
     // Filter by lead conversion source when ?converted_from_lead_id=X
     if (req.query.converted_from_lead_id !== undefined) {

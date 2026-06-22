@@ -9,7 +9,7 @@ const router = express.Router();
 
 // ── AI assessment ─────────────────────────────────────────────────────────────
 
-const AI_MODEL = 'claude-sonnet-4-20250514';
+const { AI_MODEL } = require('../config/ai');
 
 let _aiClient = null;
 function getAIClient() {

@@ -2,6 +2,7 @@ const express    = require('express');
 const router     = express.Router();
 const db         = require('../database/db');
 const Anthropic  = require('@anthropic-ai/sdk');
+const { AI_MODEL } = require('../config/ai');
 
 let _ai = null;
 function getAI() {
@@ -467,7 +468,7 @@ router.post('/:id/generate', async (req, res) => {
     let rawResponse;
     try {
       const msg = await getAI().messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: AI_MODEL,
         max_tokens: 4096,
         system: systemPrompt,
         messages: [{ role: 'user', content: userMsg }],
