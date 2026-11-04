@@ -1,6 +1,7 @@
 const {
-  nowUtcISO, addHoursUtcISO, israelLocalToUtcISO, israelDateOf,
+  nowUtcISO, addHoursUtcISO, israelLocalToUtcISO, israelDateOf, todayISO,
 } = require('../utils/dates');
+const { runMorningBrief, morningBriefDueAt } = require('./agent/morning-brief.service');
 const { upsertAction } = require('./action-queue.service');
 const { sendMeetingReminder } = require('./reminders.service');
 const { publish } = require('./event-bus.service');
@@ -170,6 +171,17 @@ function reconcileAIBackfill(database) {
   return stats;
 }
 
+// ── Morning brief: one job per Israel day at 08:00 (late start → runs now) ──
+function reconcileMorningBrief(database) {
+  const date = todayISO();
+  const due = morningBriefDueAt(date);
+  const now = nowUtcISO();
+  const result = scheduleJob(database, {
+    type: 'morning_brief', runAt: due < now ? now : due, payload: { date }, dedupeKey: `morning_brief:${date}`,
+  });
+  return { scheduled: result === 'created' ? 1 : 0 };
+}
+
 /** Derive the jobs that should exist from current data. Idempotent. */
 function reconcileJobs(database) {
   const stats = {
@@ -177,8 +189,10 @@ function reconcileJobs(database) {
     menuSla: reconcileMenuSla(database),
     freezeEnds: reconcileFreezeEnds(database),
     aiBackfill: reconcileAIBackfill(database),
+    morningBrief: reconcileMorningBrief(database),
   };
-  const created = stats.reminders.scheduled + stats.menuSla.scheduled + stats.freezeEnds.scheduled + stats.aiBackfill.scheduled;
+  const created = stats.reminders.scheduled + stats.menuSla.scheduled + stats.freezeEnds.scheduled
+    + stats.aiBackfill.scheduled + stats.morningBrief.scheduled;
   if (created) console.log(`[jobs] Scheduled ${created} job(s)`, JSON.stringify(stats));
   return stats;
 }
@@ -187,6 +201,11 @@ function reconcileJobs(database) {
 
 const HANDLERS = {
   meeting_reminder_24h: async (database, { meetingId }) => sendMeetingReminder(database, meetingId),
+
+  morning_brief: async (database, { date }) => {
+    if (date !== todayISO()) return { skipped: 'stale_date' }; // a missed day is not briefed late
+    return runMorningBrief(database);
+  },
 
   ai_backfill_assessment: async (database, { sessionId }) => {
     const session = database.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);

@@ -49,16 +49,17 @@ function upsertAction(database, item) {
     due_at: item.dueAt || now,
     source: item.source || 'rule',
     dedupe_key: item.dedupeKey,
+    payload: item.payload ? JSON.stringify(item.payload) : null,
   };
 
   if (!existing) {
     const res = database.prepare(`
       INSERT INTO action_queue
         (kind, category, title, body, client_id, lead_id, meeting_id, phone, message, link,
-         priority, status, due_at, source, dedupe_key, created_at, updated_at)
+         priority, status, due_at, source, dedupe_key, payload, created_at, updated_at)
       VALUES
         (@kind, @category, @title, @body, @client_id, @lead_id, @meeting_id, @phone, @message, @link,
-         @priority, 'pending', @due_at, @source, @dedupe_key, @now, @now)
+         @priority, 'pending', @due_at, @source, @dedupe_key, @payload, @now, @now)
     `).run({ ...values, now });
     publish(database, 'inbox.created', { entityType: 'action', entityId: res.lastInsertRowid, payload: { kind: item.kind, dedupeKey: item.dedupeKey } });
     return { id: res.lastInsertRowid, created: true };
@@ -142,6 +143,15 @@ function countOpen(database) {
   ).get(nowUtcISO()).n;
 }
 
+// Actions that run when an item of a given kind is approved (agent proposals
+// register theirs from services/agent/proposals.js). A handler that throws
+// leaves the item pending with the error, so nothing is marked done unless it
+// actually happened.
+const APPROVAL_HANDLERS = {};
+function registerApprovalHandler(kind, handler) {
+  APPROVAL_HANDLERS[kind] = handler;
+}
+
 // Side effects of approving specific kinds
 const ON_APPROVED = {
   meeting_reminder: (database, item) => {
@@ -182,9 +192,22 @@ async function approveAction(database, id, by = 'user') {
   if (!item) { const e = new Error('Inbox item not found.'); e.status = 404; throw e; }
   if (item.status !== OPEN) return { id, status: item.status, delivered: null };
 
+  let executed = null;
+  const handler = APPROVAL_HANDLERS[item.kind];
+  if (handler) {
+    try {
+      executed = await handler(database, item, item.payload ? JSON.parse(item.payload) : {});
+    } catch (err) {
+      database.prepare('UPDATE action_queue SET send_error = ?, updated_at = ? WHERE id = ?')
+        .run(err.message, nowUtcISO(), id);
+      publish(null, 'inbox.changed');
+      return { id, status: 'pending', delivered: null, error: err.message };
+    }
+  }
+
   if (item.category !== 'message' || !item.message || !item.phone) {
     markResolved(database, item, 'done', by);
-    return { id, status: 'done', delivered: null };
+    return { id, status: 'done', delivered: null, result: executed };
   }
 
   const link = generateLink(item.phone, item.message);
@@ -224,6 +247,7 @@ function snoozeAction(database, id, untilIso) {
 }
 
 module.exports = {
+  registerApprovalHandler,
   upsertAction,
   resolveAction,
   resolveStale,

@@ -2142,4 +2142,46 @@ function repairMigrateRecommendations(database) {
 
 repairMigrateRecommendations(db);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 7: AI agent — server-side conversation history + tool audit log
+// ─────────────────────────────────────────────────────────────────────────────
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS agent_conversations (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      title      TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    -- Append-only: content is the exact JSON sent to / received from the API
+    -- (thinking blocks included) so later turns replay it unchanged.
+    CREATE TABLE IF NOT EXISTS agent_messages (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL REFERENCES agent_conversations(id) ON DELETE CASCADE,
+      role            TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+      content         TEXT NOT NULL,
+      created_at      TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_messages_conv ON agent_messages(conversation_id, id);
+    -- Every tool call the agent made (read, proposal or autonomous write)
+    CREATE TABLE IF NOT EXISTS agent_tool_log (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER,
+      user_name       TEXT,
+      tool_name       TEXT NOT NULL,
+      kind            TEXT NOT NULL,
+      input           TEXT,
+      output          TEXT,
+      is_error        INTEGER NOT NULL DEFAULT 0,
+      created_at      TEXT NOT NULL
+    );
+  `);
+} catch (err) {
+  console.error('[migration] agent tables failed:', err.message);
+}
+
+// Agent proposals carry the action to execute on approval
+try { db.exec('ALTER TABLE action_queue ADD COLUMN payload TEXT'); } catch { /* exists */ }
+
 module.exports = db;

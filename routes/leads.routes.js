@@ -1,9 +1,8 @@
 const express = require('express');
 const db = require('../database/db');
 const { LEAD_STATUS } = require('../constants/statuses');
-const { createCalendarEvent } = require('../services/google-calendar.service');
+const { createManualMeeting } = require('../services/meeting.service');
 const { convertLeadToClient } = require('../services/client-lifecycle.service');
-const { israelLocalToUtcISO, addHoursUtcISO } = require('../utils/dates');
 
 const router = express.Router();
 
@@ -163,55 +162,10 @@ router.post('/:id/meeting', async (req, res) => {
       return fail(res, 400, 'date, time, and event_type are required.');
     }
 
-    // date/time are Israel wall-clock from the form → canonical UTC instants
-    const startISO = israelLocalToUtcISO(date, time);
-    if (!startISO) return fail(res, 400, 'Invalid date or time.');
-    const endISO = addHoursUtcISO(1, new Date(startISO));
-
-    // Generate a unique ID for manual events
-    const eventId = `manual_${Date.now()}_${lead.id}`;
-
-    db.prepare(`
-      INSERT INTO meetings
-        (id, client_id, lead_id, event_type, invitee_name, invitee_phone,
-         start_time, end_time, status, source, notes)
-      VALUES
-        (@id, NULL, @lead_id, @event_type, @invitee_name, @invitee_phone,
-         @start_time, @end_time, 'active', 'manual', @notes)
-    `).run({
-      id: eventId,
-      lead_id: lead.id,
-      event_type,
-      invitee_name: lead.full_name,
-      invitee_phone: lead.phone || null,
-      start_time: startISO,
-      end_time:   endISO,
-      notes: notes || null,
-    });
-
-    // Try to add to Google Calendar — silently skip if not connected
-    try {
-      const gcal = await createCalendarEvent({
-        title:       `פגישה עם ${lead.full_name}`,
-        startTime:   startISO,
-        endTime:     endISO,
-        description: notes || '',
-        location:    '',
-      });
-
-      if (gcal.success && gcal.eventId) {
-        db.prepare('UPDATE meetings SET google_event_id = ? WHERE id = ?')
-          .run(gcal.eventId, eventId);
-        console.log(`[google] Calendar event created: ${gcal.eventId}`);
-      } else if (gcal.error !== 'not_connected' && gcal.error !== 'not_configured') {
-        console.error('[google] createCalendarEvent failed:', gcal.error);
-      }
-    } catch (err) {
-      console.error('[google] Unexpected error creating calendar event:', err.message);
-    }
-
-    return ok(res, { event_id: eventId });
+    const meeting = await createManualMeeting(db, { leadId: lead.id, date, time, eventType: event_type, notes: notes || null });
+    return ok(res, { event_id: meeting.id });
   } catch (err) {
+    if (err.status === 400) return fail(res, 400, err.message);
     console.error('[POST /leads/:id/meeting]', err);
     return fail(res, 500, 'Failed to schedule meeting.');
   }

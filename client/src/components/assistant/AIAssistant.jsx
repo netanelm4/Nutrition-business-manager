@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { chatWithAssistant } from '../../lib/api';
+import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
+import { streamAgentChat, fetchAgentConversation } from '../../lib/api';
+import { AGENT_TOOL_LABEL, AGENT_QUICK_PROMPTS, AGENT_CONVERSATION_KEY } from '../../constants/agent';
 
 // ─── Markdown renderer (no dangerouslySetInnerHTML) ───────────────────────────
 
@@ -78,18 +81,55 @@ function LoadingDots() {
 
 // ─── Quick action chips ───────────────────────────────────────────────────────
 
-const QUICK_CHIPS = [
-  'מה יש לי היום?',
-  'מי הלקוחות שלא קבעו פגישה?',
-  'תכין אותי לפגישה הבאה',
-];
+const QUICK_CHIPS = AGENT_QUICK_PROMPTS;
+
+// ─── Tool activity chip (read / proposal / autonomous write) ─────────────────
+
+function ToolChip({ msg, onNavigate }) {
+  const label = AGENT_TOOL_LABEL[msg.name] || msg.name;
+  const tone = msg.isError ? 'var(--red-ink)' : msg.kind === 'propose' ? 'var(--blue-ink)' : 'var(--ink-3)';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 12, color: tone }}>
+      <span aria-hidden="true">{msg.pending ? '…' : msg.isError ? '!' : '✓'}</span>
+      <span>{label}</span>
+      {msg.summary && <span style={{ color: 'var(--ink-4)' }}>· {msg.summary}</span>}
+      {msg.proposalId && (
+        <Link to="/" onClick={onNavigate} style={{ color: 'var(--blue)', textDecoration: 'underline' }}>
+          לתיבת הפעולות
+        </Link>
+      )}
+    </div>
+  );
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function AIAssistant({ isOpen, onClose }) {
+  // history items: { role: 'user'|'assistant', content } | { role: 'tool', name, kind, summary, proposalId, isError, pending }
   const [history,   setHistory]   = useState([]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationId, setConversationId] = useState(() => Number(localStorage.getItem(AGENT_CONVERSATION_KEY)) || null);
+  const queryClient = useQueryClient();
+  const abortRef = useRef(null);
+
+  // Reload the stored conversation (server-side history) when the drawer opens
+  useEffect(() => {
+    if (!isOpen || !conversationId || history.length > 0) return;
+    fetchAgentConversation(conversationId)
+      .then((data) => setHistory((data?.messages || []).map((m) => (
+        m.role === 'tool' ? { role: 'tool', name: m.name } : { role: m.role, content: m.text }
+      ))))
+      .catch(() => { localStorage.removeItem(AGENT_CONVERSATION_KEY); setConversationId(null); });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, conversationId]);
+
+  function newConversation() {
+    abortRef.current?.abort();
+    localStorage.removeItem(AGENT_CONVERSATION_KEY);
+    setConversationId(null);
+    setHistory([]);
+  }
 
   const chatEndRef  = useRef(null);
   const textareaRef = useRef(null);
@@ -112,28 +152,59 @@ export default function AIAssistant({ isOpen, onClose }) {
     const msg = text.trim();
     if (!msg || isLoading) return;
 
-    const userMsg    = { role: 'user', content: msg };
-    const newHistory = [...history, userMsg];
-
-    setHistory(newHistory);
+    setHistory((h) => [...h, { role: 'user', content: msg }]);
     setInputText('');
     setIsLoading(true);
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    const controller = new AbortController();
+    abortRef.current = controller;
+    // Streaming text appends to the last assistant bubble; a tool event closes it
+    const appendText = (delta) => setHistory((h) => {
+      const last = h[h.length - 1];
+      if (last?.role === 'assistant' && last.streaming) {
+        return [...h.slice(0, -1), { ...last, content: last.content + delta }];
+      }
+      return [...h, { role: 'assistant', content: delta, streaming: true }];
+    });
+    const closeBubble = (h) => h.map((m) => (m.streaming ? { ...m, streaming: false } : m));
 
     try {
-      const { reply } = await chatWithAssistant(msg, history);
-      setHistory([...newHistory, { role: 'assistant', content: reply }]);
+      await streamAgentChat({
+        message: msg,
+        conversationId,
+        signal: controller.signal,
+        onEvent: (type, data) => {
+          if (type === 'conversation' && data?.id) {
+            setConversationId(data.id);
+            localStorage.setItem(AGENT_CONVERSATION_KEY, String(data.id));
+          } else if (type === 'text') {
+            appendText(data.text);
+          } else if (type === 'tool_start') {
+            setHistory((h) => [...closeBubble(h), { role: 'tool', id: data.id, name: data.name, pending: true }]);
+          } else if (type === 'tool_result') {
+            setHistory((h) => h.map((m) => (m.role === 'tool' && m.id === data.id
+              ? { ...m, pending: false, kind: data.kind, summary: data.summary, isError: data.is_error, proposalId: data.proposal_id }
+              : m)));
+          } else if (type === 'error') {
+            setHistory((h) => [...closeBubble(h), { role: 'assistant', content: data.message || 'אירעה שגיאה. אפשר לנסות שוב.' }]);
+            if (data.code === 'conversation_full') {
+              localStorage.removeItem(AGENT_CONVERSATION_KEY);
+              setConversationId(null);
+            }
+          } else if (type === 'done') {
+            setHistory(closeBubble);
+            if (data?.proposals?.length) queryClient.invalidateQueries({ queryKey: ['inbox'] });
+          }
+        },
+      });
     } catch (err) {
-      setHistory([...newHistory, {
-        role: 'assistant',
-        content: 'מצטער, אירעה שגיאה. אנא נסה שוב.',
-      }]);
+      if (err.name !== 'AbortError') {
+        setHistory((h) => [...closeBubble(h), { role: 'assistant', content: 'אירעה שגיאה בחיבור לעוזר. אפשר לנסות שוב.' }]);
+      }
     } finally {
       setIsLoading(false);
+      abortRef.current = null;
     }
   }
 
@@ -200,19 +271,19 @@ export default function AIAssistant({ isOpen, onClose }) {
             {history.length > 0 && (
               <button
                 type="button"
-                onClick={() => setHistory([])}
+                onClick={newConversation}
                 style={{ fontSize: 12, color: 'var(--ink-3)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 6 }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = ''}
               >
-                נקה שיחה
+                שיחה חדשה
               </button>
             )}
             <button
               type="button"
               onClick={onClose}
               style={{ width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--ink-3)', lineHeight: 1 }}
-              aria-label="סגור"
+              aria-label="סגירה"
             >
               ×
             </button>
@@ -227,10 +298,10 @@ export default function AIAssistant({ isOpen, onClose }) {
               <div>
                 <p style={{ fontWeight: 600, fontSize: 15, color: 'var(--ink-1)', margin: 0 }}>שלום נתנאל</p>
                 <p style={{ fontSize: 13, color: 'var(--ink-3)', marginTop: 8, lineHeight: 1.6 }}>
-                  אני מחובר למערכת שלך ומכיר את כל הלקוחות,<br />
-                  הלידים והמשימות שלך.
+                  העוזר מחובר לכל המערכת: מטופלים, לידים, יומן ותיבת הפעולות.<br />
+                  פעולות שמשנות נתונים מגיעות כהצעה לאישור בתיבה.
                 </p>
-                <p style={{ fontSize: 13, color: 'var(--ink-3)', margin: '4px 0 0' }}>איך אוכל לעזור?</p>
+                <p style={{ fontSize: 13, color: 'var(--ink-3)', margin: '4px 0 0' }}>במה אפשר לעזור?</p>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', marginTop: 4 }}>
                 {QUICK_CHIPS.map((chip) => (
@@ -254,12 +325,18 @@ export default function AIAssistant({ isOpen, onClose }) {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {history.map((msg, i) => (
+              {history.map((msg, i) => msg.role === 'tool' ? (
+                <div key={i} style={{ display: 'flex', justifyContent: 'flex-end', paddingInline: 6 }}>
+                  <ToolChip msg={msg} onNavigate={onClose} />
+                </div>
+              ) : (
                 <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-start' : 'flex-end' }}>
                   <div
                     style={{
                       padding: '10px 14px',
                       maxWidth: msg.role === 'user' ? '80%' : '90%',
+                      minWidth: 0,
+                      overflowWrap: 'anywhere',
                       borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                       background: msg.role === 'user' ? 'var(--blue)' : 'var(--surface-2)',
                       color: msg.role === 'user' ? 'var(--on-accent)' : 'var(--ink-1)',
@@ -274,7 +351,7 @@ export default function AIAssistant({ isOpen, onClose }) {
                 </div>
               ))}
 
-              {isLoading && (
+              {isLoading && !history[history.length - 1]?.streaming && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <div style={{ background: 'var(--surface-2)', borderRadius: '14px 14px 14px 4px', padding: '10px 14px' }}>
                     <LoadingDots />
@@ -295,7 +372,7 @@ export default function AIAssistant({ isOpen, onClose }) {
               value={inputText}
               onChange={handleTextareaChange}
               onKeyDown={handleKeyDown}
-              placeholder="שאל אותי משהו..."
+              placeholder="אפשר לשאול כל דבר על המערכת..."
               disabled={isLoading}
               rows={1}
               dir="rtl"
@@ -319,7 +396,7 @@ export default function AIAssistant({ isOpen, onClose }) {
                 opacity: (!inputText.trim() || isLoading) ? 0.4 : 1,
                 transition: 'opacity 0.15s',
               }}
-              aria-label="שלח"
+              aria-label="שליחה"
             >
               <svg viewBox="0 0 20 20" fill="currentColor" width="15" height="15">
                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />

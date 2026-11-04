@@ -36,7 +36,7 @@ function syncPaymentStatus(clientId) {
   }
 
   db.prepare('UPDATE clients SET payment_status = ? WHERE id = ?').run(status, clientId);
-  return { total, status };
+  return { total: totalPaid, status }; // was `total` (undefined → ReferenceError after the update)
 }
 
 // ── GET /api/clients/:id/payments ─────────────────────────────────────────────
@@ -121,3 +121,4 @@ router.delete('/payments/:id', (req, res) => {
 });
 
 module.exports = router;
+module.exports.syncPaymentStatus = syncPaymentStatus; // used by agent proposals

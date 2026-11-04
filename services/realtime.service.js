@@ -25,7 +25,8 @@ function addClient(req, res) {
     try { res.write(': ping\n\n'); } catch { /* closed */ }
   }, HEARTBEAT_MS);
 
-  req.on('close', () => {
+  // response 'close' = the browser went away (request 'close' only means its body was read)
+  res.on('close', () => {
     clearInterval(heartbeat);
     clients.delete(client);
   });

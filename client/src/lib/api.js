@@ -186,9 +186,34 @@ export const closeEngagement   = (id)              => request('POST', `/engageme
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const repairAIAssessments = () => request('POST', '/admin/repair-ai-assessments');
 
-// ── AI Assistant ──────────────────────────────────────────────────────────────
-export const chatWithAssistant = (message, history) =>
-  request('POST', '/assistant/chat', { message, history });
+// ── AI agent ──────────────────────────────────────────────────────────────────
+export const fetchAgentConversations = ()   => request('GET',    '/agent/conversations');
+export const fetchAgentConversation  = (id) => request('GET',    `/agent/conversations/${id}`);
+export const deleteAgentConversation = (id) => request('DELETE', `/agent/conversations/${id}`);
+
+/**
+ * One agent turn, streamed. onEvent(type, data) receives: conversation, text,
+ * tool_start, tool_result, error, done. Resolves when the stream ends.
+ */
+export async function streamAgentChat({ message, conversationId, onEvent, signal }) {
+  const res = await fetch(`${BASE}/agent/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    body: JSON.stringify({ message, ...(conversationId ? { conversation_id: conversationId } : {}) }),
+    signal,
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('auth_token');
+    window.location.href = '/';
+    return;
+  }
+  if (!res.ok || !res.body) {
+    let msg = `HTTP ${res.status}`;
+    try { msg = (await res.json()).error || msg; } catch { /* not JSON */ }
+    throw new Error(msg);
+  }
+  await readEventStream(res, onEvent);
+}
 
 // ── Food Bank ─────────────────────────────────────────────────────────────────
 export const fetchFoodCategories = ()             => request('GET',    '/food-bank/categories');
@@ -279,6 +304,33 @@ export const snoozeInboxItem   = (id, hours)    => request('POST', `/inbox/${id}
 export const batchInbox        = (ids, action)  => request('POST', '/inbox/batch', { ids, action });
 export const refreshInbox      = ()             => request('POST', '/inbox/refresh');
 
+// ── Server-Sent Events reader (fetch body stream → onEvent(type, json)) ───────
+async function readEventStream(res, onEvent) {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buf.indexOf('\n\n')) !== -1) {
+      const frame = buf.slice(0, sep);
+      buf = buf.slice(sep + 2);
+      let type = 'message';
+      let data = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event: ')) type = line.slice(7);
+        else if (line.startsWith('data: ')) data += line.slice(6);
+      }
+      if (!data) continue; // comment / heartbeat
+      let parsed;
+      try { parsed = JSON.parse(data); } catch { continue; } // malformed frame
+      onEvent(type, parsed);
+    }
+  }
+}
+
 // ── Live updates (SSE) ────────────────────────────────────────────────────────
 // fetch() + stream reader so the session token travels in the Authorization
 // header (EventSource cannot send headers). Returns an AbortController.
@@ -291,27 +343,7 @@ export function openEventStream(onEvent, onClose) {
         signal: ctrl.signal,
       });
       if (!res.ok || !res.body) throw new Error(`stream HTTP ${res.status}`);
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = '';
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += decoder.decode(value, { stream: true });
-        let sep;
-        while ((sep = buf.indexOf('\n\n')) !== -1) {
-          const frame = buf.slice(0, sep);
-          buf = buf.slice(sep + 2);
-          let type = 'message';
-          let data = '';
-          for (const line of frame.split('\n')) {
-            if (line.startsWith('event: ')) type = line.slice(7);
-            else if (line.startsWith('data: ')) data += line.slice(6);
-          }
-          if (!data) continue; // comment / heartbeat
-          try { onEvent(type, JSON.parse(data)); } catch { /* malformed frame */ }
-        }
-      }
+      await readEventStream(res, onEvent);
       onClose?.(null);
     } catch (err) {
       if (err.name !== 'AbortError') onClose?.(err);

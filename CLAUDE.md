@@ -97,7 +97,7 @@ Local dev server runs on: http://localhost:3001
 - Public routes (no auth): mounted BEFORE requireAuth in server.js
 - Auth: single password via Authorization: Bearer header
 - DB: SQLite at DB_PATH env variable (default: data/nutrition.db)
-- AI insights: claude-sonnet-4-20250514, Hebrew responses only
+- AI: claude-sonnet-5-5 for the interactive agent and tool use, claude-haiku-5-5 for background jobs (config/ai.js, per-task effort). Hebrew responses only; client-facing text follows prompts/voice.md
 - WhatsApp: WHATSAPP_MODE=deeplink (wa.me links, manual send)
 - Calendly: webhook at /api/calendly/webhook (mounted before auth)
 
@@ -106,7 +106,7 @@ Local dev server runs on: http://localhost:3001
 - database/db.js — DB singleton + all migrations on startup
 - database/seed.js — idempotent seeds (check before insert)
 - services/whatsapp.service.js — ALL WhatsApp logic here
-- services/ai.service.js — ALL Claude API calls here
+- services/ai/ai.service.js — ALL Claude API calls here (generateStructured / generateText); generators in services/ai/generators.js; agent in services/agent/
 - services/reminders.service.js — Calendly reminder checks (runs every 30min)
 - routes/public.routes.js — public endpoints (no auth)
 - routes/calendly.routes.js — Calendly webhook + upcoming sessions

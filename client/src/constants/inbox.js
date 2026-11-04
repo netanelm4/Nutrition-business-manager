@@ -1,5 +1,5 @@
 // Inbox (action queue) display metadata — mirrors the kinds produced on the
-// server (services/inbox-rules, jobs, ai-intelligence, whatsapp-bot).
+// server (services/inbox-rules, jobs, ai-intelligence, whatsapp-bot, agent).
 
 export const INBOX_KIND_META = Object.freeze({
   session_due:      { label: 'פגישה לקבוע',        tone: 'blue'  },
@@ -14,6 +14,18 @@ export const INBOX_KIND_META = Object.freeze({
   bot_draft:        { label: 'טיוטת בוט לאישור',   tone: 'blue'  },
   whatsapp_flag:    { label: 'דגל אדום',           tone: 'red'   },
   food_submitted:   { label: 'מזון שהוגש',         tone: 'muted' },
+  morning_brief:       { label: 'תדריך בוקר',      tone: 'violet' },
+  meeting_prep:        { label: 'הכנה לפגישה',     tone: 'blue'   },
+  brief_lead_followup: { label: 'מעקב ליד (טיוטה)', tone: 'muted'  },
+  agent_convert_lead_to_client: { label: 'הצעת סוכן: המרת ליד',      tone: 'violet' },
+  agent_update_lead_status:     { label: 'הצעת סוכן: סטטוס ליד',     tone: 'violet' },
+  agent_schedule_meeting:       { label: 'הצעת סוכן: פגישה',         tone: 'violet' },
+  agent_draft_whatsapp:         { label: 'הצעת סוכן: הודעה',         tone: 'violet' },
+  agent_schedule_followup:      { label: 'הצעת סוכן: משימת מעקב',    tone: 'violet' },
+  agent_log_session_notes:      { label: 'הצעת סוכן: תיעוד פגישה',   tone: 'violet' },
+  agent_assign_protocol:        { label: 'הצעת סוכן: פרוטוקול',      tone: 'violet' },
+  agent_create_menu_draft:      { label: 'הצעת סוכן: טיוטת תפריט',   tone: 'violet' },
+  agent_record_payment:         { label: 'הצעת סוכן: תשלום',         tone: 'violet' },
 });
 
 export const AI_KIND_META = Object.freeze({ label: 'המלצת AI', tone: 'violet' });
