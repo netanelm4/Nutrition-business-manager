@@ -1,41 +1,21 @@
 const express   = require('express');
 const path      = require('path');
 const fs        = require('fs');
-const Anthropic = require('@anthropic-ai/sdk');
 const db        = require('../database/db');
 
 const router   = express.Router();
-const { AI_MODEL } = require('../config/ai');
+const { generateStructured } = require('../services/ai/ai.service');
+const { ClientSummarySchema, generateProcessSummary, EVIDENCE } = require('../services/ai/generators');
 const LABS_DIR = path.join(__dirname, '..', 'data', 'labs');
 
-let _aiClient = null;
-function getAIClient() {
-  if (!_aiClient) _aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _aiClient;
-}
 
 function ok(res, data)              { return res.json({ success: true, data }); }
 function fail(res, status, message) { return res.status(status).json({ success: false, error: message }); }
 
-const SUMMARY_SYSTEM_PROMPT = `אתה עוזר קליני לתזונאי מוסמך.
-בהתבסס על כלל הנתונים שסופקו על הלקוח — פרופיל, אנמנזה, תוצאות מעבדה, היסטוריית פגישות, תשלומים ופרוטוקול — הפק סיכום קליני מקיף ועדכני.
-
-החזר JSON בלבד, ללא טקסט נוסף לפני או אחרי, בפורמט הבא:
-{
-  "clinical_summary": "סיכום קליני קצר — פרופיל תזונתי, BMI, TDEE, מצבים רפואיים ותרופות עיקריות",
-  "focus_points": "נקודות מיקוד לפגישה הבאה — מה חשוב לבדוק ולחזק, עד 4 נקודות",
-  "flags": "דגלים לתשומת לב — חסמים, תבניות חוזרות, דגלים קליניים, עד 3 נקודות",
-  "recommendations": "המלצות טיפוליות — כיוון טיפול, שינויים מוצעים, עד 4 נקודות",
-  "tasks": [
-    { "text": "משימה קלינית מוצעת", "priority": "high" }
-  ]
-}
-
-כללים:
-- tasks: עד 5 משימות, priority יכול להיות "high", "medium" או "low"
-- כתוב בעברית בלבד
-- אל תבצע אבחנה רפואית
-- בסס על WHO, AND, AHA, EASD ומחקר עדכני`;
+const SUMMARY_SYSTEM_PROMPT = `You are a clinical assistant to a licensed dietitian.
+From all the data provided about the client (profile, anamnesis, lab results, session history, payments and protocol), write a comprehensive, up-to-date clinical summary.
+focus_points: up to 4 points. flags: up to 3 points. recommendations: up to 4 points. tasks: up to 5 suggested clinical tasks, each with a priority.
+${EVIDENCE}`;
 
 function buildClientSummaryPrompt(client, intake, sessions, payments, protocol) {
   const lines = [];
@@ -210,24 +190,12 @@ router.post('/clients/:id/ai-summary', async (req, res) => {
       text: buildClientSummaryPrompt(client, intake, sessions, payments, protocol),
     });
 
-    const message = await getAIClient().messages.create({
-      model: AI_MODEL,
-      max_tokens: 2000,
+    const parsed = await generateStructured({
+      task: 'client_summary',
       system: SUMMARY_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userContent }],
+      schema: ClientSummarySchema,
     });
-
-    const rawText = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-
-    // Parse JSON response
-    let parsed;
-    try {
-      const cleaned = rawText.replace(/```(?:json)?\s*/g, '').replace(/```\s*$/g, '').trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      console.error('[ai-summary] Failed to parse AI response:', rawText.slice(0, 300));
-      return fail(res, 500, 'שגיאה בעיבוד תגובת ה-AI.');
-    }
 
     const summary = {
       clinical_summary:  parsed.clinical_summary  || '',
@@ -235,7 +203,7 @@ router.post('/clients/:id/ai-summary', async (req, res) => {
       flags:             parsed.flags             || '',
       recommendations:   parsed.recommendations   || '',
     };
-    const tasks = Array.isArray(parsed.tasks) ? parsed.tasks : [];
+    const tasks = parsed.tasks.slice(0, 5);
     const now   = new Date().toISOString();
 
     // Persist to DB
@@ -277,19 +245,7 @@ router.get('/clients/:id/ai-summary', (req, res) => {
 
 // ─── POST /api/clients/:id/process-summary ────────────────────────────────────
 
-const PROCESS_SUMMARY_SYSTEM_PROMPT = `אתה תזונאי קליני מסכם תהליך טיפולי שהסתיים.
-כתוב סיכום תהליך מקצועי, חם ומועיל, שמתאר את מסע הלקוח.
-
-החזר JSON בלבד ללא טקסט נוסף:
-{
-  "headline": "כותרת קצרה לסיכום (שורה אחת)",
-  "journey": "תיאור המסע הטיפולי — נקודת ההתחלה, מה עבר הלקוח, איפה הוא כיום",
-  "achievements": "הישגים עיקריים — מה השתנה, מה הלקוח השיג",
-  "recommendations": "המלצות להמשך — איך לשמר את ההישגים ומה לעשות בהמשך",
-  "closing": "משפט סיום חם ומחזק"
-}
-
-כתוב בעברית בלבד. הישג = גם שינוי התנהגותי/קוגניטיבי, לא רק ירידה במשקל.`;
+// Process summary prompt + schema: services/ai/generators.js (generateProcessSummary)
 
 router.post('/clients/:id/process-summary', async (req, res) => {
   try {
@@ -297,52 +253,7 @@ router.post('/clients/:id/process-summary', async (req, res) => {
     const client   = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId);
     if (!client) return fail(res, 404, 'לקוח לא נמצא.');
 
-    const sessions = db.prepare(
-      'SELECT * FROM sessions WHERE client_id = ? ORDER BY session_number ASC'
-    ).all(clientId);
-
-    const lines = [];
-    lines.push(`שם: ${client.full_name}`);
-    if (client.goal)           lines.push(`מטרה: ${client.goal}`);
-    if (client.initial_weight) lines.push(`משקל התחלתי: ${client.initial_weight} ק"ג`);
-    if (client.start_date)     lines.push(`תחילת טיפול: ${client.start_date}`);
-    lines.push(`מספר פגישות: ${sessions.length}`);
-    lines.push('');
-
-    // Last weight from sessions
-    const lastSession = sessions.at(-1);
-    if (lastSession?.weight) lines.push(`משקל בפגישה אחרונה: ${lastSession.weight} ק"ג`);
-
-    for (const s of sessions) {
-      lines.push(`\nפגישה ${s.session_number} (${s.session_date || 'לא ידוע'})`);
-      if (s.highlights) lines.push(`דגשים: ${s.highlights}`);
-      try {
-        const tasks = JSON.parse(s.tasks || '[]');
-        const done = Array.isArray(tasks) ? tasks.filter((t) => t.status === 'done').map((t) => t.text) : [];
-        if (done.length) lines.push(`משימות שהושלמו: ${done.join(', ')}`);
-      } catch {}
-    }
-
-    const message = await getAIClient().messages.create({
-      model: AI_MODEL,
-      max_tokens: 1500,
-      system: PROCESS_SUMMARY_SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: lines.join('\n') + '\n\nכתוב סיכום תהליך.' }],
-    });
-
-    const rawText = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-
-    let parsed;
-    try {
-      const cleaned = rawText.replace(/```(?:json)?\s*/g, '').replace(/```\s*$/g, '').trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      console.error('[process-summary] Failed to parse AI response:', rawText.slice(0, 300));
-      return fail(res, 500, 'שגיאה בעיבוד תגובת ה-AI.');
-    }
-
-    db.prepare('UPDATE clients SET process_summary = ? WHERE id = ?')
-      .run(JSON.stringify(parsed), clientId);
+    const parsed = await generateProcessSummary(db, clientId);
 
     return ok(res, parsed);
   } catch (err) {

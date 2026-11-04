@@ -4,6 +4,7 @@ const {
 const { upsertAction } = require('./action-queue.service');
 const { sendMeetingReminder } = require('./reminders.service');
 const { publish } = require('./event-bus.service');
+const { assessIntake, checkinMessage, generateProcessSummary, safeJson } = require('./ai/generators');
 
 // ─── Scheduled jobs ──────────────────────────────────────────────────────────
 // One-off timed work, persisted in scheduled_jobs so restarts/deploys lose
@@ -127,14 +128,57 @@ function reconcileFreezeEnds(database) {
   return stats;
 }
 
+// ── AI backfill (moved out of database/db.js) ────────────────────────────────
+// Existing records that should have AI output get it through background jobs
+// (Haiku). One job per record (dedupe key) — a done or failed job is never
+// re-created, so a persistent failure cannot loop and keep spending.
+const AI_BACKFILL_PER_RUN = 10;
+const AI_BACKFILL_SPACING_MS = 60 * 1000;
+
+function aiAvailable() {
+  return process.env.AI_MOCK === '1' || !!process.env.ANTHROPIC_API_KEY;
+}
+
+function reconcileAIBackfill(database) {
+  const stats = { scheduled: 0 };
+  if (!aiAvailable()) return stats;
+  let slot = 0;
+  const runAt = () => new Date(Date.now() + (slot++) * AI_BACKFILL_SPACING_MS).toISOString();
+  const queue = (type, key, payload) => {
+    if (scheduleJob(database, { type, runAt: runAt(), payload, dedupeKey: key }) === 'created') stats.scheduled++;
+    else slot--; // existing job: keep spacing compact
+  };
+
+  for (const r of database.prepare(`
+    SELECT s.id FROM sessions s JOIN session_intakes si ON si.session_id = s.id
+    WHERE s.session_number = 1 AND (s.ai_insights IS NULL OR s.ai_insights NOT LIKE '%initial_assessment%')
+    ORDER BY s.id DESC LIMIT ?`).all(AI_BACKFILL_PER_RUN)) {
+    queue('ai_backfill_assessment', `ai_backfill_assessment:session:${r.id}`, { sessionId: r.id });
+  }
+  for (const r of database.prepare(`
+    SELECT id FROM clients WHERE status = 'ended' AND (process_summary IS NULL OR process_summary = '')
+    ORDER BY id DESC LIMIT ?`).all(AI_BACKFILL_PER_RUN)) {
+    queue('ai_backfill_process_summary', `ai_backfill_process_summary:client:${r.id}`, { clientId: r.id });
+  }
+  for (const r of database.prepare(`
+    SELECT id FROM sessions
+    WHERE (checkin_message IS NULL OR checkin_message = '') AND highlights IS NOT NULL AND highlights != ''
+      AND (status IS NULL OR status = 'held')
+    ORDER BY id DESC LIMIT ?`).all(AI_BACKFILL_PER_RUN)) {
+    queue('ai_backfill_checkin', `ai_backfill_checkin:session:${r.id}`, { sessionId: r.id });
+  }
+  return stats;
+}
+
 /** Derive the jobs that should exist from current data. Idempotent. */
 function reconcileJobs(database) {
   const stats = {
     reminders: reconcileMeetingReminders(database),
     menuSla: reconcileMenuSla(database),
     freezeEnds: reconcileFreezeEnds(database),
+    aiBackfill: reconcileAIBackfill(database),
   };
-  const created = stats.reminders.scheduled + stats.menuSla.scheduled + stats.freezeEnds.scheduled;
+  const created = stats.reminders.scheduled + stats.menuSla.scheduled + stats.freezeEnds.scheduled + stats.aiBackfill.scheduled;
   if (created) console.log(`[jobs] Scheduled ${created} job(s)`, JSON.stringify(stats));
   return stats;
 }
@@ -143,6 +187,42 @@ function reconcileJobs(database) {
 
 const HANDLERS = {
   meeting_reminder_24h: async (database, { meetingId }) => sendMeetingReminder(database, meetingId),
+
+  ai_backfill_assessment: async (database, { sessionId }) => {
+    const session = database.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);
+    if (!session) return { skipped: 'missing' };
+    const insights = safeJson(session.ai_insights, []);
+    if (Array.isArray(insights) && insights.some((i) => i.type === 'initial_assessment')) return { skipped: 'exists' };
+    const intake = database.prepare('SELECT * FROM session_intakes WHERE session_id = ?').get(sessionId);
+    const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(session.client_id);
+    if (!intake || !client) return { skipped: 'no_intake' };
+    const text = await assessIntake(intake, client, { task: 'backfill_assessment' });
+    const fresh = safeJson(database.prepare('SELECT ai_insights FROM sessions WHERE id = ?').get(sessionId)?.ai_insights, []);
+    const list = (Array.isArray(fresh) ? fresh : []).filter((i) => i.type !== 'initial_assessment');
+    list.unshift({ text, saved_for_next: false, type: 'initial_assessment' });
+    database.prepare('UPDATE sessions SET ai_insights = ? WHERE id = ?').run(JSON.stringify(list), sessionId);
+    console.log(`[repair] AI assessment generated for session ${sessionId}`);
+    return { generated: true };
+  },
+
+  ai_backfill_process_summary: async (database, { clientId }) => {
+    const c = database.prepare('SELECT process_summary, status FROM clients WHERE id = ?').get(clientId);
+    if (!c || c.process_summary || c.status !== 'ended') return { skipped: true };
+    await generateProcessSummary(database, clientId, { task: 'backfill_process_summary' });
+    console.log(`[repair] Process summary generated for client ${clientId}`);
+    return { generated: true };
+  },
+
+  ai_backfill_checkin: async (database, { sessionId }) => {
+    const session = database.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);
+    if (!session || session.checkin_message) return { skipped: true };
+    const client = database.prepare('SELECT * FROM clients WHERE id = ?').get(session.client_id);
+    if (!client) return { skipped: 'no_client' };
+    const text = await checkinMessage(client, session, { task: 'backfill_checkin' });
+    database.prepare('UPDATE sessions SET checkin_message = ? WHERE id = ?').run(text, sessionId);
+    console.log(`[repair] Check-in message generated for session ${sessionId}`);
+    return { generated: true };
+  },
 
   menu_sla_due: async (database, { clientId }) => {
     const client = database.prepare('SELECT id, full_name, status, menu_sent FROM clients WHERE id = ?').get(clientId);

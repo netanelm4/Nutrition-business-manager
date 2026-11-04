@@ -1,10 +1,8 @@
 const db = require('../database/db');
-const Anthropic = require('@anthropic-ai/sdk');
 const { sendWhatsAppMessage } = require('./whatsapp-send.service');
-const { AI_MODEL } = require('../config/ai');
+const { getClient, requestParams, withVoice, logUsage } = require('./ai/ai.service');
 const { upsertAction } = require('./action-queue.service');
 
-const ai = new Anthropic();
 
 // ─── Phone normalization ──────────────────────────────────────────────────────
 
@@ -130,17 +128,9 @@ const TOOLS = [
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `אתה עוזר לדיאטן נתנאל מלכה לטפל בהודעות מלקוחות.
-השתמש בכלים המתאימים לפי סוג ההודעה.
-
-סגנון נתנאל לתגובות:
-- כפל אותיות: "מעולהה", "סגוררר"
-- מילות מפתח: "סגור", "יאללה", "אליפות", "מדהים"
-- אמוג׳י: 💪🏽 🙏🏽 🙌🏼 — לא יותר מ-2
-- קצר וממוקד
-- לא שיפוטי
-
-כשאתה לא בטוח — השתמש ב-flag_for_attention. עדיף לדגל יותר מדי מאשר פחות מדי.`;
+const SYSTEM_PROMPT = withVoice(`You help dietitian Netanel Malka handle incoming WhatsApp messages from his clients.
+Pick the tool that fits the message. Clinical answers are drafts for Netanel's approval, never final.
+When unsure, use flag_for_attention: flagging too often is better than missing something.`);
 
 // ─── Claude tool-use call ─────────────────────────────────────────────────────
 
@@ -162,15 +152,19 @@ async function callWithTools(client, messageText, context) {
     `פרוטוקול: ${protocolName}\n` +
     `העדפות: כשרות=${kashrut}, צמחוני=${vegetarian}, מזונות לא מועדפים=${dislikedFoods}`;
 
-  const aiResponse = await ai.messages.create({
-    model:       AI_MODEL,
-    max_tokens:  1024,
+  const aiResponse = await getClient().beta.messages.create({
+    ...requestParams('whatsapp_bot'),
     system:      SYSTEM_PROMPT,
     tools:       TOOLS,
     tool_choice: { type: 'auto' },
     messages:    [{ role: 'user', content: userContent }],
   });
 
+  logUsage('whatsapp_bot', aiResponse);
+  if (aiResponse.stop_reason !== 'tool_use') {
+    // refusal, truncation or plain text → a human handles it
+    return { tool: 'forward_to_natanel', input: { reason: `model stop: ${aiResponse.stop_reason}` } };
+  }
   const toolUse = aiResponse.content.find((block) => block.type === 'tool_use');
   if (!toolUse) {
     return { tool: 'forward_to_natanel', input: { reason: 'no tool selected by model' } };
@@ -292,7 +286,7 @@ async function processIncomingMessage({ from_phone, message_text, timestamp, mes
     } catch (err) {
       console.error('[whatsapp-bot] weight insert failed:', err.message);
     }
-    const confirmMsg = `מעולה! שקילה של ${input.weight} ק״ג נרשמה 💪🏽`;
+    const confirmMsg = `השקילה של ${input.weight} ק״ג נרשמה, תודה.`;
     result  = { action: 'send_to_client', to_phone: from_phone, message: confirmMsg };
     logType = 'auto_reply';
 

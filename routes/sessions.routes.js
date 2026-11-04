@@ -1,19 +1,12 @@
 const express   = require('express');
-const Anthropic  = require('@anthropic-ai/sdk');
 const db         = require('../database/db');
-const { generateInsights } = require('../services/ai.service');
+const { sessionInsights, checkinMessage } = require('../services/ai/generators');
 const { parseJsonArray } = require('../utils/parseJson');
 const { SESSION_STATUS } = require('../constants/statuses');
 const { todayISO, israelDateOf } = require('../utils/dates');
 const { isValidSessionStatus, autoMarkHeldSessions } = require('../services/session-lifecycle.service');
 const { publish } = require('../services/event-bus.service');
 
-const { AI_MODEL } = require('../config/ai');
-let _aiClient = null;
-function getAIClient() {
-  if (!_aiClient) _aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _aiClient;
-}
 
 const router = express.Router();
 
@@ -187,7 +180,7 @@ router.post('/:id/insights', async (req, res) => {
       .map(serializeSession);
 
     const soapNotes = parseSoapNotes(session.soap_notes);
-    const { insights, flags } = await generateInsights(client, previousSessions, session.highlights, soapNotes);
+    const { insights, flags } = await sessionInsights(client, previousSessions, session.highlights, soapNotes);
 
     // Persist generated insights back to the session
     db.prepare('UPDATE sessions SET ai_insights = @ai_insights, ai_flags = @ai_flags WHERE id = @id').run({
@@ -213,28 +206,7 @@ router.post('/:id/checkin-message', async (req, res) => {
     const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(session.client_id);
     if (!client) return fail(res, 404, 'Client not found.');
 
-    const highlights = session.highlights || '';
-    const soapNotes  = parseSoapNotes(session.soap_notes);
-    const sessionSummary = [
-      highlights ? `דגשים: ${highlights}` : null,
-      soapNotes?.plan    ? `תוכנית: ${soapNotes.plan.trim()}`   : null,
-      soapNotes?.assessment ? `הערכה: ${soapNotes.assessment.trim()}` : null,
-    ].filter(Boolean).join('\n') || 'פגישה בלי תיעוד מפורט';
-
-    const message = await getAIClient().messages.create({
-      model: AI_MODEL,
-      max_tokens: 500,
-      system: `אתה תזונאי קליני שכותב הודעת צ'ק-אין חמה ללקוח בסיום פגישה.
-כתוב הודעת ווטסאפ קצרה (3-5 משפטים) בגוף שני, בסגנון אישי, חם ומקצועי.
-אל תזכיר המלצות תזונתיות ספציפיות — רק חיזוק ועידוד.
-כתוב בעברית בלבד, ללא כוכביות או סמלים מיוחדים.`,
-      messages: [{
-        role: 'user',
-        content: `פרטי הלקוח: ${client.full_name}, פגישה ${session.session_number}.\n${sessionSummary}\nכתוב הודעת צ'ק-אין.`,
-      }],
-    });
-
-    const text = message.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    const text = await checkinMessage(client, session);
     if (!text) return fail(res, 500, 'לא התקבלה תגובה מה-AI.');
 
     db.prepare('UPDATE sessions SET checkin_message = ? WHERE id = ?').run(text, session.id);

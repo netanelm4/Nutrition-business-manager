@@ -1,15 +1,10 @@
 const express    = require('express');
 const router     = express.Router();
 const db         = require('../database/db');
-const Anthropic  = require('@anthropic-ai/sdk');
-const { AI_MODEL } = require('../config/ai');
+const { generateStructured } = require('../services/ai/ai.service');
+const { MenuSchema } = require('../services/ai/generators');
 const { publish } = require('../services/event-bus.service');
 
-let _ai = null;
-function getAI() {
-  if (!_ai) _ai = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _ai;
-}
 
 const ok   = (res, data)         => res.json({ ok: true, ...data });
 const fail = (res, status, msg)  => res.status(status).json({ ok: false, error: msg });
@@ -309,11 +304,12 @@ router.post('/:id/generate', async (req, res) => {
     ).get(menu.client_id);
 
     if (!intake) {
-      const lead = db.prepare('SELECT id FROM leads WHERE converted_client_id = ? LIMIT 1').get(menu.client_id);
-      if (lead) {
+      // The lead link lives on the client (clients.converted_from_lead_id);
+      // leads.converted_client_id never existed and crashed this route.
+      if (client.converted_from_lead_id) {
         intake = db.prepare(
           'SELECT * FROM lead_intakes WHERE lead_id = ? ORDER BY created_at DESC LIMIT 1'
-        ).get(lead.id);
+        ).get(client.converted_from_lead_id);
       }
     }
 
@@ -362,7 +358,7 @@ router.post('/:id/generate', async (req, res) => {
    - לתת הנחיות ברורות לטיפול בארוחות המשפחתיות/חגיגיות
 
 6. הערות התנהלות — חלק חובה בכל תפריט:
-   - כתוב בגוף שני אישי ("אתה/את") המותאם למגדר הלקוח
+   - פנייה ישירה ללקוח בניסוח ניטרלי מגדרית ככל האפשר, בלי צורות לוכסן (כמו "אתה/את")
    - לכלול:
      * התנהלות במסעדות (איך לבנות צלחת, מה להזמין)
      * התנהלות בארוחות חג/אירועים (איך להתכונן מראש)
@@ -485,31 +481,16 @@ router.post('/:id/generate', async (req, res) => {
 
     userMsg += `\nבנה תפריט יומי מלא.`;
 
-    // Call Claude
-    let rawResponse;
-    try {
-      const msg = await getAI().messages.create({
-        model: AI_MODEL,
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: userMsg }],
-      });
-      rawResponse = msg.content[0]?.text ?? '';
-    } catch (apiErr) {
-      return res.status(502).json({ ok: false, error: 'Claude API error', details: apiErr.message });
-    }
-
-    // Parse JSON
+    // Call Claude — structured output validated against MenuSchema
     let parsed;
     try {
-      const jsonText = rawResponse.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
-      parsed = JSON.parse(jsonText);
-    } catch {
-      return res.status(500).json({ ok: false, error: 'JSON parse failed', raw: rawResponse });
+      parsed = await generateStructured({ task: 'menu_generate', system: systemPrompt, prompt: userMsg, schema: MenuSchema });
+    } catch (apiErr) {
+      return res.status(apiErr.status === 422 ? 422 : 502).json({ ok: false, error: 'Claude API error', details: apiErr.message });
     }
 
     if (!parsed?.meals || !Array.isArray(parsed.meals)) {
-      return res.status(500).json({ ok: false, error: 'Unexpected AI response shape', raw: rawResponse });
+      return res.status(500).json({ ok: false, error: 'Unexpected AI response shape' });
     }
 
     // Write to DB atomically — correct column names throughout

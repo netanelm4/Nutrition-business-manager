@@ -1,7 +1,7 @@
 const express  = require('express');
-const Anthropic = require('@anthropic-ai/sdk');
 const db        = require('../database/db');
-const { AI_MODEL } = require('../config/ai');
+const { generateStructured } = require('../services/ai/ai.service');
+const { DailyTasksSchema } = require('../services/ai/generators');
 
 const router = express.Router();
 
@@ -118,10 +118,8 @@ router.post('/ai-scan', async (req, res) => {
       };
     });
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const response  = await anthropic.messages.create({
-      model:      AI_MODEL,
-      max_tokens: 2000,
+    const { tasks: generated } = await generateStructured({
+      task: 'daily_tasks_scan',
       system: `אתה עוזר AI לתזונאי קליני לניהול משימות יומיות של מעקב אחר לקוחות.
 
 נתח את נתוני הלקוחות שסופקו וצור משימות מעקב ספציפיות ופעולתיות להיום.
@@ -132,31 +130,14 @@ router.post('/ai-scan', async (req, res) => {
   3 (דחוף + לא חשוב): משימות אדמיניסטרטיביות, תזכורות תיאום
   4 (לא דחוף + לא חשוב): צ'ק-אין כללי, מעקב בסדר עדיפות נמוך
 
-החזר אך ורק מערך JSON:
-[
-  {
-    "text": "תיאור משימה ספציפי בעברית",
-    "quadrant": 1,
-    "client_id": 123,
-    "client_name": "שם הלקוח"
-  }
-]
-
 היה ספציפי — הפנה לנתונים אמיתיים מהפגישות.
 מקסימום 15 משימות סה"כ.
 צור רק משימות בעלות ערך קליני אמיתי.
 ענה בעברית בלבד.`,
-      messages: [{
-        role:    'user',
-        content: `נתוני לקוחות פעילים להיום (${today}):\n\n${JSON.stringify(clientData, null, 2)}`,
-      }],
+      prompt: `נתוני לקוחות פעילים להיום (${today}):\n\n${JSON.stringify(clientData, null, 2)}`,
+      schema: DailyTasksSchema,
     });
-
-    const rawText  = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-    const jsonMatch = rawText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return ok(res, { added: 0, tasks: [] });
-
-    const aiTasks = JSON.parse(jsonMatch[0]);
+    const aiTasks = generated.slice(0, 15);
 
     const existingToday = db.prepare(
       "SELECT client_id, text FROM daily_tasks WHERE date = ? AND source = 'ai'"

@@ -1,41 +1,17 @@
-const Anthropic = require('@anthropic-ai/sdk');
 const db = require('../database/db');
 
-const { AI_MODEL: MODEL } = require('../config/ai');
 const { nowUtcISO, addHoursUtcISO, isoWeekKey } = require('../utils/dates');
 const { upsertAction } = require('./action-queue.service');
-const MAX_TOKENS = 600;
+const { generateStructured, withVoice } = require('./ai/ai.service');
+const { RecommendationSchema } = require('./ai/generators');
 
-let _client = null;
-function getClient() {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _client;
-}
-
-const STYLE_SYSTEM = `אתה נתנאל מלכה, דיאטן קליני מוסמך. כשאתה כותב הודעות ללקוחות:
-- טון חם, לא רשמי, מעודד ואנרגטי
-- כפל אותיות להדגשה: "מעולהה", "יופיי", "כן כן", "בדיוקק"
-- השתמש רק באימוג'ים הבאים: 💪🏽 🙏🏽 🙌🏼
-- כתיבה בגוף שני זכר
-- תגובות קצרות — עד 2-3 משפטים
-- עברית בלבד`;
-
-// ─── Claude helper ────────────────────────────────────────────────────────────
+// Background triage (Haiku, task client_analysis). Drafts follow prompts/voice.md
+// (replaces the old style prompt that asked for emojis and masculine forms).
+const ANALYSIS_SYSTEM = withVoice(`You assist Netanel Malka, a licensed clinical dietitian, by reviewing one client's recent data.
+Decide whether action is needed (recommend), draft a short message to the client when relevant (message_draft, or an empty string), and suggest what Netanel should do clinically (action_suggestion).`);
 
 async function callClaude(userPrompt) {
-  const message = await getClient().messages.create({
-    model: MODEL,
-    max_tokens: MAX_TOKENS,
-    system: STYLE_SYSTEM,
-    messages: [{ role: 'user', content: userPrompt }],
-  });
-  const text = message.content[0]?.text || '';
-  const cleaned = text.replace(/```(?:json)?\s*/g, '').replace(/```\s*$/g, '').trim();
-  try {
-    return JSON.parse(cleaned);
-  } catch {
-    throw new Error(`AI response was not valid JSON: ${text.slice(0, 200)}`);
-  }
+  return generateStructured({ task: 'client_analysis', system: ANALYSIS_SYSTEM, prompt: userPrompt, schema: RecommendationSchema });
 }
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────

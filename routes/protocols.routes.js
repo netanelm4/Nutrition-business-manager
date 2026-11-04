@@ -1,18 +1,11 @@
 const express = require('express');
 const db = require('../database/db');
 const { parseJsonArray } = require('../utils/parseJson');
-const Anthropic = require('@anthropic-ai/sdk');
 
 const router = express.Router();
 
-const { AI_MODEL } = require('../config/ai');
-const MAX_TOKENS = 1500;
-
-let _client = null;
-function getAIClient() {
-  if (!_client) _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  return _client;
-}
+const { generateStructured } = require('../services/ai/ai.service');
+const { ProtocolPersonalizationSchema } = require('../services/ai/generators');
 
 function ok(res, data) {
   return res.json({ success: true, data });
@@ -246,33 +239,14 @@ ${tasksBullet}
 הערות רפואיות: ${client.medical_notes || 'אין'}
 היסטוריית פגישות: ${sessionHistorySummary}
 ${intakeSection}
-אנא התאם את הפרוטוקול לפרופיל זה.
-החזר JSON בלבד במבנה הבא:
-{
-  "personalized_highlights": ["...", "..."],
-  "personalized_tasks": ["...", "..."],
-  "clinical_notes": "הערות קליניות חשובות אם יש"
-}`;
+אנא התאם את הפרוטוקול לפרופיל זה.`;
 
-    const message = await getAIClient().messages.create({
-      model: AI_MODEL,
-      max_tokens: MAX_TOKENS,
+    const parsed = await generateStructured({
+      task: 'protocol_personalize',
       system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
+      prompt: userPrompt,
+      schema: ProtocolPersonalizationSchema,
     });
-
-    const responseText = message.content[0]?.text;
-    if (!responseText) return fail(res, 500, 'תגובה ריקה מה-AI.');
-
-    // Strip markdown fences if present
-    const cleaned = responseText.replace(/```(?:json)?\s*/g, '').replace(/```\s*$/g, '').trim();
-
-    let parsed;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      return fail(res, 500, 'תגובת ה-AI אינה בפורמט תקין. נסה שוב.');
-    }
 
     return ok(res, {
       personalized_highlights: Array.isArray(parsed.personalized_highlights) ? parsed.personalized_highlights : [],
