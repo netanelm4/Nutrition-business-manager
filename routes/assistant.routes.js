@@ -28,12 +28,12 @@ router.post('/chat', async (req, res) => {
              c.payment_status, c.package_price,
              c.protocol_id, p.name AS protocol_name,
              (SELECT COUNT(*) FROM sessions s
-              WHERE s.client_id = c.id) AS sessions_done,
+              WHERE s.client_id = c.id AND s.status = 'held') AS sessions_done,
              (SELECT session_date FROM sessions s
-              WHERE s.client_id = c.id
+              WHERE s.client_id = c.id AND s.status = 'held'
               ORDER BY session_number DESC LIMIT 1) AS last_session_date,
              (SELECT highlights FROM sessions s
-              WHERE s.client_id = c.id
+              WHERE s.client_id = c.id AND s.status = 'held'
               ORDER BY session_number DESC LIMIT 1) AS last_session_highlights
       FROM clients c
       LEFT JOIN protocols p ON p.id = c.protocol_id

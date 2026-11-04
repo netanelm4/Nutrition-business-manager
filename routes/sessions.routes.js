@@ -3,6 +3,9 @@ const Anthropic  = require('@anthropic-ai/sdk');
 const db         = require('../database/db');
 const { generateInsights } = require('../services/ai.service');
 const { parseJsonArray } = require('../utils/parseJson');
+const { SESSION_STATUS } = require('../constants/statuses');
+const { todayISO, israelDateOf } = require('../utils/dates');
+const { isValidSessionStatus, autoMarkHeldSessions } = require('../services/session-lifecycle.service');
 
 const { AI_MODEL } = require('../config/ai');
 let _aiClient = null;
@@ -64,7 +67,7 @@ router.put('/:id', (req, res) => {
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
     if (!session) return fail(res, 404, 'Session not found.');
 
-    const allowedFields = ['session_date', 'weight', 'highlights', 'ai_insights', 'ai_flags', 'tasks', 'soap_notes'];
+    const allowedFields = ['session_date', 'weight', 'highlights', 'ai_insights', 'ai_flags', 'tasks', 'soap_notes', 'status'];
     const updates = {};
 
     for (const f of allowedFields) {
@@ -80,6 +83,20 @@ router.put('/:id', (req, res) => {
     if (Object.keys(updates).length === 0) {
       return fail(res, 400, 'No updatable fields provided.');
     }
+    if ('status' in updates && !isValidSessionStatus(updates.status)) {
+      return fail(res, 400, 'status must be one of: scheduled, held, no_show, canceled.');
+    }
+    if (updates.session_date) updates.session_date = israelDateOf(updates.session_date);
+
+    // Writing clinical notes / weight on a booked session whose day has come
+    // is the confirmation that it took place → held.
+    const effectiveDate = updates.session_date || session.session_date;
+    const recordsContent = (updates.highlights && String(updates.highlights).trim())
+      || (updates.weight !== undefined && updates.weight !== null && updates.weight !== '');
+    if (!('status' in updates) && session.status === SESSION_STATUS.SCHEDULED
+        && recordsContent && effectiveDate && effectiveDate <= todayISO()) {
+      updates.status = SESSION_STATUS.HELD;
+    }
 
     const setClauses = Object.keys(updates).map((k) => `${k} = @${k}`).join(', ');
     db.prepare(`UPDATE sessions SET ${setClauses} WHERE id = @id`).run({ ...updates, id: req.params.id });
@@ -92,6 +109,35 @@ router.put('/:id', (req, res) => {
   }
 });
 
+// ─── POST /api/sessions/lifecycle/run — run the auto-held job now ────────────
+
+router.post('/lifecycle/run', (req, res) => {
+  try {
+    return ok(res, autoMarkHeldSessions(db));
+  } catch (err) {
+    console.error('[POST /sessions/lifecycle/run]', err);
+    return fail(res, 500, 'Failed to run session lifecycle.');
+  }
+});
+
+// ─── PUT /api/sessions/:id/status — held / no_show / canceled / scheduled ────
+
+router.put('/:id/status', (req, res) => {
+  try {
+    const { status } = req.body;
+    if (!isValidSessionStatus(status)) {
+      return fail(res, 400, 'status must be one of: scheduled, held, no_show, canceled.');
+    }
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
+    if (!session) return fail(res, 404, 'Session not found.');
+    db.prepare('UPDATE sessions SET status = ? WHERE id = ?').run(status, req.params.id);
+    return ok(res, serializeSession(db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id)));
+  } catch (err) {
+    console.error('[PUT /sessions/:id/status]', err);
+    return fail(res, 500, 'Failed to update session status.');
+  }
+});
+
 // ─── PUT /api/sessions/:id/complete ──────────────────────────────────────────
 
 router.put('/:id/complete', (req, res) => {
@@ -99,7 +145,7 @@ router.put('/:id/complete', (req, res) => {
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
     if (!session) return fail(res, 404, 'Session not found.');
 
-    db.prepare("UPDATE sessions SET status = 'completed' WHERE id = ?").run(req.params.id);
+    db.prepare('UPDATE sessions SET status = ? WHERE id = ?').run(SESSION_STATUS.HELD, req.params.id);
 
     try {
       const parts = [`פגישה ${session.session_number}`];

@@ -17,6 +17,22 @@ export const LEAD_STATUS = Object.freeze({
   NOT_RELEVANT: 'not_relevant',
 });
 
+// Session lifecycle — a booking starts as scheduled; only held counts as done
+export const SESSION_STATUS = Object.freeze({
+  SCHEDULED: 'scheduled',
+  HELD: 'held',
+  NO_SHOW: 'no_show',
+  CANCELED: 'canceled',
+});
+
+// Badge label + alert colour per session status
+export const SESSION_STATUS_META = Object.freeze({
+  scheduled: { label: 'נקבעה',     state: 'yellow' },
+  held:      { label: 'התקיימה',   state: 'green'  },
+  no_show:   { label: 'אי הגעה',   state: 'red'    },
+  canceled:  { label: 'בוטלה',     state: 'none'   },
+});
+
 export const ALERT_STATE = Object.freeze({
   GREEN: 'green',
   YELLOW: 'yellow',

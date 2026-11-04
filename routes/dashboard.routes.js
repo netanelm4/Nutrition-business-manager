@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 const { computeClientAlerts, hasActiveAlert } = require('../services/alerts.service');
-const { CLIENT_STATUS, LEAD_STATUS, ALERT_STATE } = require('../constants/statuses');
+const { CLIENT_STATUS, LEAD_STATUS, ALERT_STATE, SESSION_STATUS } = require('../constants/statuses');
 const { todayISO, addDays, toISODate, parseDate, israelLocalToUtcISO } = require('../utils/dates');
 
 const FROZEN_DAYS = 5;
@@ -59,6 +59,9 @@ router.get('/', (req, res) => {
     const weekStartUtc = israelLocalToUtcISO(mondayISO, '00:00');
     const weekEndUtc   = israelLocalToUtcISO(toISODate(addDays(todayDate, 7 - daysFromMonday)), '00:00');
 
+    const isHeld      = (s) => s.status === SESSION_STATUS.HELD;
+    const isScheduled = (s) => s.status === SESSION_STATUS.SCHEDULED;
+
     // 2a. client_sessions — session_windows for active clients
     const client_sessions = [];
 
@@ -72,8 +75,9 @@ router.get('/', (req, res) => {
       for (const w of windows) {
         if (w.expected_date >= mondayISO && w.expected_date <= sundayISO) {
           const existingSession = sessionByNumber[w.session_number] || null;
-          // Skip sessions that have already been held (session_date recorded)
-          if (existingSession && existingSession.session_date) continue;
+          // Held sessions are done; canceled / no-show leave the slot open
+          if (existingSession && isHeld(existingSession)) continue;
+          const scheduled = existingSession && isScheduled(existingSession) ? existingSession : null;
           client_sessions.push({
             client_id: client.id,
             client_name: client.full_name,
@@ -81,8 +85,8 @@ router.get('/', (req, res) => {
             session_number: w.session_number,
             expected_date: w.expected_date,
             manually_overridden: w.manually_overridden === 1,
-            session_scheduled: !!existingSession,
-            session_date: null,
+            session_scheduled: !!scheduled,
+            session_date: scheduled ? scheduled.session_date : null,
           });
         }
       }
@@ -178,8 +182,11 @@ router.get('/', (req, res) => {
 
     for (const client of activeClients) {
       const sessions = sessionsByClient[client.id] || [];
-      const lastSessionDate = sessions.length > 0
-        ? sessions.reduce((max, s) => (s.session_date > max ? s.session_date : max), '')
+      // An upcoming booked session is contact enough — not a retention case
+      if (sessions.some((s) => isScheduled(s) && s.session_date >= today)) continue;
+      const held = sessions.filter((s) => isHeld(s) && s.session_date);
+      const lastSessionDate = held.length > 0
+        ? held.reduce((max, s) => (s.session_date > max ? s.session_date : max), '')
         : null;
 
       const contactDate = lastSessionDate || client.start_date;
@@ -242,7 +249,7 @@ router.get('/', (req, res) => {
     const AVATAR_COLORS = ['pink', 'blue', 'green', 'pink', 'blue', 'green'];
     const clients_progress = activeClients.slice(0, 6).map((c, idx) => {
       const sessions = sessionsByClient[c.id] || [];
-      const done     = sessions.filter((s) => s.session_date).length;
+      const done     = sessions.filter(isHeld).length;   // booked ≠ done
       const total    = 6;
       return {
         client_id:   c.id,

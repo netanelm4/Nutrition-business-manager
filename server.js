@@ -36,6 +36,7 @@ const statsRouter              = require('./routes/stats.routes');
 const settingsRouter           = require('./routes/settings.routes');
 const { logActivity }          = require('./middleware/activity-log');
 const { checkUpcomingReminders } = require('./services/reminders.service');
+const { autoMarkHeldSessions } = require('./services/session-lifecycle.service');
 const { loadStoredToken, syncGoogleCalendar } = require('./services/google-calendar.service');
 const cron = require('node-cron');
 const { runAnalysis } = require('./services/ai-intelligence.service');
@@ -124,6 +125,13 @@ app.listen(PORT, async () => {
   // Initial run after 10 s so the server is fully ready before any DB queries
   setTimeout(checkUpcomingReminders, 10_000);
   setInterval(checkUpcomingReminders, 30 * 60 * 1000);
+
+  // ── Session lifecycle: scheduled → held 24h after the meeting (no cancellation) ──
+  const runSessionLifecycle = () => {
+    try { autoMarkHeldSessions(db); } catch (err) { console.error('[sessions] auto-held error:', err.message); }
+  };
+  setTimeout(runSessionLifecycle, 20_000);
+  setInterval(runSessionLifecycle, 30 * 60 * 1000);
 
   // ── Google Calendar: load stored refresh token + start sync ───────────────
   setTimeout(async () => {

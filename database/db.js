@@ -2100,6 +2100,46 @@ try { db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_meeting_id ON sessions(me
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_meetings_google_event_id ON meetings(google_event_id)'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_meetings_start_time ON meetings(start_time)'); } catch {}
 
+// leads.status CHECK: add meeting_held (used by the UI, rejected by the old constraint).
+// SQLite cannot alter a CHECK → recreate, copying every existing column.
+try {
+  const leadsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='leads'").get()?.sql || '';
+  if (leadsSql && !leadsSql.includes("'meeting_held'")) {
+    const cols = db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name);
+    const known = ['id', 'full_name', 'phone', 'email', 'source', 'status', 'notes',
+                   'follow_up_date', 'created_at', 'status_updated_at'];
+    const extra = cols.filter((c) => !known.includes(c));
+    if (extra.length > 0) throw new Error(`unexpected leads columns: ${extra.join(', ')}`);
+    const colList = cols.join(', ');
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE leads_v3 (
+          id                INTEGER  PRIMARY KEY AUTOINCREMENT,
+          full_name         TEXT     NOT NULL,
+          phone             TEXT,
+          email             TEXT,
+          source            TEXT     CHECK (source IN ('landing_page', 'referral', 'other', 'google_calendar')),
+          status            TEXT     NOT NULL DEFAULT 'new'
+                                     CHECK (status IN ('new', 'contacted', 'meeting_scheduled', 'meeting_held', 'became_client', 'not_relevant')),
+          notes             TEXT,
+          follow_up_date    TEXT,
+          created_at        TEXT     NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+          status_updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      db.exec(`INSERT INTO leads_v3 (${colList}) SELECT ${colList} FROM leads`);
+      db.exec('DROP TABLE leads');
+      db.exec('ALTER TABLE leads_v3 RENAME TO leads');
+    })();
+    db.pragma('foreign_keys = ON');
+    console.log('[migration] leads.status CHECK now allows meeting_held');
+  }
+} catch (err) {
+  try { db.pragma('foreign_keys = ON'); } catch {}
+  console.error('[migration] leads meeting_held CHECK migration failed:', err.message);
+}
+
 // ── Repair 11: meeting instants → canonical UTC ISO ("YYYY-MM-DDTHH:MM:SS.sssZ") ──
 // Rows held three formats: Calendly UTC "…000000Z", Google "+02:00" offsets and
 // naive manual "YYYY-MM-DDTHH:MM:SS" (Israel local). String comparisons in SQL
@@ -2153,7 +2193,73 @@ function repairSessionDates(database) {
   }
 }
 
+// ── Repair 13: every session has a lifecycle status ──────────────────────────
+// legacy 'completed' → held; missing: future date → scheduled, otherwise held
+// (conservative default, also for past sessions without notes).
+function repairSessionStatuses(database) {
+  try {
+    const legacy = database.prepare("UPDATE sessions SET status = 'held' WHERE status = 'completed'").run();
+    if (legacy.changes > 0) console.log(`[repair] ${legacy.changes} session(s): status completed → held`);
+
+    const today = todayISO();
+    const rows = database.prepare(`
+      SELECT id, client_id, session_date, status FROM sessions
+      WHERE status IS NULL OR status NOT IN ('scheduled', 'held', 'no_show', 'canceled')
+    `).all();
+    for (const r of rows) {
+      const date = r.session_date ? israelDateOf(r.session_date) : null;
+      const status = date && date > today ? 'scheduled' : 'held';
+      database.prepare('UPDATE sessions SET status = ? WHERE id = ?').run(status, r.id);
+      console.log(`[repair] Session ${r.id} (client ${r.client_id}, ${r.session_date || 'no date'}): status ${r.status ?? 'NULL'} → ${status}`);
+    }
+  } catch (err) {
+    console.error('[repair] repairSessionStatuses failed:', err.message);
+  }
+}
+
+// ── Repair 14: link sessions to the meeting they were booked from ────────────
+// Match = same client + same Israel calendar day; each meeting links at most once.
+function repairSessionMeetingLinks(database) {
+  try {
+    const unlinked = database.prepare(`
+      SELECT id, client_id, session_date FROM sessions
+      WHERE meeting_id IS NULL AND client_id IS NOT NULL AND session_date IS NOT NULL
+    `).all();
+    if (unlinked.length === 0) return;
+
+    const linkedIds = new Set(
+      database.prepare('SELECT meeting_id FROM sessions WHERE meeting_id IS NOT NULL').all().map((r) => r.meeting_id)
+    );
+    const meetingsByClient = {};
+    for (const m of database.prepare('SELECT id, client_id, start_time FROM meetings WHERE client_id IS NOT NULL ORDER BY start_time').all()) {
+      (meetingsByClient[m.client_id] ||= []).push(m);
+    }
+    for (const s of unlinked) {
+      const match = (meetingsByClient[s.client_id] || []).find(
+        (m) => !linkedIds.has(m.id) && israelDateOf(m.start_time) === s.session_date
+      );
+      if (!match) continue;
+      database.prepare('UPDATE sessions SET meeting_id = ? WHERE id = ?').run(match.id, s.id);
+      linkedIds.add(match.id);
+      console.log(`[repair] Linked session ${s.id} (client ${s.client_id}, ${s.session_date}) → meeting ${match.id}`);
+    }
+  } catch (err) {
+    console.error('[repair] repairSessionMeetingLinks failed:', err.message);
+  }
+}
+
 repairMeetingInstants(db);
 repairSessionDates(db);
+repairSessionStatuses(db);
+repairSessionMeetingLinks(db);
+
+// Scheduled sessions whose meeting was canceled → canceled / placeholder deleted;
+// scheduled sessions 24h past their meeting with no cancellation → held.
+try {
+  const { autoMarkHeldSessions } = require('../services/session-lifecycle.service');
+  autoMarkHeldSessions(db);
+} catch (err) {
+  console.error('[repair] autoMarkHeldSessions failed:', err.message);
+}
 
 module.exports = db;

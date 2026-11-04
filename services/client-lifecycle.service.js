@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const { LEAD_STATUS, CLIENT_STATUS } = require('../constants/statuses');
 const { calculateSessionWindows, calculateProcessEndDate, todayISO, israelDateOf } = require('../utils/dates');
+const { initialStatusForInstant } = require('./session-lifecycle.service');
+const { SESSION_STATUS } = require('../constants/statuses');
 
 // ─── Client lifecycle commands ───────────────────────────────────────────────
 // Single source of truth for creating/closing a client's process.
@@ -145,8 +147,10 @@ function convertLeadToClient(database, leadId) {
     ORDER BY start_time ASC LIMIT 1
   `).get(lead.id);
 
-  // Session 1 is the first meeting: its Israel calendar date
-  const sessionDate = meeting ? israelDateOf(meeting.start_time) : todayISO();
+  // Session 1 is the first meeting: its Israel calendar date, and `scheduled`
+  // when converting before the meeting took place, otherwise `held`.
+  const sessionDate   = meeting ? israelDateOf(meeting.start_time) : todayISO();
+  const sessionStatus = meeting ? initialStatusForInstant(meeting.start_time) : SESSION_STATUS.HELD;
   const windows = calculateSessionWindows(sessionDate);
 
   const run = database.transaction(() => {
@@ -181,9 +185,9 @@ function convertLeadToClient(database, leadId) {
 
     const sessionRes = database.prepare(`
       INSERT INTO sessions
-        (client_id, session_number, session_date, highlights, tasks, engagement_id, meeting_id)
-      VALUES (?, 1, ?, '', '[]', ?, ?)
-    `).run(clientId, sessionDate, engagementId, meeting ? meeting.id : null);
+        (client_id, session_number, session_date, highlights, tasks, engagement_id, status, meeting_id)
+      VALUES (?, 1, ?, '', '[]', ?, ?, ?)
+    `).run(clientId, sessionDate, engagementId, sessionStatus, meeting ? meeting.id : null);
     const sessionId = sessionRes.lastInsertRowid;
 
     if (meeting) {

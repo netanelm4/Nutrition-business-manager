@@ -4,7 +4,8 @@ const { v4: uuidv4 } = require('uuid');
 const db         = require('../database/db');
 const { calculateSessionWindows, calculateProcessEndDate } = require('../utils/dates');
 const { computeClientAlerts } = require('../services/alerts.service');
-const { CLIENT_STATUS, TASK_STATUS } = require('../constants/statuses');
+const { CLIENT_STATUS, TASK_STATUS, SESSION_STATUS } = require('../constants/statuses');
+const { isValidSessionStatus, initialStatusForDate, isPlaceholderSession } = require('../services/session-lifecycle.service');
 const { parseJsonArray } = require('../utils/parseJson');
 
 const { AI_MODEL } = require('../config/ai');
@@ -125,8 +126,10 @@ function attachAlerts(client) {
     ...client,
     alerts,
     session_windows: windows,
-    // Array of session_numbers that have been recorded — used by the UI progress bar
-    sessions_recorded: sessions.map((s) => s.session_number),
+    // Session numbers that took place (held) — the UI progress bar counts these
+    sessions_recorded: sessions.filter((s) => s.status === SESSION_STATUS.HELD).map((s) => s.session_number),
+    // Booked but not yet held
+    sessions_scheduled: sessions.filter((s) => s.status === SESSION_STATUS.SCHEDULED).map((s) => s.session_number),
   };
 }
 
@@ -382,7 +385,7 @@ router.delete('/:id', (req, res) => {
 
     // These tables reference clients without ON DELETE CASCADE, so the FK refuses
     // a bare DELETE (every client has an engagement). Remove them explicitly, atomically.
-    // sessions, windows, payments, intakes, whatsapp_log cascade; calendly_events and
+    // sessions, windows, payments, intakes, whatsapp_log cascade; meetings and
     // daily_tasks are SET NULL by their FKs.
     const deleteClient = db.transaction((id) => {
       db.prepare('DELETE FROM menu_examples WHERE menu_id IN (SELECT id FROM menus WHERE client_id = ?)').run(id);
@@ -432,13 +435,27 @@ router.post('/:id/sessions', (req, res) => {
       .prepare('SELECT * FROM sessions WHERE client_id = ? ORDER BY session_number')
       .all(req.params.id);
 
-    const nextNumber = existing.length > 0 ? existing[existing.length - 1].session_number + 1 : 1;
+    const { session_date, weight, highlights } = req.body;
+    if (req.body.status !== undefined && !isValidSessionStatus(req.body.status)) {
+      return fail(res, 400, 'status must be one of: scheduled, held, no_show, canceled.');
+    }
+    const status = req.body.status || initialStatusForDate(session_date);
+
+    // A booking already created an empty `scheduled` session for this slot →
+    // recording the meeting fills that placeholder instead of adding a new number.
+    const placeholder = existing.find(
+      (s) => s.status === SESSION_STATUS.SCHEDULED && isPlaceholderSession(db, s)
+    );
+    const nextNumber = placeholder
+      ? placeholder.session_number
+      : (existing.length > 0 ? existing[existing.length - 1].session_number + 1 : 1);
     if (nextNumber > 6) return fail(res, 400, 'Client already has 6 sessions recorded.');
+    const previous = existing.filter((s) => s.session_number < nextNumber);
 
     // Carry over incomplete tasks from the previous session
     let carriedTasks = [];
-    if (existing.length > 0) {
-      const prev = existing[existing.length - 1];
+    if (previous.length > 0) {
+      const prev = previous[previous.length - 1];
       carriedTasks = parseJsonArray(prev.tasks)
         .filter((t) => t.status !== TASK_STATUS.DONE)
         .map((t) => ({
@@ -452,22 +469,13 @@ router.post('/:id/sessions', (req, res) => {
     // Prepend saved insights/flags from the previous session
     let savedInsights = [];
     let savedFlags = [];
-    if (existing.length > 0) {
-      const prev = existing[existing.length - 1];
+    if (previous.length > 0) {
+      const prev = previous[previous.length - 1];
       savedInsights = parseJsonArray(prev.ai_insights).filter((i) => i.saved_for_next);
       savedFlags = parseJsonArray(prev.ai_flags).filter((f) => f.saved_for_next);
     }
 
-    const { session_date, weight, highlights } = req.body;
-
-    const result = db.prepare(`
-      INSERT INTO sessions
-        (client_id, session_number, session_date, weight, highlights, ai_insights, ai_flags, tasks, engagement_id)
-      VALUES
-        (@client_id, @session_number, @session_date, @weight, @highlights, @ai_insights, @ai_flags, @tasks, @engagement_id)
-    `).run({
-      client_id: Number(req.params.id),
-      session_number: nextNumber,
+    const values = {
       session_date: session_date || null,
       weight: weight || null,
       highlights: highlights || null,
@@ -475,9 +483,29 @@ router.post('/:id/sessions', (req, res) => {
       ai_flags: JSON.stringify(savedFlags),
       tasks: JSON.stringify(carriedTasks),
       engagement_id: activeEng?.id ?? null,
-    });
+      status,
+    };
 
-    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(result.lastInsertRowid);
+    let sessionId;
+    if (placeholder) {
+      db.prepare(`
+        UPDATE sessions
+        SET session_date = COALESCE(@session_date, session_date), weight = @weight, highlights = @highlights,
+            ai_insights = @ai_insights, ai_flags = @ai_flags, tasks = @tasks,
+            engagement_id = COALESCE(engagement_id, @engagement_id), status = @status
+        WHERE id = @id
+      `).run({ ...values, id: placeholder.id });
+      sessionId = placeholder.id;
+    } else {
+      sessionId = db.prepare(`
+        INSERT INTO sessions
+          (client_id, session_number, session_date, weight, highlights, ai_insights, ai_flags, tasks, engagement_id, status)
+        VALUES
+          (@client_id, @session_number, @session_date, @weight, @highlights, @ai_insights, @ai_flags, @tasks, @engagement_id, @status)
+      `).run({ ...values, client_id: Number(req.params.id), session_number: nextNumber }).lastInsertRowid;
+    }
+
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(sessionId);
     return ok(res, serializeSession(session));
   } catch (err) {
     console.error('[POST /clients/:id/sessions]', err);

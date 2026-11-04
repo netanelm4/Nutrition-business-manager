@@ -60,6 +60,7 @@ export const updateSession = (id, data) => request('PUT', `/sessions/${id}`, dat
 export const deleteSession = (sessionId) => request('DELETE', `/sessions/${sessionId}`);
 export const generateInsights  = (sessionId) => request('POST', `/sessions/${sessionId}/insights`);
 export const completeSession   = (sessionId) => request('PUT',  `/sessions/${sessionId}/complete`);
+export const updateSessionStatus = (sessionId, status) => request('PUT', `/sessions/${sessionId}/status`, { status });
 
 // ── Leads ─────────────────────────────────────────────────────────────────────
 export const fetchLeads = () => request('GET', '/leads');

@@ -108,7 +108,7 @@ function getClientContext(clientId) {
            si.sleep_quality, si.sleep_hours
     FROM sessions s
     LEFT JOIN session_intakes si ON si.session_id = s.id
-    WHERE s.client_id = ?
+    WHERE s.client_id = ? AND s.status = 'held'   -- only sessions that took place
     ORDER BY s.session_number ASC
   `).all(clientId);
 
@@ -226,6 +226,10 @@ ${weightTrendLines}
 
 async function checkNoContact(client, sessions) {
   if (wasHandledRecently(client.id, 'no_contact')) return; // no Claude call
+  const upcoming = db.prepare(
+    "SELECT 1 FROM meetings WHERE client_id = ? AND status = 'active' AND start_time > ? LIMIT 1"
+  ).get(client.id, nowUtcISO());
+  if (upcoming) return; // already booked — not a lost-contact case
   const sessionsWithDate = sessions.filter((s) => s.session_date);
   if (sessionsWithDate.length === 0) return;
 

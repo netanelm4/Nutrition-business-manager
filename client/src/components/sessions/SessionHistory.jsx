@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDateHebrew } from '../../lib/dates';
-import { ALERT_STATE } from '../../constants/statuses';
+import { ALERT_STATE, SESSION_STATUS, SESSION_STATUS_META } from '../../constants/statuses';
 import AlertBadge from '../ui/AlertBadge';
 import EmptyState from '../ui/EmptyState';
 import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
 import { ReadonlyTaskList } from './TaskList';
 import SessionIntakeForm from './SessionIntakeForm';
-import { fetchCheckinMessage, generateCheckinMessage, deleteSession, completeSession } from '../../lib/api';
+import { fetchCheckinMessage, generateCheckinMessage, deleteSession, updateSessionStatus } from '../../lib/api';
 
 // ─── Check-in message panel ───────────────────────────────────────────────────
 
@@ -132,12 +132,14 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
     },
   });
 
-  const completeMutation = useMutation({
-    mutationFn: () => completeSession(session.id),
+  const statusMutation = useMutation({
+    mutationFn: (status) => updateSessionStatus(session.id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sessions', String(client.id)] });
+      queryClient.invalidateQueries({ queryKey: ['client',   String(client.id)] });
     },
   });
+  const statusMeta = SESSION_STATUS_META[session.status] || SESSION_STATUS_META.held;
 
   return (
     <>
@@ -162,10 +164,7 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
             )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
-            <AlertBadge
-              state={session.status === 'completed' ? 'green' : 'yellow'}
-              label={session.status === 'completed' ? 'בוצעה' : 'ממתין'}
-            />
+            <AlertBadge state={statusMeta.state} label={statusMeta.label} />
             <span className="text-gray-400 text-sm">{expanded ? '▲' : '▼'}</span>
           </div>
         </button>
@@ -251,15 +250,35 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
                 >
                   מחק פגישה
                 </button>
-                {session.status !== 'completed' && (
+                {session.status !== SESSION_STATUS.HELD && (
                   <button
                     type="button"
-                    onClick={() => completeMutation.mutate()}
-                    disabled={completeMutation.isPending}
+                    onClick={() => statusMutation.mutate(SESSION_STATUS.HELD)}
+                    disabled={statusMutation.isPending}
                     className="text-sm font-semibold text-green-700 hover:text-green-900 transition-colors disabled:opacity-50 disabled:cursor-default"
                   >
-                    {completeMutation.isPending ? 'מעדכן...' : '✓ סמן כבוצעה'}
+                    {statusMutation.isPending ? 'מעדכן...' : '✓ התקיימה'}
                   </button>
+                )}
+                {session.status === SESSION_STATUS.SCHEDULED && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => statusMutation.mutate(SESSION_STATUS.NO_SHOW)}
+                      disabled={statusMutation.isPending}
+                      className="text-sm text-amber-700 hover:text-amber-900 transition-colors disabled:opacity-50"
+                    >
+                      אי הגעה
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => statusMutation.mutate(SESSION_STATUS.CANCELED)}
+                      disabled={statusMutation.isPending}
+                      className="text-sm text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-50"
+                    >
+                      בוטלה
+                    </button>
+                  </>
                 )}
               </div>
             ) : (

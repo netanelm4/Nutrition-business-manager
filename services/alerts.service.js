@@ -1,4 +1,4 @@
-const { ALERT_STATE, CLIENT_STATUS } = require('../constants/statuses');
+const { ALERT_STATE, CLIENT_STATUS, SESSION_STATUS } = require('../constants/statuses');
 const {
   SESSION_TOLERANCE_DAYS,
   MENU_ALERT_THRESHOLD_DAYS,
@@ -57,9 +57,11 @@ function computeWindowAlertState(window, session) {
  *   }
  */
 function computeClientAlerts(client, windows, sessions) {
-  // Index sessions by session_number for O(1) lookup
+  // Index sessions by session_number for O(1) lookup.
+  // Canceled / no-show sessions do not fill their window — it stays open.
   const sessionByNumber = {};
   for (const s of sessions) {
+    if (s.status === SESSION_STATUS.CANCELED || s.status === SESSION_STATUS.NO_SHOW) continue;
     sessionByNumber[s.session_number] = s;
   }
 
@@ -77,6 +79,7 @@ function computeClientAlerts(client, windows, sessions) {
   const menuAlert =
     !client.menu_sent &&
     !!session1 &&
+    session1.status === SESSION_STATUS.HELD &&
     !!session1.session_date &&
     diffDays(todayISO(), session1.session_date) > MENU_ALERT_THRESHOLD_DAYS;
 

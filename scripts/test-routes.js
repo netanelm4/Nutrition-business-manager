@@ -376,6 +376,78 @@ async function run() {
     assert('Confirmation link is wa.me', (m.data?.confirmation_link || '').startsWith('https://wa.me/'));
   }
 
+  // ── Phase 3: session lifecycle ─────────────────────────────────────────────
+  console.log('\n── Phase 3: session status model ──');
+  {
+    // Lead with a FUTURE meeting, converted before the meeting → session 1 scheduled
+    const lead = await req('POST', '/leads', { full_name: 'בדיקת סטטוס', phone: '0521250000' });
+    const futureDate = isoDaysFromToday(5);
+    await req('POST', `/leads/${lead.data?.id}/meeting`, { date: futureDate, time: '11:00', event_type: 'first_meeting' });
+    const meeting = (await req('GET', `/leads/${lead.data?.id}/meeting`)).data;
+    const conv = await req('POST', `/leads/${lead.data?.id}/convert`);
+    const cid = conv.data?.clientId;
+    let s1 = (await req('GET', `/clients/${cid}/sessions`)).data.find((x) => x.session_number === 1);
+    assert('Future meeting → session 1 scheduled', s1?.status === 'scheduled', JSON.stringify(s1));
+    assert('Session 1 linked to its meeting', s1?.meeting_id === meeting?.id);
+    assert('Session date = Israel date of meeting', s1?.session_date === futureDate);
+    let c = (await req('GET', `/clients/${cid}`)).data;
+    assert('Scheduled session not counted as done', c.sessions_recorded.length === 0 && c.sessions_scheduled.includes(1));
+
+    // Reschedule the meeting → session date follows
+    const newDate = isoDaysFromToday(6);
+    await req('PUT', `/meetings/events/${meeting.id}`, { date: newDate, time: '12:00', event_type: 'first_meeting' });
+    s1 = (await req('GET', `/sessions/${s1.id}`)).data;
+    assert('Reschedule moves the linked session', s1.session_date === newDate, s1.session_date);
+
+    // Meeting completed → session held
+    await req('PUT', `/meetings/events/${meeting.id}/complete`);
+    s1 = (await req('GET', `/sessions/${s1.id}`)).data;
+    assert('Completed meeting → session held', s1.status === 'held');
+    c = (await req('GET', `/clients/${cid}`)).data;
+    assert('Held session counted as done', c.sessions_recorded.includes(1));
+
+    // Recording a future session → scheduled; status actions
+    const s2 = (await req('POST', `/clients/${cid}/sessions`, { session_date: isoDaysFromToday(10) })).data;
+    assert('Future session recorded as scheduled', s2?.status === 'scheduled', JSON.stringify(s2));
+    const ns = (await req('PUT', `/sessions/${s2.id}/status`, { status: 'no_show' })).data;
+    assert('Status action: no_show', ns?.status === 'no_show');
+    const bad = await req('PUT', `/sessions/${s2.id}/status`, { status: 'completed' });
+    assert('Invalid status rejected (400)', bad.status === 400);
+
+    // Scheduled session 3 days ago, no meeting, no notes → auto-held by lifecycle job
+    await req('PUT', `/sessions/${s2.id}/status`, { status: 'scheduled' });
+    await req('PUT', `/sessions/${s2.id}`, { session_date: isoDaysFromToday(-3) });
+    const run = await req('POST', '/sessions/lifecycle/run');
+    assert('Lifecycle job ran', run.success && run.data.held >= 1, JSON.stringify(run));
+    const s2b = (await req('GET', `/sessions/${s2.id}`)).data;
+    assert('Past scheduled session auto-held after 24h', s2b.status === 'held');
+
+    // Saving notes on a scheduled session whose day has come → held
+    const s3 = (await req('POST', `/clients/${cid}/sessions`, { session_date: isoDaysFromToday(2) })).data;
+    await req('PUT', `/sessions/${s3.id}`, { session_date: isoDaysFromToday(0) });
+    const s3b = (await req('PUT', `/sessions/${s3.id}`, { highlights: 'התקדמות טובה' })).data;
+    assert('Notes on today\'s scheduled session → held', s3b.status === 'held', s3b.status);
+
+    // Cancel a booked meeting: session 1 of a converted client is kept as canceled
+    // (sessions 2–6 placeholders are deleted — covered by scripts/test-google-sync.js)
+    const lead2 = await req('POST', '/leads', { full_name: 'בדיקת ביטול', phone: '0521260000' });
+    await req('POST', `/leads/${lead2.data?.id}/meeting`, { date: isoDaysFromToday(4), time: '09:30', event_type: 'first_meeting' });
+    const m2 = (await req('GET', `/leads/${lead2.data?.id}/meeting`)).data;
+    const cid2 = (await req('POST', `/leads/${lead2.data?.id}/convert`)).data?.clientId;
+    const before = (await req('GET', `/clients/${cid2}/sessions`)).data;
+    assert('Converted with future meeting → 1 scheduled session', before.length === 1 && before[0].status === 'scheduled');
+    const cancel = await req('PUT', `/meetings/events/${m2.id}/cancel`);
+    assert('Cancel meeting succeeds', cancel.success && cancel.data.sessions.canceled === 1, JSON.stringify(cancel));
+    const after = (await req('GET', `/clients/${cid2}/sessions`)).data;
+    assert('Session 1 kept as canceled (not deleted)', after.length === 1 && after[0].status === 'canceled', JSON.stringify(after));
+  }
+
+  // ── Leads: meeting_held is now a valid status ──────────────────────────────
+  {
+    const r = await req('PUT', `/leads/${tzLeadId}`, { status: 'meeting_held' });
+    assert('Lead status meeting_held accepted by DB', r.success && r.data.status === 'meeting_held', JSON.stringify(r));
+  }
+
   // ── Booking-link template (Calendly removed) ───────────────────────────────
   {
     const t = await req('GET', '/templates');
