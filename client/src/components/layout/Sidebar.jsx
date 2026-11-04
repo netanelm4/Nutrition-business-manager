@@ -45,7 +45,7 @@ const WORK_NAV = [
   { to: '/',          end: true,  Icon: Icons.dash,      label: 'לוח בקרה'   },
   { to: '/clients',   end: false, Icon: Icons.clients,   label: 'מטופלים'    },
   { to: '/leads',     end: false, Icon: Icons.leads,     label: 'לידים'      },
-  { to: '/calendly',  end: false, Icon: Icons.cal,       label: 'פגישות'     },
+  { to: '/meetings',  end: false, Icon: Icons.cal,       label: 'פגישות'     },
 ];
 
 const TOOLS_NAV = [

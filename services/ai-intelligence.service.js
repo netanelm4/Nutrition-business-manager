@@ -2,6 +2,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const db = require('../database/db');
 
 const { AI_MODEL: MODEL } = require('../config/ai');
+const { nowUtcISO, addHoursUtcISO } = require('../utils/dates');
 const MAX_TOKENS = 600;
 
 let _client = null;
@@ -121,10 +122,10 @@ function getClientContext(clientId) {
   `).get(clientId);
 
   const nextMeeting = db.prepare(`
-    SELECT start_time FROM calendly_events
-    WHERE client_id = ? AND start_time > datetime('now') AND start_time < datetime('now', '+48 hours')
+    SELECT start_time FROM meetings
+    WHERE client_id = ? AND status = 'active' AND start_time > ? AND start_time < ?
     ORDER BY start_time ASC LIMIT 1
-  `).get(clientId);
+  `).get(clientId, nowUtcISO(), addHoursUtcISO(48));
 
   const latestMenu = db.prepare(`
     SELECT created_at FROM menus

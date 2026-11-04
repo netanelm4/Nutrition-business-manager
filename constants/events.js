@@ -6,7 +6,7 @@ const TRIGGER_EVENT = Object.freeze({
   PROCESS_ENDING:      'process_ending',
   PAYMENT_REMINDER:    'payment_reminder',
   SESSION_CONFIRMATION:'session_confirmation',
-  CALENDLY_LINK:       'calendly_link',
+  BOOKING_LINK:        'booking_link',  // Google appointment-scheduling link (was calendly_link)
   CUSTOM:              'custom',
 });
 

@@ -19,7 +19,7 @@ const paymentsRouter = require('./routes/payments.routes');
 const protocolsRouter = require('./routes/protocols.routes');
 const publicRouter = require('./routes/public.routes');
 const authRouter = require('./routes/auth.routes');
-const { webhookRouter, calendlyRouter } = require('./routes/calendly.routes');
+const meetingsRouter = require('./routes/meetings.routes');
 const intakesRouter  = require('./routes/intakes.routes');
 const adminRouter    = require('./routes/admin.routes');
 const aiSummaryRouter  = require('./routes/ai-summary.routes');
@@ -36,8 +36,7 @@ const statsRouter              = require('./routes/stats.routes');
 const settingsRouter           = require('./routes/settings.routes');
 const { logActivity }          = require('./middleware/activity-log');
 const { checkUpcomingReminders } = require('./services/reminders.service');
-const { registerCalendlyWebhook } = require('./services/calendly.service');
-const { loadStoredToken, syncCanceledEvents, pollNewBookings } = require('./services/google-calendar.service');
+const { loadStoredToken, syncGoogleCalendar } = require('./services/google-calendar.service');
 const cron = require('node-cron');
 const { runAnalysis } = require('./services/ai-intelligence.service');
 
@@ -61,7 +60,6 @@ app.use(express.json({
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRouter);
 app.use('/api', publicRouter);
-app.use('/api/calendly',  webhookRouter);
 app.use('/api/google',    googleRouter);      // callback must be public (no auth)
 app.use('/api/whatsapp',  whatsappBotRouter); // webhook is public; /test applies auth internally
 
@@ -81,7 +79,7 @@ app.use('/api/templates',        templatesRouter);
 app.use('/api/whatsapp',         whatsappRouter);
 app.use('/api',                  paymentsRouter);
 app.use('/api/protocols',        protocolsRouter);
-app.use('/api/calendly',         calendlyRouter);
+app.use('/api/meetings',         meetingsRouter);
 app.use('/api',                  intakesRouter);
 app.use('/api/admin',            adminRouter);
 app.use('/api',                  aiSummaryRouter);
@@ -127,13 +125,6 @@ app.listen(PORT, async () => {
   setTimeout(checkUpcomingReminders, 10_000);
   setInterval(checkUpcomingReminders, 30 * 60 * 1000);
 
-  // ── Calendly webhook registration ─────────────────────────────────────────
-  try {
-    await registerCalendlyWebhook();
-  } catch (err) {
-    console.error('[calendly] Webhook registration error:', err.message);
-  }
-
   // ── Google Calendar: load stored refresh token + start sync ───────────────
   setTimeout(async () => {
     try {
@@ -143,12 +134,10 @@ app.listen(PORT, async () => {
     }
   }, 2000);
 
-  setTimeout(syncCanceledEvents, 15_000);
-  setInterval(syncCanceledEvents, 30 * 60 * 1000);
-
-  // ── Google Calendar: poll for new bookings every 5 minutes ────────────────
-  setTimeout(pollNewBookings, 25_000);
-  setInterval(pollNewBookings, 5 * 60 * 1000);
+  // ── Google Calendar: incremental sync (bookings, reschedules, cancellations) ──
+  // Sync token persisted in settings → nothing is lost across restarts/deploys.
+  setTimeout(() => syncGoogleCalendar(), 15_000);
+  setInterval(() => syncGoogleCalendar(), 5 * 60 * 1000);
 
   // ── AI Intelligence: analyze active clients twice daily ───────────────────
   cron.schedule('0 8 * * *',  () => runAnalysis().catch(e => console.error('[ai-intelligence] cron error:', e.message)), { timezone: 'Asia/Jerusalem' });

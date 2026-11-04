@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AppShell from './components/layout/AppShell';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
@@ -8,7 +8,7 @@ import Leads from './pages/Leads';
 import LeadDetail from './pages/LeadDetail';
 import Templates from './pages/Templates';
 import Protocols from './pages/Protocols';
-import CalendlySettings from './pages/CalendlySettings';
+import Meetings from './pages/Meetings';
 import FoodBank from './pages/FoodBank';
 import MenuEditor from './pages/MenuEditor';
 import PublicWeight from './pages/PublicWeight';
@@ -46,7 +46,8 @@ export default function App() {
           <Route path="leads/:id" element={<LeadDetail />} />
           <Route path="templates" element={<Templates />} />
           <Route path="protocols" element={<Protocols />} />
-          <Route path="calendly" element={<CalendlySettings />} />
+          <Route path="meetings" element={<Meetings />} />
+          <Route path="calendly" element={<Navigate to="/meetings" replace />} />
           <Route path="food-bank" element={<FoodBank />} />
           <Route path="statistics" element={<Statistics />} />
           <Route path="settings" element={<Settings />} />

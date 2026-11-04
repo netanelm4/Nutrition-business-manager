@@ -49,9 +49,9 @@ const REQUIRED_TEMPLATES = [
   },
   {
     name: 'קישור לקביעת פגישה',
-    trigger_event: TRIGGER_EVENT.CALENDLY_LINK,
+    trigger_event: TRIGGER_EVENT.BOOKING_LINK,
     body_template:
-      'היי {{client_name}},\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{calendly_link}}\nניתן לבחור שעה נוחה, אני אהיה שם.',
+      'היי {{client_name}},\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{booking_link}}\nניתן לבחור שעה נוחה, אני אהיה שם.',
   },
 ];
 

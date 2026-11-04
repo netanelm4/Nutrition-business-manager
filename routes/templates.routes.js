@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 const { renderTemplate, generateLink, activeMode } = require('../services/whatsapp.service');
+const { bookingLinks } = require('../config/booking');
 const { formatDateHebrew } = require('../utils/dates');
 
 const router = express.Router();
@@ -157,6 +158,9 @@ router.post('/render', (req, res) => {
       date: date ? formatDateHebrew(date) : '',
       time: time || '',
       phone: client.phone || '',
+      // Google appointment-scheduling link; calendly_link kept for old custom templates
+      booking_link: bookingLinks().followupLink,
+      calendly_link: bookingLinks().followupLink,
     };
 
     const rendered_text = renderTemplate(template.body_template, variables);

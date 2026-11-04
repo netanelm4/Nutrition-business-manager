@@ -4,7 +4,7 @@
  * ALWAYS run against a throwaway DB copy, never the real one:
  *   cp data/nutrition.db /tmp/test.db
  *   DB_PATH=/tmp/test.db PORT=3099 \
- *   WHATSAPP_APP_SECRET=test-meta-secret CALENDLY_WEBHOOK_SIGNING_KEY=test-calendly-key \
+ *   WHATSAPP_APP_SECRET=test-meta-secret BOOKING_LINK_FOLLOWUP=https://calendar.app.google/test-followup \
  *   node server.js
  * The DB needs a user matching TEST_USER / TEST_PASSWORD (defaults below).
  * Then run: node scripts/test-routes.js
@@ -16,7 +16,7 @@ const BASE          = process.env.TEST_BASE     || 'http://localhost:3099/api';
 const TEST_USER     = process.env.TEST_USER     || 'test-runner';
 const TEST_PASSWORD = process.env.TEST_PASSWORD || 'test';
 const META_SECRET     = process.env.WHATSAPP_APP_SECRET          || 'test-meta-secret';
-const CALENDLY_SECRET = process.env.CALENDLY_WEBHOOK_SIGNING_KEY || 'test-calendly-key';
+const FOLLOWUP_LINK = process.env.BOOKING_LINK_FOLLOWUP || 'https://calendar.app.google/test-followup';
 
 let AUTH = '';
 let passed = 0;
@@ -95,20 +95,8 @@ async function run() {
     assert('WhatsApp webhook with valid signature → 200',
       (await raw('POST', '/whatsapp/webhook', { body, headers: { ...json, 'X-Hub-Signature-256': good } })) === 200);
   }
-  {
-    const body = JSON.stringify({ event: 'test.ping', payload: {} });
-    const t = Math.floor(Date.now() / 1000);
-    const sig = crypto.createHmac('sha256', CALENDLY_SECRET).update(`${t}.${body}`).digest('hex');
-    const json = { 'Content-Type': 'application/json' };
-    assert('Calendly webhook without signature → 401',
-      (await raw('POST', '/calendly/webhook', { body, headers: json })) === 401);
-    const stale = t - 3600;
-    const staleSig = crypto.createHmac('sha256', CALENDLY_SECRET).update(`${stale}.${body}`).digest('hex');
-    assert('Calendly webhook with stale timestamp → 401',
-      (await raw('POST', '/calendly/webhook', { body, headers: { ...json, 'Calendly-Webhook-Signature': `t=${stale},v1=${staleSig}` } })) === 401);
-    assert('Calendly webhook with valid signature → 200',
-      (await raw('POST', '/calendly/webhook', { body, headers: { ...json, 'Calendly-Webhook-Signature': `t=${t},v1=${sig}` } })) === 200);
-  }
+  assert('Calendly webhook removed (no public endpoint)',
+    (await raw('POST', '/calendly/webhook', { body: '{}', headers: { 'Content-Type': 'application/json' } })) === 401);
 
   // ── Phase 0: rate limiting on public lead form (5/hour per IP) ──────────────
   console.log('\n── Phase 0: public rate limit ──');
@@ -356,6 +344,46 @@ async function run() {
     assert('Stop process', r.success && r.data.status === 'ended');
     const e = await req('GET', `/engagements/client/${clientId}`);
     assert('Engagement completed on stop', e.data.every((x) => x.status === 'completed'), JSON.stringify(e.data));
+  }
+
+  // ── Phase 2: meeting instants stored as canonical UTC ISO ──────────────────
+  console.log('\n── Phase 2: time normalization ──');
+  let tzLeadId;
+  {
+    const lead = await req('POST', '/leads', { full_name: 'בדיקת אזור זמן', phone: '0521230000' });
+    tzLeadId = lead.data?.id;
+    await req('POST', `/leads/${tzLeadId}/meeting`, { date: '2027-07-15', time: '10:00', event_type: 'first_meeting' });
+    const summer = await req('GET', `/leads/${tzLeadId}/meeting`);
+    assert('Summer 10:00 Israel → 07:00Z', summer.data?.start_time === '2027-07-15T07:00:00.000Z', summer.data?.start_time);
+    assert('End time = start + 1h', summer.data?.end_time === '2027-07-15T08:00:00.000Z', summer.data?.end_time);
+
+    const moved = await req('PUT', `/meetings/events/${summer.data?.id}`, { date: '2027-12-15', time: '10:00', event_type: 'first_meeting' });
+    assert('Reschedule (winter) 10:00 Israel → 08:00Z', moved.data?.start_time === '2027-12-15T08:00:00.000Z', JSON.stringify(moved));
+    const up = await req('GET', '/meetings/upcoming');
+    assert('Upcoming meetings uses UTC comparison', (up.data || []).some((m) => m.id === summer.data?.id));
+  }
+  {
+    // A meeting ~24h from now must be picked up by the reminder window
+    const target = new Date(Date.now() + 24 * 3600 * 1000);
+    const date = target.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+    const time = target.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem' });
+    const lead = await req('POST', '/leads', { full_name: 'בדיקת תזכורת', phone: '0521240000' });
+    await req('POST', `/leads/${lead.data?.id}/meeting`, { date, time, event_type: 'first_meeting' });
+    const r = await req('POST', '/meetings/check-reminders');
+    assert('Reminder generated for meeting in 24h', r.success && r.data.count >= 1, JSON.stringify(r));
+    const m = await req('GET', `/leads/${lead.data?.id}/meeting`);
+    assert('confirmation_sent = 1', m.data?.confirmation_sent === 1);
+    assert('Confirmation link is wa.me', (m.data?.confirmation_link || '').startsWith('https://wa.me/'));
+  }
+
+  // ── Booking-link template (Calendly removed) ───────────────────────────────
+  {
+    const t = await req('GET', '/templates');
+    const booking = (t.data || []).find((x) => x.trigger_event === 'booking_link');
+    assert('booking_link template exists', !!booking && !(t.data || []).some((x) => x.trigger_event === 'calendly_link'));
+    assert('Template body uses {{booking_link}}', booking?.body_template.includes('{{booking_link}}'));
+    const cfg = await req('GET', '/meetings/config');
+    assert('Booking links served from env', cfg.data?.followupLink === FOLLOWUP_LINK, JSON.stringify(cfg));
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────────────

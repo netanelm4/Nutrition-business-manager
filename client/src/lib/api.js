@@ -112,20 +112,20 @@ export const disconnectGoogle      = () => request('DELETE', '/google/disconnect
 export const syncGoogleCalendar    = () => request('POST',   '/google/sync');
 export const pollGoogleCalendar    = () => request('POST',   '/google/poll-now');
 
-// ── Calendly ──────────────────────────────────────────────────────────────────
-export const fetchCalendlyConfig    = () => request('GET',  '/calendly/config');
-export const fetchCalendlyUpcoming  = () => request('GET',  '/calendly/upcoming');
-export const checkCalendlyReminders = () => request('POST', '/calendly/check-reminders');
+// ── Meetings (Google Calendar) ────────────────────────────────────────────────
+export const fetchBookingLinks      = () => request('GET',  '/meetings/config');
+export const fetchUpcomingMeetings  = () => request('GET',  '/meetings/upcoming');
+export const checkMeetingReminders  = () => request('POST', '/meetings/check-reminders');
 
 // ── Lead meetings ─────────────────────────────────────────────────────────────
 export const scheduleMeeting  = (leadId, data) => request('POST', `/leads/${leadId}/meeting`, data);
 export const fetchLeadMeeting = (leadId)       => request('GET',  `/leads/${leadId}/meeting`);
 
-// ── Calendly event actions ────────────────────────────────────────────────────
-export const updateCalendlyEvent   = (eventId, data) => request('PUT', `/calendly/events/${eventId}`, data);
-export const cancelCalendlyEvent   = (eventId)       => request('PUT', `/calendly/events/${eventId}/cancel`);
-export const fetchClientMeetings   = (clientId)      => request('GET', `/calendly/clients/${clientId}/events`);
-export const completeCalendlyEvent = (id)            => request('PUT', `/calendly/events/${id}/complete`);
+// ── Meeting actions ───────────────────────────────────────────────────────────
+export const updateMeeting       = (meetingId, data) => request('PUT', `/meetings/events/${meetingId}`, data);
+export const cancelMeeting       = (meetingId)       => request('PUT', `/meetings/events/${meetingId}/cancel`);
+export const fetchClientMeetings = (clientId)        => request('GET', `/meetings/clients/${clientId}/events`);
+export const completeMeeting     = (meetingId)       => request('PUT', `/meetings/events/${meetingId}/complete`);
 
 // ── Session intakes ───────────────────────────────────────────────────────────
 export const fetchIntake   = (sessionId)       => request('GET',  `/sessions/${sessionId}/intake`);

@@ -5,9 +5,7 @@ import { formatDateHebrew } from '../../lib/dates';
 import AlertBadge from '../ui/AlertBadge';
 import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
-
-// Google Calendar follow-up booking link for sending scheduling invites
-const FOLLOWUP_CALENDLY_URL = 'https://calendar.app.google/DEQrZpSKRYJ6BYuZ8';
+import useBookingLinks from '../../hooks/useBookingLinks';
 
 function normaliseForWA(phone) {
   const digits = (phone || '').replace(/\D/g, '');
@@ -80,6 +78,7 @@ function OverrideForm({ window, clientId, onClose }) {
  * Single slot in the timeline.
  */
 function TimelineSlot({ window, session, clientId, clientName, clientPhone }) {
+  const { followupLink } = useBookingLinks();
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
 
@@ -127,10 +126,10 @@ function TimelineSlot({ window, session, clientId, clientName, clientPhone }) {
             >
               קביעת פגישה
             </button>
-            {(window.alert_state === 'yellow' || window.alert_state === 'red') && clientPhone && (
+            {(window.alert_state === 'yellow' || window.alert_state === 'red') && clientPhone && followupLink && (
               <a
                 href={`https://wa.me/${normaliseForWA(clientPhone)}?text=${encodeURIComponent(
-                  `היי ${clientName}, הגיע הזמן לפגישה הבאה שלנו 💪\nניתן לבחור שעה נוחה בקישור:\n${FOLLOWUP_CALENDLY_URL}`
+                  `היי ${clientName}, הגיע הזמן לפגישה הבאה שלנו.\nניתן לבחור שעה נוחה בקישור:\n${followupLink}`
                 )}`}
                 target="_blank"
                 rel="noreferrer"

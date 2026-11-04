@@ -3,6 +3,7 @@ const db = require('../database/db');
 const { LEAD_STATUS } = require('../constants/statuses');
 const { createCalendarEvent } = require('../services/google-calendar.service');
 const { convertLeadToClient } = require('../services/client-lifecycle.service');
+const { israelLocalToUtcISO, addHoursUtcISO } = require('../utils/dates');
 
 const router = express.Router();
 
@@ -162,29 +163,16 @@ router.post('/:id/meeting', async (req, res) => {
       return fail(res, 400, 'date, time, and event_type are required.');
     }
 
-    // Build naive ISO strings (no Z suffix) so they are interpreted as
-    // Israel local time both by Google Calendar (with timeZone hint) and
-    // by the browser (which parses naive strings as local time).
-    const startISO = `${date}T${time}:00`;
-
-    // Add 1 hour via simple arithmetic on the time components (timezone-agnostic)
-    const [hh, mm] = time.split(':').map(Number);
-    const endH = hh + 1;
-    let endDate = date;
-    let endTimeStr = `${String(endH % 24).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-    if (endH >= 24) {
-      // Roll to next calendar day (edge case: meeting starting at 23:xx)
-      const d = new Date(`${date}T00:00:00Z`);
-      d.setUTCDate(d.getUTCDate() + 1);
-      endDate = d.toISOString().slice(0, 10);
-    }
-    const endISO = `${endDate}T${endTimeStr}:00`;
+    // date/time are Israel wall-clock from the form → canonical UTC instants
+    const startISO = israelLocalToUtcISO(date, time);
+    if (!startISO) return fail(res, 400, 'Invalid date or time.');
+    const endISO = addHoursUtcISO(1, new Date(startISO));
 
     // Generate a unique ID for manual events
     const eventId = `manual_${Date.now()}_${lead.id}`;
 
     db.prepare(`
-      INSERT INTO calendly_events
+      INSERT INTO meetings
         (id, client_id, lead_id, event_type, invitee_name, invitee_phone,
          start_time, end_time, status, source, notes)
       VALUES
@@ -212,10 +200,10 @@ router.post('/:id/meeting', async (req, res) => {
       });
 
       if (gcal.success && gcal.eventId) {
-        db.prepare('UPDATE calendly_events SET google_event_id = ? WHERE id = ?')
+        db.prepare('UPDATE meetings SET google_event_id = ? WHERE id = ?')
           .run(gcal.eventId, eventId);
         console.log(`[google] Calendar event created: ${gcal.eventId}`);
-      } else if (gcal.error !== 'not_connected') {
+      } else if (gcal.error !== 'not_connected' && gcal.error !== 'not_configured') {
         console.error('[google] createCalendarEvent failed:', gcal.error);
       }
     } catch (err) {
@@ -237,7 +225,7 @@ router.get('/:id/meeting', (req, res) => {
     if (!lead) return fail(res, 404, 'Lead not found.');
 
     const event = db.prepare(`
-      SELECT * FROM calendly_events
+      SELECT * FROM meetings
       WHERE lead_id = ? AND status = 'active'
       ORDER BY start_time DESC
       LIMIT 1

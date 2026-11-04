@@ -1,15 +1,13 @@
 const crypto = require('crypto');
 
 // ─── Webhook signature verification ──────────────────────────────────────────
-// Both verifiers need the exact raw request bytes — server.js captures them in
+// The verifier needs the exact raw request bytes — server.js captures them in
 // express.json({ verify }) as req.rawBody.
 //
-// Enforcement policy: a verifier enforces only when its secret env var is set.
+// Enforcement policy: enforced only when the secret env var is set.
 // When the secret is missing it logs a warning (once) and lets the request
 // through, so deploying this code cannot silently break live integrations.
-// Set the env vars in Railway to turn enforcement on.
-
-const CALENDLY_TOLERANCE_SEC = 3 * 60;
+// Set WHATSAPP_APP_SECRET in Railway to turn enforcement on.
 
 const warned = new Set();
 function warnOnce(key, message) {
@@ -49,37 +47,4 @@ function verifyMetaSignature(req, res, next) {
   return next();
 }
 
-// ── Calendly: Calendly-Webhook-Signature: t=<unix>,v1=<hex> over "<t>.<body>" ─
-function verifyCalendlySignature(req, res, next) {
-  const secret = process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
-  if (!secret) {
-    warnOnce('calendly', '[webhook-signature] CALENDLY_WEBHOOK_SIGNING_KEY not set — Calendly webhook signature NOT enforced');
-    return next();
-  }
-
-  const header = req.get('calendly-webhook-signature') || '';
-  const parts = Object.fromEntries(
-    header.split(',').map((p) => p.trim().split('=')).filter((kv) => kv.length === 2)
-  );
-  const timestamp = Number(parts.t);
-  const provided  = parts.v1;
-
-  if (!timestamp || !provided) {
-    console.warn(`[webhook-signature] Rejected Calendly webhook: missing signature from ip=${req.ip}`);
-    return res.sendStatus(401);
-  }
-  if (Math.abs(Date.now() / 1000 - timestamp) > CALENDLY_TOLERANCE_SEC) {
-    console.warn(`[webhook-signature] Rejected Calendly webhook: stale timestamp from ip=${req.ip}`);
-    return res.sendStatus(401);
-  }
-
-  const body = (req.rawBody || Buffer.alloc(0)).toString('utf8');
-  const expected = hmacHex(secret, `${parts.t}.${body}`);
-  if (!safeEqualHex(provided, expected)) {
-    console.warn(`[webhook-signature] Rejected Calendly webhook: bad signature from ip=${req.ip}`);
-    return res.sendStatus(401);
-  }
-  return next();
-}
-
-module.exports = { verifyMetaSignature, verifyCalendlySignature };
+module.exports = { verifyMetaSignature };

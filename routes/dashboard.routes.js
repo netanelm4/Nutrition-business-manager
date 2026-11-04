@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../database/db');
 const { computeClientAlerts, hasActiveAlert } = require('../services/alerts.service');
 const { CLIENT_STATUS, LEAD_STATUS, ALERT_STATE } = require('../constants/statuses');
-const { todayISO, addDays, toISODate, parseDate } = require('../utils/dates');
+const { todayISO, addDays, toISODate, parseDate, israelLocalToUtcISO } = require('../utils/dates');
 
 const FROZEN_DAYS = 5;
 const RETENTION_DAYS = 14;
@@ -49,12 +49,15 @@ router.get('/', (req, res) => {
     // ── 2. This week's sessions ────────────────────────────────────────────
     // "This week" = Monday 00:00 → Sunday 23:59 in Asia/Jerusalem.
 
-    // Compute Monday of current week in Israel timezone
-    const nowInIsrael    = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem' }));
-    const israelDayOfWeek = nowInIsrael.getDay();                               // 0=Sun
+    // Monday..Sunday of the current week as Israel calendar dates
+    const todayDate       = parseDate(today);                                  // Israel day, 00:00 UTC
+    const israelDayOfWeek = todayDate.getUTCDay();                             // 0=Sun
     const daysFromMonday  = israelDayOfWeek === 0 ? 6 : israelDayOfWeek - 1;   // Mon=0..Sun=6
-    const mondayISO = toISODate(addDays(nowInIsrael, -daysFromMonday));
-    const sundayISO = toISODate(addDays(nowInIsrael, 6 - daysFromMonday));
+    const mondayISO = toISODate(addDays(todayDate, -daysFromMonday));
+    const sundayISO = toISODate(addDays(todayDate, 6 - daysFromMonday));
+    // Same week as UTC instants, for comparing meetings.start_time
+    const weekStartUtc = israelLocalToUtcISO(mondayISO, '00:00');
+    const weekEndUtc   = israelLocalToUtcISO(toISODate(addDays(todayDate, 7 - daysFromMonday)), '00:00');
 
     // 2a. client_sessions — session_windows for active clients
     const client_sessions = [];
@@ -85,19 +88,19 @@ router.get('/', (req, res) => {
       }
     }
 
-    // 2b. lead_meetings — calendly_events linked to a lead this week
+    // 2b. lead_meetings — meetings linked to a lead this week
     const leadMeetingRows = db.prepare(`
       SELECT ce.id, ce.start_time, ce.event_type,
              ce.lead_id, l.full_name AS lead_name, l.phone AS lead_phone
-      FROM   calendly_events ce
+      FROM   meetings ce
       JOIN   leads l ON ce.lead_id = l.id
       WHERE  ce.status = 'active'
         AND  ce.lead_id IS NOT NULL
         AND  l.status = 'meeting_scheduled'
-        AND  substr(ce.start_time, 1, 10) >= ?
-        AND  substr(ce.start_time, 1, 10) <= ?
+        AND  ce.start_time >= ?
+        AND  ce.start_time <  ?
       ORDER  BY ce.start_time ASC
-    `).all(mondayISO, sundayISO);
+    `).all(weekStartUtc, weekEndUtc);
 
     const lead_meetings = leadMeetingRows.map((ev) => ({
       event_id:   ev.id,

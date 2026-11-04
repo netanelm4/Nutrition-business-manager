@@ -1,6 +1,7 @@
 const express  = require('express');
 const Anthropic = require('@anthropic-ai/sdk');
 const db        = require('../database/db');
+const { nowUtcISO, BUSINESS_TZ } = require('../utils/dates');
 
 const router   = express.Router();
 const { AI_MODEL } = require('../config/ai');
@@ -60,14 +61,14 @@ router.post('/chat', async (req, res) => {
       SELECT ce.*,
              c.full_name AS client_name,
              l.full_name AS lead_name
-      FROM calendly_events ce
+      FROM meetings ce
       LEFT JOIN clients c ON c.id = ce.client_id
       LEFT JOIN leads   l ON l.id = ce.lead_id
       WHERE ce.status = 'active'
-        AND ce.start_time > datetime('now')
+        AND ce.start_time > ?
       ORDER BY ce.start_time ASC
       LIMIT 10
-    `).all();
+    `).all(nowUtcISO());
 
     // ── Build system prompt ───────────────────────────────────────────────────
     const today = new Date().toLocaleDateString('he-IL', {
@@ -102,7 +103,7 @@ router.post('/chat', async (req, res) => {
           const name = s.client_name || s.lead_name || 'לא ידוע';
           const time = new Date(s.start_time).toLocaleString('he-IL', {
             weekday: 'long', day: 'numeric', month: 'long',
-            hour: '2-digit', minute: '2-digit',
+            hour: '2-digit', minute: '2-digit', timeZone: BUSINESS_TZ,
           });
           return `- ${name} | ${time}`;
         }).join('\n');

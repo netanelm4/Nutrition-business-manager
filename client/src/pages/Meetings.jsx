@@ -2,17 +2,16 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import {
-  fetchCalendlyConfig,
-  fetchCalendlyUpcoming,
-  checkCalendlyReminders,
-  cancelCalendlyEvent,
+  fetchBookingLinks,
+  fetchUpcomingMeetings,
+  checkMeetingReminders,
+  cancelMeeting,
   fetchClients,
   fetchTemplates,
   fetchGoogleAuthUrl,
   fetchGoogleStatus,
   disconnectGoogle,
   syncGoogleCalendar,
-  pollGoogleCalendar,
 } from '../lib/api';
 import { formatDateHebrew, formatTimeHebrew } from '../lib/dates';
 
@@ -55,7 +54,7 @@ function Toast({ msg, onClose }) {
 
 // ── Client picker modal ───────────────────────────────────────────────────────
 
-function ClientPicker({ title, calendlyUrl, templates, onClose }) {
+function ClientPicker({ title, bookingUrl, templates, onClose }) {
   const { data: clients = [] } = useQuery({
     queryKey: ['clients'],
     queryFn: () => fetchClients(),
@@ -72,15 +71,16 @@ function ClientPicker({ title, calendlyUrl, templates, onClose }) {
       )
     : active;
 
-  const calendlyTmpl = templates?.find((t) => t.trigger_event === 'calendly_link');
+  const bookingTmpl = templates?.find((t) => t.trigger_event === 'booking_link');
 
   function handleSelect(client) {
     const body =
-      calendlyTmpl?.body_template ||
-      'היי {{client_name}} 😊\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{calendly_link}}\nניתן לבחור שעה נוחה — אני אהיה שם!';
+      bookingTmpl?.body_template ||
+      'היי {{client_name}},\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{booking_link}}\nניתן לבחור שעה נוחה, אני אהיה שם.';
     const msg = renderMsg(body, {
       client_name: client.full_name,
-      calendly_link: calendlyUrl,
+      booking_link: bookingUrl,
+      calendly_link: bookingUrl, // old custom templates
     });
     window.open(generateWALink(client.phone, msg), '_blank');
     onClose();
@@ -121,7 +121,7 @@ function ClientPicker({ title, calendlyUrl, templates, onClose }) {
 
 // ── Link card ─────────────────────────────────────────────────────────────────
 
-function LinkCard({ title, subtitle, url, onCopy, onSendToClient }) {
+function LinkCard({ title, subtitle, url, envName, onCopy, onSendToClient }) {
   return (
     <div className="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div>
@@ -134,7 +134,7 @@ function LinkCard({ title, subtitle, url, onCopy, onSendToClient }) {
         </p>
       ) : (
         <p style={{ fontSize: 12, color: 'var(--ink-4)', fontStyle: 'italic' }}>
-          לא הוגדר — הוסף את משתנה הסביבה בהגדרות Railway
+          לא הוגדר. יש להגדיר את {envName} במשתני הסביבה ב-Railway
         </p>
       )}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -155,7 +155,7 @@ const EVENT_TYPE_META = {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
-export default function CalendlySettings() {
+export default function Meetings() {
   const [toast, setToast]       = useState('');
   const [picker, setPicker]     = useState(null); // { type: 'first' | 'followup' }
   const [cancelConfirm, setCancelConfirm] = useState(null); // row to confirm
@@ -170,8 +170,8 @@ export default function CalendlySettings() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const g = params.get('google');
-    if (g === 'connected') showToast('Google Calendar חובר בהצלחה');
-    if (g === 'error')     showToast('שגיאה בחיבור Google Calendar');
+    if (g === 'connected') showToast('יומן Google חובר בהצלחה');
+    if (g === 'error')     showToast('שגיאה בחיבור יומן Google');
     if (g) {
       // Remove the param without reloading
       const url = new URL(window.location.href);
@@ -182,13 +182,13 @@ export default function CalendlySettings() {
   }, []);
 
   const { data: config } = useQuery({
-    queryKey: ['calendlyConfig'],
-    queryFn: fetchCalendlyConfig,
+    queryKey: ['bookingLinks'],
+    queryFn: fetchBookingLinks,
   });
 
   const { data: upcoming = [], isLoading: upcomingLoading } = useQuery({
-    queryKey: ['calendlyUpcoming'],
-    queryFn: fetchCalendlyUpcoming,
+    queryKey: ['upcomingMeetings'],
+    queryFn: fetchUpcomingMeetings,
     refetchInterval: 60_000,
   });
 
@@ -201,9 +201,9 @@ export default function CalendlySettings() {
   const queryClient = useQueryClient();
 
   const cancelMutation = useMutation({
-    mutationFn: (eventId) => cancelCalendlyEvent(eventId),
+    mutationFn: (meetingId) => cancelMeeting(meetingId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['calendlyUpcoming'] });
+      queryClient.invalidateQueries({ queryKey: ['upcomingMeetings'] });
       setCancelConfirm(null);
       showToast('הפגישה בוטלה');
     },
@@ -221,27 +221,25 @@ export default function CalendlySettings() {
     mutationFn: disconnectGoogle,
     onSuccess: () => {
       refetchGoogle();
-      showToast('Google Calendar נותק');
+      showToast('יומן Google נותק');
     },
     onError: () => showToast('שגיאה בניתוק'),
   });
 
+  // One incremental sync: new bookings, reschedules and cancellations
   const syncMutation = useMutation({
     mutationFn: syncGoogleCalendar,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['calendlyUpcoming'] });
-      showToast(data.synced > 0 ? `סונכרן ${data.synced} פגישות` : 'הכל מסונכרן');
+      queryClient.invalidateQueries({ queryKey: ['upcomingMeetings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      if (data?.skipped) { showToast('יומן Google לא מחובר'); return; }
+      const parts = [];
+      if (data?.created)  parts.push(`${data.created} חדשות`);
+      if (data?.updated)  parts.push(`${data.updated} עודכנו`);
+      if (data?.canceled) parts.push(`${data.canceled} בוטלו`);
+      showToast(parts.length ? `פגישות: ${parts.join(' · ')}` : 'הכל מסונכרן');
     },
     onError: () => showToast('שגיאה בסנכרון'),
-  });
-
-  const pollMutation = useMutation({
-    mutationFn: pollGoogleCalendar,
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['calendlyUpcoming'] });
-      showToast(data.inserted > 0 ? `נוספו ${data.inserted} פגישות חדשות` : 'אין פגישות חדשות');
-    },
-    onError: () => showToast('שגיאה בבדיקת פגישות'),
   });
 
   async function handleGoogleConnect() {
@@ -256,9 +254,9 @@ export default function CalendlySettings() {
   }
 
   const reminderMutation = useMutation({
-    mutationFn: checkCalendlyReminders,
+    mutationFn: checkMeetingReminders,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['calendlyUpcoming'] });
+      queryClient.invalidateQueries({ queryKey: ['upcomingMeetings'] });
       showToast(
         data.count > 0
           ? `נמצאו ${data.count} פגישות לתזכורת`
@@ -289,7 +287,7 @@ export default function CalendlySettings() {
     const tmpl = templates.find((t) => t.trigger_event === 'session_confirmation');
     const body =
       tmpl?.body_template ||
-      'היי {{client_name}} 👋\nרציתי לאשר את הפגישה שלנו מחר {{date}} בשעה {{time}}.\nאשמח לאישור הגעה 🙏\nאם צריך לשנות — נדבר!';
+      'היי {{client_name}},\nרציתי לאשר את הפגישה שלנו מחר {{date}} בשעה {{time}}.\nאשמח לאישור הגעה.\nאם צריך לשנות, נדבר.';
 
     const msg = renderMsg(body, {
       client_name: row.matched_name || row.invitee_name,
@@ -304,26 +302,23 @@ export default function CalendlySettings() {
     <div className="crm-page">
       {/* Subhead */}
       <div className="subhead" style={{ marginBottom: 20 }}>
-        <b style={{ fontSize: 14, color: 'var(--ink-1)' }}>קביעת פגישות</b>
+        <b style={{ fontSize: 14, color: 'var(--ink-1)' }}>פגישות</b>
       </div>
 
       {/* ── Google Calendar ── */}
       <section style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>חיבור Google Calendar</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>יומן Google</div>
         {googleConnected ? (
           <div className="card" style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', borderColor: 'var(--green-soft)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ color: 'var(--green)', fontSize: 18, lineHeight: 1 }}>✓</span>
               <div>
-                <p style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink-1)', margin: 0 }}>Google Calendar מחובר</p>
-                <p style={{ fontSize: 12, color: 'var(--ink-3)', margin: 0 }}>פגישות ידניות מתווספות אוטומטית ליומן</p>
+                <p style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--ink-1)', margin: 0 }}>יומן Google מחובר</p>
+                <p style={{ fontSize: 12, color: 'var(--ink-3)', margin: 0 }}>הזמנות, שינויי מועד וביטולים מסתנכרנים אוטומטית כל 5 דקות</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={() => pollMutation.mutate()} disabled={pollMutation.isPending} className="crm-btn crm-btn--sm crm-btn--primary">
-                {pollMutation.isPending ? 'בודק...' : 'בדוק פגישות חדשות'}
-              </button>
-              <button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="crm-btn crm-btn--sm" style={{ color: 'var(--blue)', borderColor: 'var(--blue-soft)' }}>
+              <button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending} className="crm-btn crm-btn--sm crm-btn--primary">
                 {syncMutation.isPending ? 'מסנכרן...' : 'סנכרן עכשיו'}
               </button>
               <button onClick={() => disconnectMutation.mutate()} disabled={disconnectMutation.isPending} style={{ fontSize: 12, color: 'var(--ink-3)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
@@ -333,7 +328,7 @@ export default function CalendlySettings() {
           </div>
         ) : (
           <div className="card" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.55 }}>פגישות שתקבע ידנית יתווספו אוטומטית ליומן Google שלך.</p>
+            <p style={{ fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.55 }}>לאחר החיבור, פגישות שנקבעות במערכת יתווספו ליומן Google, והזמנות מקישורי התיאום ייקלטו כאן אוטומטית.</p>
             <button onClick={handleGoogleConnect} disabled={googleConnecting} className="crm-btn crm-btn--primary" style={{ alignSelf: 'flex-start' }}>
               {googleConnecting ? 'מתחבר...' : 'התחבר עם Google'}
             </button>
@@ -341,12 +336,12 @@ export default function CalendlySettings() {
         )}
       </section>
 
-      {/* ── Calendly Links ── */}
+      {/* ── Booking links (Google appointment scheduling) ── */}
       <section style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>קישורי Calendly</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>קישורי תיאום פגישות</div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
-          <LinkCard title="פגישה ראשונה" subtitle="ללקוחות חדשים" url={firstLink} onCopy={() => handleCopy(firstLink)} onSendToClient={() => setPicker({ type: 'first' })} />
-          <LinkCard title="פגישת מעקב" subtitle="ללקוחות קיימים" url={followupLink} onCopy={() => handleCopy(followupLink)} onSendToClient={() => setPicker({ type: 'followup' })} />
+          <LinkCard title="פגישה ראשונה" subtitle="ללקוחות חדשים" url={firstLink} envName="BOOKING_LINK_FIRST" onCopy={() => handleCopy(firstLink)} onSendToClient={() => setPicker({ type: 'first' })} />
+          <LinkCard title="פגישת מעקב" subtitle="ללקוחות קיימים" url={followupLink} envName="BOOKING_LINK_FOLLOWUP" onCopy={() => handleCopy(followupLink)} onSendToClient={() => setPicker({ type: 'followup' })} />
         </div>
       </section>
 
@@ -422,7 +417,7 @@ export default function CalendlySettings() {
               ? 'שלח קישור פגישה ראשונה'
               : 'שלח קישור פגישת מעקב'
           }
-          calendlyUrl={picker.type === 'first' ? firstLink : followupLink}
+          bookingUrl={picker.type === 'first' ? firstLink : followupLink}
           templates={templates}
           onClose={() => setPicker(null)}
         />

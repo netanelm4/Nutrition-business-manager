@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const { LEAD_STATUS, CLIENT_STATUS } = require('../constants/statuses');
-const { calculateSessionWindows, calculateProcessEndDate, todayISO } = require('../utils/dates');
+const { calculateSessionWindows, calculateProcessEndDate, todayISO, israelDateOf } = require('../utils/dates');
 
 // ─── Client lifecycle commands ───────────────────────────────────────────────
 // Single source of truth for creating/closing a client's process.
@@ -140,12 +140,13 @@ function convertLeadToClient(database, leadId) {
 
   const intake  = database.prepare('SELECT * FROM lead_intakes WHERE lead_id = ?').get(lead.id);
   const meeting = database.prepare(`
-    SELECT * FROM calendly_events
+    SELECT * FROM meetings
     WHERE lead_id = ? AND status = 'active'
     ORDER BY start_time ASC LIMIT 1
   `).get(lead.id);
 
-  const sessionDate = meeting ? meeting.start_time.slice(0, 10) : todayISO();
+  // Session 1 is the first meeting: its Israel calendar date
+  const sessionDate = meeting ? israelDateOf(meeting.start_time) : todayISO();
   const windows = calculateSessionWindows(sessionDate);
 
   const run = database.transaction(() => {
@@ -179,13 +180,14 @@ function convertLeadToClient(database, leadId) {
     const engagementId = ensureActiveEngagement(database, clientId, sessionDate);
 
     const sessionRes = database.prepare(`
-      INSERT INTO sessions (client_id, session_number, session_date, highlights, tasks, engagement_id)
-      VALUES (?, 1, ?, '', '[]', ?)
-    `).run(clientId, sessionDate, engagementId);
+      INSERT INTO sessions
+        (client_id, session_number, session_date, highlights, tasks, engagement_id, meeting_id)
+      VALUES (?, 1, ?, '', '[]', ?, ?)
+    `).run(clientId, sessionDate, engagementId, meeting ? meeting.id : null);
     const sessionId = sessionRes.lastInsertRowid;
 
     if (meeting) {
-      database.prepare('UPDATE calendly_events SET client_id = ?, engagement_id = ? WHERE id = ?')
+      database.prepare('UPDATE meetings SET client_id = ?, engagement_id = ? WHERE id = ?')
         .run(clientId, engagementId, meeting.id);
     }
 

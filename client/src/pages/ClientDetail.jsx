@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeCalendlyEvent, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight, fetchWeightLink, stopClient, freezeClient, reactivateClient } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeMeeting, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight, fetchWeightLink, stopClient, freezeClient, reactivateClient } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -1741,9 +1741,12 @@ export default function ClientDetail() {
   });
 
   const completeMeetingMutation = useMutation({
-    mutationFn: (eventId) => completeCalendlyEvent(eventId),
+    mutationFn: (meetingId) => completeMeeting(meetingId),
     onSuccess: () => {
+      // The linked session becomes `held` — refresh sessions and the progress bar too
       queryClient.invalidateQueries({ queryKey: ['client-meetings', id] });
+      queryClient.invalidateQueries({ queryKey: ['sessions', String(id)] });
+      queryClient.invalidateQueries({ queryKey: ['client', String(id)] });
     },
   });
 

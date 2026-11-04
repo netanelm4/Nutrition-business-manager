@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { scheduleMeeting, updateCalendlyEvent } from '../../lib/api';
+import { scheduleMeeting, updateMeeting } from '../../lib/api';
+import { israelDateOf, israelTimeOf, todayIsraelISO } from '../../lib/dates';
 
 const EVENT_TYPES = [
   { value: 'first_meeting', label: 'פגישה ראשונה' },
@@ -9,15 +10,11 @@ const EVENT_TYPES = [
 
 // existingEvent: { id, start_time, event_type, notes } — when editing an existing event
 export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose, existingEvent }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsraelISO();
 
-  // Pre-fill from existingEvent when editing
-  const initialDate = existingEvent?.start_time ? existingEvent.start_time.slice(0, 10) : today;
-  const initialTime = existingEvent?.start_time
-    ? new Date(existingEvent.start_time).toLocaleTimeString('he-IL', {
-        hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem',
-      })
-    : '10:00';
+  // Pre-fill from existingEvent when editing (start_time is UTC — show Israel date/time)
+  const initialDate = existingEvent?.start_time ? israelDateOf(existingEvent.start_time) : today;
+  const initialTime = existingEvent?.start_time ? israelTimeOf(existingEvent.start_time) : '10:00';
 
   const [date, setDate]           = useState(initialDate);
   const [time, setTime]           = useState(initialTime);
@@ -37,7 +34,7 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose, ex
     setError('');
     try {
       if (isEdit) {
-        await updateCalendlyEvent(existingEvent.id, { date, time, event_type: eventType, notes });
+        await updateMeeting(existingEvent.id, { date, time, event_type: eventType, notes });
       } else {
         await scheduleMeeting(lead.id, { date, time, event_type: eventType, notes });
       }

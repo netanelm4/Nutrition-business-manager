@@ -5,7 +5,7 @@ import {
   fetchDashboard, fetchTemplates, renderTemplate, repairAIAssessments,
   fetchAIRecommendations, dismissRecommendation, markRecommendationSent, runAIAnalysis,
 } from '../lib/api';
-import { formatDateHebrew, formatTimeHebrew, relativeLabel } from '../lib/dates';
+import { formatDateHebrew, formatTimeHebrew, relativeLabel, israelDateOf, todayIsraelISO } from '../lib/dates';
 import { ALERT_STATE } from '../constants/statuses';
 
 // ─── Inline SVG icons ─────────────────────────────────────────────────────────
@@ -200,7 +200,7 @@ function LeadSessRow({ item }) {
           <span className="chip chip--blue" style={{ height: 20, fontSize: 10.5 }}>היכרות</span>
         </div>
         <div className="sess-det">
-          {formatDateHebrew(item.start_time.slice(0, 10))}
+          {formatDateHebrew(israelDateOf(item.start_time))}
         </div>
       </div>
       <button
@@ -219,12 +219,9 @@ const DAY_KEYS   = ['yesterday', 'today', 'tomorrow', 'week'];
 const DAY_LABELS = { yesterday: 'אתמול', today: 'היום', tomorrow: 'מחר', week: 'השבוע' };
 
 function groupByDay(clientSessions, leadMeetings) {
-  const now       = new Date();
-  const todayStr  = now.toISOString().slice(0, 10);
-  const d         = (offset) => {
-    const d = new Date(now); d.setDate(now.getDate() + offset);
-    return d.toISOString().slice(0, 10);
-  };
+  // Israel calendar days (meetings.start_time is UTC — never slice it)
+  const todayStr  = todayIsraelISO();
+  const d         = (offset) => israelDateOf(new Date(Date.now() + offset * 86_400_000).toISOString());
   const yStr = d(-1), tStr = todayStr, tmStr = d(1);
 
   function bucket(dateStr) {
@@ -240,7 +237,7 @@ function groupByDay(clientSessions, leadMeetings) {
     groups[bucket(item.expected_date)]?.push({ ...item, _type: 'client' });
   }
   for (const item of (leadMeetings ?? [])) {
-    groups[bucket(item.start_time.slice(0, 10))]?.push({ ...item, _type: 'lead' });
+    groups[bucket(israelDateOf(item.start_time))]?.push({ ...item, _type: 'lead' });
   }
 
   DAY_KEYS.forEach((k) => {
@@ -267,7 +264,7 @@ function SessionsCard({ clientSessions, leadMeetings, isLoading, isError }) {
             {isLoading ? '...' : `${total} פגישות`}
           </div>
         </div>
-        <Link to="/calendly" className="crm-btn crm-btn--sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <Link to="/meetings" className="crm-btn crm-btn--sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           לוח השבוע <IcChev size={12}/>
         </Link>
       </div>
@@ -695,10 +692,10 @@ export default function Dashboard() {
   const hour     = new Date().getHours();
   const greeting = hour < 12 ? 'בוקר טוב' : hour < 17 ? 'צהריים טובים' : 'ערב טוב';
 
-  const todayStr      = new Date().toISOString().slice(0, 10);
+  const todayStr      = todayIsraelISO();
   const todayLong     = new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' });
   const todayMeetings = (dashboard?.lead_meetings ?? []).filter(
-    (m) => m.start_time?.slice(0, 10) === todayStr
+    (m) => israelDateOf(m.start_time) === todayStr
   ).length;
 
   const counters    = dashboard?.counters;
@@ -724,7 +721,7 @@ export default function Dashboard() {
             <IcSparkle size={12} />
             עוזר AI
           </Link>
-          <Link to="/calendly" className="crm-btn crm-btn--primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <Link to="/meetings" className="crm-btn crm-btn--primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
             קבע פגישה +
           </Link>

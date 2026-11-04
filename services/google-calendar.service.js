@@ -1,11 +1,13 @@
 const { google } = require('googleapis');
 const db = require('../database/db');
+const { toUtcISO, nowUtcISO, addHoursUtcISO } = require('../utils/dates');
+const {
+  cancelSessionsForEvent, rescheduleSessionsForEvent, scheduleSessionForEvent,
+} = require('./session-lifecycle.service');
 
-// Last successful poll timestamp — initialized lazily to (now - 10 min) on first run
-let lastPollTime = null;
 
 // ── normalizePhone ────────────────────────────────────────────────────────────
-// Mirrors normalizePhoneForDB in calendly.routes.js — 05XXXXXXXXX format
+// Israeli local format 05XXXXXXXX, used to match bookings to clients/leads
 function normalizePhone(phone) {
   if (!phone) return '';
   const digits = phone.replace(/\D/g, '');
@@ -204,209 +206,192 @@ async function deleteCalendarEvent(eventId) {
   }
 }
 
-// ── syncCanceledEvents ────────────────────────────────────────────────────────
-// Polls Google Calendar for events that were deleted/canceled there,
-// and marks them as canceled in our DB. Runs every 30 minutes.
+// ─────────────────────────────────────────────────────────────────────────────
+// Incremental sync (Google Calendar is the single scheduling source)
+//
+// events.list with a syncToken returns every event created, changed or
+// cancelled since the previous sync — bookings, reschedules and cancellations
+// in one pass. The token lives in settings.google_sync_token, so restarts and
+// deploys lose nothing. It is saved only after all changes were applied; on
+// 410 (token expired) we fall back to a full sync of the last
+// SYNC_LOOKBACK_DAYS days. All instants are stored as canonical UTC ISO.
+// ─────────────────────────────────────────────────────────────────────────────
 
-async function syncCanceledEvents() {
-  if (!googleEnabled || !isConnected()) return 0;
+const SYNC_LOOKBACK_DAYS = 30;
+const BOOKING_MARKER = /booked by/i; // Google appointment-scheduling bookings
+let syncInProgress = false;
+
+function findClientByPhone(database, phone) {
+  if (!phone) return null;
+  const all = database.prepare("SELECT id, phone FROM clients WHERE status != 'ended'").all();
+  return all.find((c) => normalizePhone(c.phone) === phone) || null;
+}
+
+function findLead(database, { email, phone }) {
+  if (email) {
+    const byEmail = database.prepare('SELECT id, status FROM leads WHERE email = ? LIMIT 1').get(email);
+    if (byEmail) return byEmail;
+  }
+  if (phone) {
+    const all = database.prepare('SELECT id, status, phone FROM leads').all();
+    return all.find((l) => normalizePhone(l.phone) === phone) || null;
+  }
+  return null;
+}
+
+/**
+ * Apply one changed Google event to the DB.
+ * @returns {'created'|'updated'|'canceled'|'ignored'}
+ */
+function processCalendarEvent(database, event) {
+  const existing = database.prepare('SELECT * FROM meetings WHERE google_event_id = ?').get(event.id);
+
+  // ── Cancelled (deleted in Google, or the client cancelled the booking) ──────
+  if (event.status === 'cancelled') {
+    if (!existing || existing.status === 'canceled') return 'ignored';
+    database.prepare("UPDATE meetings SET status = 'canceled' WHERE id = ?").run(existing.id);
+    cancelSessionsForEvent(database, existing);
+    console.log(`[google-sync] Canceled meeting ${existing.id} (${existing.invitee_name || ''})`);
+    return 'canceled';
+  }
+
+  if (!event.start?.dateTime) return 'ignored'; // all-day events are not meetings
+  const startTime = toUtcISO(event.start.dateTime);
+  const endTime   = toUtcISO(event.end?.dateTime) || null;
+  if (!startTime) return 'ignored';
+
+  // ── Known meeting (a booking we stored, or a meeting the CRM created) ───────
+  if (existing) {
+    if (existing.status === 'canceled') return 'ignored';
+    if (existing.start_time === startTime && existing.end_time === endTime) return 'ignored';
+    database.prepare('UPDATE meetings SET start_time = ?, end_time = ? WHERE id = ?')
+      .run(startTime, endTime, existing.id);
+    rescheduleSessionsForEvent(database, existing.id, startTime);
+    console.log(`[google-sync] Rescheduled meeting ${existing.id}: ${existing.start_time} → ${startTime}`);
+    return 'updated';
+  }
+
+  // ── New booking from an appointment-scheduling page ─────────────────────────
+  if (!BOOKING_MARKER.test(event.description || '')) return 'ignored';
+
+  const { name, email, phone } = parseBookedBy(event.description || '');
+  const attendee = (event.attendees || []).find((a) => !a.organizer && !a.self);
+  const resolvedEmail = email || attendee?.email || '';
+  const resolvedName  = name  || attendee?.displayName || '';
+  const resolvedPhone = normalizePhone(phone);
+  const eventType = /ראשונ|first/i.test(event.summary || '') ? 'first_meeting' : 'follow_up';
+
+  const client = findClientByPhone(database, resolvedPhone);
+  let leadId = null;
+  if (!client) {
+    const lead = findLead(database, { email: resolvedEmail, phone: resolvedPhone });
+    if (lead) {
+      leadId = lead.id;
+      if (['new', 'contacted'].includes(lead.status)) {
+        database.prepare("UPDATE leads SET status = 'meeting_scheduled', status_updated_at = ? WHERE id = ?")
+          .run(nowUtcISO(), lead.id);
+      }
+    } else if (eventType === 'first_meeting' && (resolvedName || resolvedEmail || resolvedPhone)) {
+      leadId = database.prepare(
+        "INSERT INTO leads (full_name, phone, email, source, status) VALUES (?, ?, ?, 'google_calendar', 'meeting_scheduled')"
+      ).run(resolvedName || 'לא ידוע', resolvedPhone || null, resolvedEmail || null).lastInsertRowid;
+      console.log(`[google-sync] Created lead ${leadId}: ${resolvedName} (${resolvedPhone || resolvedEmail})`);
+    }
+  }
+
+  const engagementId = client
+    ? database.prepare("SELECT id FROM engagements WHERE client_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1").get(client.id)?.id ?? null
+    : null;
+
+  database.prepare(`
+    INSERT OR IGNORE INTO meetings
+      (id, client_id, lead_id, event_type, invitee_name, invitee_phone,
+       invitee_email, start_time, end_time, status, google_event_id, source, engagement_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 'google_calendar', ?)
+  `).run(
+    event.id, client?.id ?? null, leadId, eventType,
+    resolvedName, resolvedPhone || null, resolvedEmail || null,
+    startTime, endTime, event.id, engagementId,
+  );
+
+  if (client && eventType === 'follow_up') {
+    scheduleSessionForEvent(database, { clientId: client.id, eventId: event.id, startTime, engagementId });
+  }
+  console.log(`[google-sync] New booking: ${resolvedName} (${eventType}) — ${startTime}`);
+  return 'created';
+}
+
+async function listAllEvents(calendar, params) {
+  const items = [];
+  let pageToken;
+  let nextSyncToken = null;
+  do {
+    const res = await calendar.events.list({
+      calendarId: 'primary', singleEvents: true, maxResults: 250, ...params, pageToken,
+    });
+    items.push(...(res.data.items || []));
+    pageToken = res.data.nextPageToken;
+    if (res.data.nextSyncToken) nextSyncToken = res.data.nextSyncToken;
+  } while (pageToken);
+  return { items, nextSyncToken };
+}
+
+/**
+ * Run one sync pass. `listEvents(params)` can be injected (tests); by default
+ * it calls the Google Calendar API with the stored OAuth credentials.
+ */
+async function syncGoogleCalendar({ listEvents, database = db } = {}) {
+  if (!listEvents) {
+    if (!googleEnabled || !isConnected()) return { skipped: 'not_connected' };
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    listEvents = (params) => listAllEvents(calendar, params);
+  }
+  if (syncInProgress) return { skipped: 'in_progress' };
+  syncInProgress = true;
 
   try {
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    database.prepare('INSERT OR IGNORE INTO settings (id) VALUES (1)').run();
+    const token = database.prepare('SELECT google_sync_token FROM settings WHERE id = 1').get()?.google_sync_token;
+    const fullParams = { timeMin: addHoursUtcISO(-24 * SYNC_LOOKBACK_DAYS) };
 
-    // Only check recent active events that have a Google event ID
-    const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const events = db.prepare(`
-      SELECT id, google_event_id FROM calendly_events
-      WHERE status = 'active'
-        AND google_event_id IS NOT NULL
-        AND start_time > ?
-    `).all(cutoff);
-
-    let canceledCount = 0;
-
-    for (const ev of events) {
-      try {
-        const res = await calendar.events.get({
-          calendarId: 'primary',
-          eventId:    ev.google_event_id,
-        });
-
-        if (res.data.status === 'cancelled') {
-          db.prepare("UPDATE calendly_events SET status = 'canceled' WHERE id = ?").run(ev.id);
-          console.log(`[google] Event canceled in Google Calendar: ${ev.google_event_id}`);
-          canceledCount++;
-        }
-      } catch (err) {
-        // 404 = deleted from Google Calendar
-        if (err.code === 404 || err.status === 404) {
-          db.prepare("UPDATE calendly_events SET status = 'canceled' WHERE id = ?").run(ev.id);
-          console.log(`[google] Event deleted in Google Calendar: ${ev.google_event_id}`);
-          canceledCount++;
-        }
-        // Other errors (network, rate limit) — skip this event silently
+    let mode = token ? 'incremental' : 'full';
+    let result;
+    try {
+      result = await listEvents(token ? { syncToken: token } : fullParams);
+    } catch (err) {
+      if (token && (err.code === 410 || err.status === 410)) {
+        console.warn('[google-sync] Sync token expired (410) — running a full sync');
+        mode = 'full';
+        result = await listEvents(fullParams);
+      } else {
+        throw err;
       }
     }
 
-    if (canceledCount > 0) {
-      console.log(`[google] Sync complete — ${canceledCount} event(s) marked canceled`);
-    }
+    const stats = { mode, received: result.items.length, created: 0, updated: 0, canceled: 0, ignored: 0 };
+    database.transaction(() => {
+      for (const event of result.items) stats[processCalendarEvent(database, event)]++;
+      if (result.nextSyncToken) {
+        database.prepare('UPDATE settings SET google_sync_token = ?, google_last_sync_at = ? WHERE id = 1')
+          .run(result.nextSyncToken, nowUtcISO());
+      }
+    })();
 
-    return canceledCount;
+    if (stats.created || stats.updated || stats.canceled) {
+      console.log(`[google-sync] ${mode}: +${stats.created} new, ${stats.updated} rescheduled, ${stats.canceled} canceled`);
+    }
+    return stats;
   } catch (err) {
-    console.error('[google] syncCanceledEvents error:', err.message);
-    return 0;
+    console.error('[google-sync] ERROR:', err.message);
+    return { error: err.message };
+  } finally {
+    syncInProgress = false;
   }
 }
 
-// ── pollNewBookings ───────────────────────────────────────────────────────────
-// Runs every 5 minutes. Fetches Google Calendar events updated since the last
-// poll, inserts new bookings into calendly_events, and matches them to clients.
-async function pollNewBookings() {
-  if (!googleEnabled || !isConnected()) return;
-
-  try {
-    const now   = new Date();
-    const since = lastPollTime || new Date(Date.now() - 10 * 60 * 1000);
-    lastPollTime = now;
-
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-    const res = await calendar.events.list({
-      calendarId:   'primary',
-      updatedMin:   since.toISOString(),
-      singleEvents: true,
-      orderBy:      'updated',
-      maxResults:   50,
-    });
-
-    const events = res.data.items || [];
-    let inserted = 0;
-
-    for (const event of events) {
-      if (event.status === 'cancelled') continue;
-      if (!event.description || !event.description.includes('Booked by')) {
-        continue; // not a booking from our appointment scheduling links
-      }
-      if (!event.start?.dateTime) continue;
-
-      // Deduplication — skip if already stored
-      const existing = db.prepare(
-        'SELECT id FROM calendly_events WHERE google_event_id = ?'
-      ).get(event.id);
-      if (existing) continue;
-
-      // Extract contact info from "Booked by" block in description
-      const { name, email, phone } = parseBookedBy(event.description || '');
-
-      // Fall back to attendees array for email
-      const clientAttendee = (event.attendees || []).find((a) => !a.organizer && !a.self);
-      const resolvedEmail = email || clientAttendee?.email || '';
-      const resolvedName  = name  || clientAttendee?.displayName || '';
-      const resolvedPhone = normalizePhone(phone);
-
-      // Detect event type from summary
-      const summary = event.summary || '';
-      const event_type = /ראשונ|first/i.test(summary) ? 'first_meeting' : 'follow_up';
-
-      // Match client: email first, then phone
-      let client_id = null;
-      let lead_id   = null;
-
-      if (resolvedEmail) {
-        try {
-          const row = db.prepare(
-            "SELECT id FROM clients WHERE email = ? AND status != 'ended' LIMIT 1"
-          ).get(resolvedEmail);
-          if (row) { client_id = row.id; }
-        } catch { /* clients table may not have email column */ }
-      }
-      if (!client_id && resolvedPhone) {
-        const all = db.prepare("SELECT id, phone FROM clients WHERE status != 'ended'").all();
-        const match = all.find((c) => normalizePhone(c.phone) === resolvedPhone);
-        if (match) { client_id = match.id; }
-      }
-
-      // Fall back to leads
-      if (!client_id) {
-        if (resolvedEmail) {
-          try {
-            const row = db.prepare('SELECT id FROM leads WHERE email = ? LIMIT 1').get(resolvedEmail);
-            if (row) { lead_id = row.id; }
-          } catch { /* safe */ }
-        }
-        if (!lead_id && resolvedPhone) {
-          const all = db.prepare('SELECT id, phone FROM leads').all();
-          const match = all.find((l) => normalizePhone(l.phone) === resolvedPhone);
-          if (match) { lead_id = match.id; }
-        }
-      }
-
-      // Auto-create lead for unmatched first_meeting bookings
-      if (!client_id && !lead_id && event_type === 'first_meeting') {
-        if (resolvedName || resolvedEmail || resolvedPhone) {
-          const r = db.prepare(
-            'INSERT INTO leads (full_name, phone, email, source, status) VALUES (?, ?, ?, ?, ?)'
-          ).run(
-            resolvedName || 'לא ידוע',
-            resolvedPhone || null,
-            resolvedEmail || null,
-            'google_calendar',
-            'meeting_scheduled',
-          );
-          lead_id = r.lastInsertRowid;
-          console.log(`[poll] CREATED LEAD: ${resolvedName} — ${resolvedEmail} — ${resolvedPhone}`);
-        }
-      }
-
-      const engRow = client_id
-        ? db.prepare("SELECT id FROM engagements WHERE client_id = ? AND status = 'active' ORDER BY number DESC LIMIT 1").get(client_id)
-        : null;
-      const engagement_id = engRow?.id ?? null;
-
-      const start_time = event.start.dateTime;
-      const end_time   = event.end?.dateTime || '';
-
-      db.prepare(`
-        INSERT OR IGNORE INTO calendly_events
-          (id, client_id, lead_id, event_type, invitee_name, invitee_phone,
-           invitee_email, start_time, end_time, status, google_event_id, source, engagement_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, 'google_calendar', ?)
-      `).run(
-        event.id, client_id, lead_id, event_type,
-        resolvedName, resolvedPhone || null, resolvedEmail || null,
-        start_time, end_time, event.id, engagement_id,
-      );
-
-      // Auto-create session for matched clients booking a follow-up
-      if (client_id && event_type === 'follow_up') {
-        const nextWindow = db.prepare(`
-          SELECT w.session_number
-          FROM   session_windows w
-          LEFT JOIN sessions s
-            ON s.client_id = w.client_id AND s.session_number = w.session_number
-          WHERE  w.client_id = ? AND s.id IS NULL
-          ORDER  BY w.session_number ASC
-          LIMIT  1
-        `).get(client_id);
-
-        if (nextWindow) {
-          db.prepare(`
-            INSERT OR IGNORE INTO sessions (client_id, session_number, session_date, highlights, engagement_id)
-            VALUES (?, ?, ?, '', ?)
-          `).run(client_id, nextWindow.session_number, start_time, engagement_id);
-          console.log(`[google-poll] Created session ${nextWindow.session_number} for client ${client_id}`);
-        }
-      }
-
-      inserted++;
-      console.log(`[poll] INSERTED: ${resolvedName} (${event_type}) — ${resolvedPhone || resolvedEmail || 'no contact'} — ${start_time}`);
-    }
-
-    console.log(`[poll] done — checked ${events.length} event(s), inserted ${inserted}`);
-  } catch (err) {
-    console.error('[poll] ERROR:', err.message);
-    console.error(err.stack);
-  }
+/** Forget the sync position (e.g. after disconnecting the account). */
+function resetSyncState(database = db) {
+  database.prepare('UPDATE settings SET google_sync_token = NULL, google_last_sync_at = NULL WHERE id = 1').run();
 }
 
 module.exports = {
@@ -417,6 +402,9 @@ module.exports = {
   createCalendarEvent,
   updateCalendarEvent,
   deleteCalendarEvent,
-  syncCanceledEvents,
-  pollNewBookings,
+  syncGoogleCalendar,
+  processCalendarEvent,
+  resetSyncState,
+  parseBookedBy,
+  normalizePhone,
 };

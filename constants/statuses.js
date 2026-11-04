@@ -15,6 +15,14 @@ const LEAD_STATUS = Object.freeze({
   NOT_RELEVANT: 'not_relevant',
 });
 
+// Session lifecycle: a booking starts as scheduled; only held counts as done
+const SESSION_STATUS = Object.freeze({
+  SCHEDULED: 'scheduled',
+  HELD: 'held',
+  NO_SHOW: 'no_show',
+  CANCELED: 'canceled',
+});
+
 const ALERT_STATE = Object.freeze({
   GREEN: 'green',
   YELLOW: 'yellow',
@@ -58,6 +66,7 @@ const GOAL_OPTIONS = Object.freeze([
 module.exports = {
   CLIENT_STATUS,
   LEAD_STATUS,
+  SESSION_STATUS,
   ALERT_STATE,
   GENDER,
   LEAD_SOURCE,

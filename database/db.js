@@ -1,7 +1,10 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
-const { calculateSessionWindows, calculateProcessEndDate, todayISO } = require('../utils/dates');
+const {
+  calculateSessionWindows, calculateProcessEndDate, todayISO,
+  toUtcISO, isCanonicalInstant, israelDateOf,
+} = require('../utils/dates');
 const { AI_MODEL } = require('../config/ai');
 
 const DEFAULT_DB_DIR = path.join(__dirname, '..', 'data');
@@ -19,6 +22,21 @@ const db = new Database(DB_PATH);
 // Run schema.sql — all statements are CREATE TABLE IF NOT EXISTS, so this is idempotent
 const schema = fs.readFileSync(SCHEMA_PATH, 'utf8');
 db.exec(schema);
+
+// ── 2026-11: Calendly removed. The bookings table is now `meetings` and Google
+// Calendar is the single scheduling source. Runs before every other migration so
+// all of them (and every query) operate on the renamed table.
+try {
+  const names = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('calendly_events', 'meetings')"
+  ).all().map((r) => r.name);
+  if (names.includes('calendly_events') && !names.includes('meetings')) {
+    db.exec('ALTER TABLE calendly_events RENAME TO meetings');
+    console.log('[migration] Renamed table calendly_events → meetings');
+  }
+} catch (err) {
+  console.error('[migration] calendly_events → meetings rename failed:', err.message);
+}
 
 // Migrate existing databases: add is_custom column if it doesn't exist
 try {
@@ -150,10 +168,48 @@ try {
   console.log('[db] Migrated whatsapp_templates: added session_confirmation, calendly_link to CHECK constraint.');
 }
 
-// Migrate existing databases: create calendly_events table
+// Migrate existing databases: rename trigger calendly_link → booking_link (Google
+// appointment-scheduling links) and {{calendly_link}} → {{booking_link}} in bodies.
+try {
+  const tmplSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='whatsapp_templates'").get()?.sql || '';
+  if (!tmplSql.includes("'booking_link'")) {
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE whatsapp_templates_v4 (
+          id             INTEGER PRIMARY KEY AUTOINCREMENT,
+          name           TEXT    NOT NULL,
+          trigger_event  TEXT    NOT NULL
+                                 CHECK (trigger_event IN ('session_reminder','welcome','weekly_checkin','menu_sent','process_ending','payment_reminder','session_confirmation','booking_link','custom')),
+          body_template  TEXT    NOT NULL,
+          is_active      INTEGER NOT NULL DEFAULT 1,
+          created_at     TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+          is_custom      INTEGER NOT NULL DEFAULT 0
+        )
+      `);
+      db.exec(`
+        INSERT INTO whatsapp_templates_v4 (id, name, trigger_event, body_template, is_active, created_at, is_custom)
+        SELECT id, name,
+               CASE trigger_event WHEN 'calendly_link' THEN 'booking_link' ELSE trigger_event END,
+               REPLACE(body_template, '{{calendly_link}}', '{{booking_link}}'),
+               is_active, created_at, is_custom
+        FROM whatsapp_templates
+      `);
+      db.exec('DROP TABLE whatsapp_templates');
+      db.exec('ALTER TABLE whatsapp_templates_v4 RENAME TO whatsapp_templates');
+    })();
+    db.pragma('foreign_keys = ON');
+    console.log('[migration] whatsapp_templates: calendly_link → booking_link');
+  }
+} catch (err) {
+  try { db.pragma('foreign_keys = ON'); } catch {}
+  console.error('[migration] whatsapp_templates booking_link migration failed:', err.message);
+}
+
+// Migrate existing databases: create meetings table
 try {
   db.exec(`
-    CREATE TABLE IF NOT EXISTS calendly_events (
+    CREATE TABLE IF NOT EXISTS meetings (
       id                 TEXT     PRIMARY KEY,
       client_id          INTEGER  REFERENCES clients(id) ON DELETE SET NULL,
       lead_id            INTEGER  REFERENCES leads(id)   ON DELETE SET NULL,
@@ -166,7 +222,7 @@ try {
       status             TEXT     NOT NULL DEFAULT 'active',
       confirmation_sent  INTEGER  NOT NULL DEFAULT 0,
       confirmation_link  TEXT,
-      calendly_event_uri TEXT,
+      calendly_event_uri TEXT,  -- legacy, unused since Calendly was removed
       created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -174,9 +230,9 @@ try {
   // Table already exists — safe to ignore
 }
 
-// Migrate existing databases: add confirmation_link to calendly_events (for tables created before this column)
+// Migrate existing databases: add confirmation_link to meetings (for tables created before this column)
 try {
-  db.exec('ALTER TABLE calendly_events ADD COLUMN confirmation_link TEXT');
+  db.exec('ALTER TABLE meetings ADD COLUMN confirmation_link TEXT');
 } catch {
   // Column already exists — safe to ignore
 }
@@ -188,16 +244,16 @@ try {
   // Column already exists — safe to ignore
 }
 
-// Migrate existing databases: add source column to calendly_events
+// Migrate existing databases: add source column to meetings
 try {
-  db.exec("ALTER TABLE calendly_events ADD COLUMN source TEXT NOT NULL DEFAULT 'calendly'");
+  db.exec("ALTER TABLE meetings ADD COLUMN source TEXT NOT NULL DEFAULT 'calendly'");
 } catch {
   // Column already exists — safe to ignore
 }
 
-// Migrate existing databases: add notes column to calendly_events
+// Migrate existing databases: add notes column to meetings
 try {
-  db.exec('ALTER TABLE calendly_events ADD COLUMN notes TEXT');
+  db.exec('ALTER TABLE meetings ADD COLUMN notes TEXT');
 } catch {
   // Column already exists — safe to ignore
 }
@@ -234,8 +290,8 @@ try {
       body_template: 'היי {{client_name}},\nרציתי לאשר את הפגישה שלנו מחר {{date}} בשעה {{time}}.\nאשמח לאישור הגעה.\nאם צריך לשנות, נדבר.',
     },
     {
-      trigger_event: 'calendly_link',
-      body_template: 'היי {{client_name}},\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{calendly_link}}\nניתן לבחור שעה נוחה, אני אהיה שם.',
+      trigger_event: 'booking_link',
+      body_template: 'היי {{client_name}},\nהקישור לקביעת הפגישה הקרובה שלנו:\n{{booking_link}}\nניתן לבחור שעה נוחה, אני אהיה שם.',
     },
   ];
 
@@ -271,9 +327,9 @@ try {
   // Row already exists — safe to ignore
 }
 
-// Migrate existing databases: add google_event_id to calendly_events
+// Migrate existing databases: add google_event_id to meetings
 try {
-  db.exec('ALTER TABLE calendly_events ADD COLUMN google_event_id TEXT');
+  db.exec('ALTER TABLE meetings ADD COLUMN google_event_id TEXT');
 } catch {
   // Column already exists — safe to ignore
 }
@@ -492,7 +548,7 @@ function repairConvertedLeads(database) {
       FROM clients c
       LEFT JOIN sessions s           ON s.client_id = c.id AND s.session_number = 1
       LEFT JOIN leads l              ON l.id = c.converted_from_lead_id
-      LEFT JOIN calendly_events ce   ON ce.client_id = c.id
+      LEFT JOIN meetings ce   ON ce.client_id = c.id
                                      OR (ce.lead_id = l.id AND ce.status = 'active')
       WHERE c.converted_from_lead_id IS NOT NULL
         AND s.id IS NULL
@@ -504,7 +560,7 @@ function repairConvertedLeads(database) {
 
     for (const row of clientsToFix) {
       const meetingDate = row.meeting_time
-        ? row.meeting_time.slice(0, 10)
+        ? israelDateOf(row.meeting_time)
         : (row.start_date || new Date().toISOString().slice(0, 10));
 
       // Create session 1 (INSERT OR IGNORE is idempotent)
@@ -577,10 +633,10 @@ function repairConvertedLeads(database) {
         }
       }
 
-      // Link calendly_event to client if not already linked
+      // Link meeting to client if not already linked
       if (row.meeting_time && row.lead_id) {
         database.prepare(`
-          UPDATE calendly_events
+          UPDATE meetings
           SET client_id = ?
           WHERE lead_id = ? AND status = 'active' AND client_id IS NULL
         `).run(row.client_id, row.lead_id);
@@ -1072,13 +1128,13 @@ function repairOrphanedConvertedLeads(database) {
     for (const lead of orphaned) {
       try {
         const meeting = database.prepare(`
-          SELECT * FROM calendly_events
+          SELECT * FROM meetings
           WHERE lead_id = ? AND status = 'active'
           ORDER BY start_time ASC LIMIT 1
         `).get(lead.id);
 
         const sessionDate = meeting
-          ? meeting.start_time.slice(0, 10)
+          ? israelDateOf(meeting.start_time)
           : (lead.created_at ? lead.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10));
 
         const doRepair = database.transaction(() => {
@@ -1104,9 +1160,9 @@ function repairOrphanedConvertedLeads(database) {
           const sessionId = sessionRes.lastInsertRowid;
           console.log(`[repair] ✓ Session 1 id=${sessionId} for client ${clientId}`);
 
-          // Link calendly_event
+          // Link meeting
           if (meeting) {
-            database.prepare('UPDATE calendly_events SET client_id = ? WHERE id = ?')
+            database.prepare('UPDATE meetings SET client_id = ? WHERE id = ?')
               .run(clientId, meeting.id);
           }
 
@@ -1262,7 +1318,7 @@ try {
   console.error('[migration] engagements table creation failed:', err.message);
 }
 
-// 2. Add engagement_id to sessions, payments, calendly_events
+// 2. Add engagement_id to sessions, payments, meetings
 try {
   db.exec('ALTER TABLE sessions ADD COLUMN engagement_id INTEGER');
 } catch { /* column already exists */ }
@@ -1276,7 +1332,7 @@ try {
 } catch { /* column already exists */ }
 
 try {
-  db.exec('ALTER TABLE calendly_events ADD COLUMN engagement_id INTEGER');
+  db.exec('ALTER TABLE meetings ADD COLUMN engagement_id INTEGER');
 } catch { /* column already exists */ }
 
 try { db.exec('ALTER TABLE session_intakes ADD COLUMN menu_building TEXT'); } catch {}
@@ -1961,13 +2017,13 @@ function repairEngagementLinks(database) {
       console.log(`[repair] Closed engagement ${e.id} for ended client ${e.client_id}`);
     }
 
-    // c) link sessions / payments / calendly_events that have no engagement_id
+    // c) link sessions / payments / meetings that have no engagement_id
     //    to the client's active engagement, or its latest one if none is active
     const targetEngagement = `
       (SELECT e.id FROM engagements e
        WHERE e.client_id = t.client_id
        ORDER BY (e.status = 'active') DESC, e.number DESC LIMIT 1)`;
-    for (const table of ['sessions', 'payments', 'calendly_events']) {
+    for (const table of ['sessions', 'payments', 'meetings']) {
       const result = database.prepare(`
         UPDATE ${table} AS t SET engagement_id = ${targetEngagement}
         WHERE t.engagement_id IS NULL AND t.client_id IS NOT NULL
@@ -2027,5 +2083,77 @@ repairProcessDates(db);
 repairEngagementLinks(db);
 repairMenuSentFromFinalMenus(db);
 repairWeightTokens(db);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2 (time normalization) + Phase 3 (session status model) — 2026-11-04
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Google Calendar incremental sync state (replaces the in-memory lastPollTime)
+try { db.exec('ALTER TABLE settings ADD COLUMN google_sync_token TEXT'); } catch { /* exists */ }
+try { db.exec('ALTER TABLE settings ADD COLUMN google_last_sync_at TEXT'); } catch { /* exists */ }
+
+// Session ↔ meeting link (the booking a session came from)
+try {
+  db.exec('ALTER TABLE sessions ADD COLUMN meeting_id TEXT REFERENCES meetings(id) ON DELETE SET NULL');
+} catch { /* exists */ }
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_meeting_id ON sessions(meeting_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_meetings_google_event_id ON meetings(google_event_id)'); } catch {}
+try { db.exec('CREATE INDEX IF NOT EXISTS idx_meetings_start_time ON meetings(start_time)'); } catch {}
+
+// ── Repair 11: meeting instants → canonical UTC ISO ("YYYY-MM-DDTHH:MM:SS.sssZ") ──
+// Rows held three formats: Calendly UTC "…000000Z", Google "+02:00" offsets and
+// naive manual "YYYY-MM-DDTHH:MM:SS" (Israel local). String comparisons in SQL
+// only work once every row uses the same fixed-length UTC form.
+function repairMeetingInstants(database) {
+  try {
+    const rows = database.prepare('SELECT id, start_time, end_time FROM meetings').all();
+    const update = database.prepare('UPDATE meetings SET start_time = ?, end_time = ? WHERE id = ?');
+    let fixed = 0;
+    for (const r of rows) {
+      const startOk = !r.start_time || isCanonicalInstant(r.start_time);
+      const endOk   = !r.end_time   || isCanonicalInstant(r.end_time);
+      if (startOk && endOk) continue;
+      const start = r.start_time ? toUtcISO(r.start_time) : null;
+      const end   = r.end_time   ? toUtcISO(r.end_time)   : null;
+      if ((r.start_time && !start) || (r.end_time && !end)) {
+        console.error(`[repair] Meeting ${r.id}: unparseable time "${r.start_time}" / "${r.end_time}" — left as is`);
+        continue;
+      }
+      update.run(start, end, r.id);
+      fixed++;
+      console.log(`[repair] Meeting ${r.id}: ${r.start_time} → ${start}`);
+    }
+    if (fixed > 0) console.log(`[repair] Normalized ${fixed} meeting time(s) to UTC ISO`);
+  } catch (err) {
+    console.error('[repair] repairMeetingInstants failed:', err.message);
+  }
+}
+
+// ── Repair 12: sessions.session_date → Israel calendar date "YYYY-MM-DD" ──────
+// Booking-created sessions stored the raw booking instant (any of the 3 formats).
+// session_date is a calendar day (date inputs, windows, alerts) — not an instant.
+function repairSessionDates(database) {
+  try {
+    const rows = database.prepare(`
+      SELECT id, client_id, session_date FROM sessions
+      WHERE session_date IS NOT NULL AND session_date != ''
+        AND session_date NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+    `).all();
+    for (const r of rows) {
+      const date = israelDateOf(r.session_date);
+      if (!date) {
+        console.error(`[repair] Session ${r.id}: unparseable session_date "${r.session_date}" — left as is`);
+        continue;
+      }
+      database.prepare('UPDATE sessions SET session_date = ? WHERE id = ?').run(date, r.id);
+      console.log(`[repair] Session ${r.id} (client ${r.client_id}): session_date ${r.session_date} → ${date}`);
+    }
+  } catch (err) {
+    console.error('[repair] repairSessionDates failed:', err.message);
+  }
+}
+
+repairMeetingInstants(db);
+repairSessionDates(db);
 
 module.exports = db;
