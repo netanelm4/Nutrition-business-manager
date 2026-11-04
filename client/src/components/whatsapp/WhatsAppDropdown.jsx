@@ -122,7 +122,7 @@ export default function WhatsAppDropdown({ clientId, phone, defaultTriggerEvent 
         </button>
 
         {open && (
-          <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg w-72 overflow-hidden" dir="rtl">
+          <div className="absolute end-0 top-full mt-1 z-20 bg-surface border border-gray-200 rounded-xl shadow-lg w-72 overflow-hidden" dir="rtl">
 
             {/* ── SPINNER while rendering ── */}
             {previewLoading && (
@@ -211,7 +211,7 @@ export default function WhatsAppDropdown({ clientId, phone, defaultTriggerEvent 
                         key={t.id}
                         type="button"
                         onClick={() => handleTemplateClick(t)}
-                        className="w-full text-right px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                        className="w-full text-start px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                       >
                         {t.name}
                       </button>
@@ -227,7 +227,7 @@ export default function WhatsAppDropdown({ clientId, phone, defaultTriggerEvent 
 
       {/* Toast — rendered outside the dropdown div */}
       {toast && (
-        <div className="fixed bottom-20 right-4 z-50 bg-green-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
+        <div className="fixed bottom-20 start-4 z-50 bg-green-600 text-white text-sm px-4 py-2 rounded-lg shadow-lg">
           {toast}
         </div>
       )}

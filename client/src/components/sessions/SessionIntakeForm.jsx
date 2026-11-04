@@ -36,7 +36,7 @@ function Toggle({ value, onChange }) {
             className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors ${
               isOn
                 ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                : 'bg-surface text-gray-600 border-gray-300 hover:bg-gray-50'
             }`}
           >
             {opt}
@@ -60,7 +60,7 @@ function RadioGroup({ options, value, onChange }) {
           className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
             value === opt.value
               ? 'bg-indigo-600 text-white border-indigo-600'
-              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              : 'bg-surface text-gray-600 border-gray-300 hover:bg-gray-50'
           }`}
         >
           {opt.label}
@@ -79,7 +79,7 @@ function Section({ title, children, defaultOpen = false }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-right"
+        className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-start"
       >
         <span className="text-sm font-semibold text-gray-800">{title}</span>
         <span className="text-gray-400 text-xs">{open ? '▲' : '▼'}</span>
@@ -207,7 +207,7 @@ function CalculatedSection({ form, set, calc }) {
     <div className="border border-gray-200 rounded-xl overflow-hidden">
       <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
         <span className="text-sm font-semibold text-gray-800">נתונים קליניים מחושבים</span>
-        <span className="mr-2 text-xs text-gray-400">(מתעדכן אוטומטית)</span>
+        <span className="ms-2 text-xs text-gray-400">(מתעדכן אוטומטית)</span>
       </div>
       <div className="p-4 space-y-4 bg-gray-50/50">
 
@@ -241,7 +241,7 @@ function CalculatedSection({ form, set, calc }) {
         <div className="flex items-start gap-3">
           <label className="text-sm font-medium text-gray-600 w-36 flex-shrink-0 mt-2">רמת פעילות גופנית</label>
           <select
-            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+            className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-surface"
             value={form.activity_factor ?? ''}
             onChange={(e) => set('activity_factor', e.target.value ? Number(e.target.value) : null)}
           >
@@ -253,9 +253,9 @@ function CalculatedSection({ form, set, calc }) {
         </div>
 
         {/* Row 4 — TDEE */}
-        <div className="rounded-lg bg-white border border-gray-200 p-3 space-y-1">
+        <div className="rounded-lg bg-surface border border-gray-200 p-3 space-y-1">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">הוצאה קלורית יומית מחושבת</p>
-          <p className="text-2xl font-bold" style={{ color: '#567DBF' }}>
+          <p className="text-2xl font-bold" style={{ color: 'var(--blue)' }}>
             {calc?.tdee != null ? `${Math.round(calc.tdee).toLocaleString()} קק"ל` : dash}
           </p>
           <p className="text-xs text-gray-400">
@@ -351,7 +351,7 @@ function LabSection({ sessionId, form, set }) {
       <div>
         <label className={labelCls}>{existingFile ? 'החלף קובץ PDF' : 'העלאת PDF בדיקות דם'}</label>
         <input ref={fileRef} type="file" accept=".pdf" onChange={handleFileChange} disabled={uploading}
-          className="block text-sm text-gray-600 file:mr-0 file:ml-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer disabled:opacity-50" dir="ltr" />
+          className="block text-sm text-gray-600 file:ms-0 file:me-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer disabled:opacity-50" dir="ltr" />
         {uploading && <p className="text-xs text-gray-400 mt-1">מעלה...</p>}
         {uploadMsg && <p className={`text-xs mt-1 ${uploadMsg.includes('שגיאה') ? 'text-red-500' : 'text-green-600'}`}>{uploadMsg}</p>}
         <p className="text-xs text-gray-400 mt-1">PDF בלבד, עד 10MB</p>
@@ -428,7 +428,7 @@ function NutritionAnamnesisTable({ form, set }) {
         <table className="w-full text-sm border-collapse">
           <thead>
             <tr>
-              <th className="text-right px-2 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 bg-gray-50 w-20">זמן ביום</th>
+              <th className="text-start px-2 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 bg-gray-50 w-20">זמן ביום</th>
               {ANAMNESIS_DAYS.map(({ key, label }) => (
                 <th key={key} className="text-center px-2 py-1.5 text-xs font-medium text-gray-500 border border-gray-200 bg-gray-50">{label}</th>
               ))}
@@ -502,7 +502,7 @@ function EatingSection({ form, set }) {
         <div className="flex flex-wrap gap-2">
           {DIET_TYPES.map(({ value, label }) => (
             <button key={value} type="button" onClick={() => set('diet_type', value)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${form.diet_type === value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${form.diet_type === value ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-surface text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
               {label}
             </button>
           ))}
@@ -520,7 +520,7 @@ function EatingSection({ form, set }) {
               <div className="flex gap-1 flex-wrap">
                 {FREQUENCY_OPTIONS.map((freq) => (
                   <button key={freq} type="button" onClick={() => setPattern(pattern, freq)}
-                    className={`px-2 py-1 rounded-full text-xs border transition-colors ${patterns[pattern] === freq ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
+                    className={`px-2 py-1 rounded-full text-xs border transition-colors ${patterns[pattern] === freq ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-surface text-gray-500 border-gray-200 hover:bg-gray-50'}`}>
                     {freq}
                   </button>
                 ))}
@@ -848,7 +848,7 @@ export default function SessionIntakeForm({ sessionId, clientId }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between py-2 text-right"
+        className="w-full flex items-center justify-between py-2 text-start"
       >
         <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
           טופס פגישה ראשונה — אנמנזה

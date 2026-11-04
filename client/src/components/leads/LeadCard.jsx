@@ -56,7 +56,7 @@ export default function LeadCard({ lead, onEdit, onStatusAdvance }) {
   return (
     <Link
       to={`/leads/${lead.id}`}
-      className={`block bg-white rounded-xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow ${lead.frozen ? 'border-r-4 border-r-orange-400' : ''}`}
+      className={`block bg-surface rounded-xl shadow-sm border border-gray-200 p-4 cursor-pointer hover:shadow-md transition-shadow ${lead.frozen ? 'border-s-4 border-s-orange-400' : ''}`}
     >
       {/* Row 1: full_name + status badge */}
       <div className="flex items-center justify-between gap-2 mb-1">

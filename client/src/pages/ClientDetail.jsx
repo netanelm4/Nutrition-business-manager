@@ -44,7 +44,7 @@ function ProcessSummarySection({ clientId, clientPhone }) {
 
   if (genMutation.isPending) {
     return (
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
+      <section className="bg-surface rounded-xl border border-gray-200 p-5">
         <h2 className="text-base font-semibold text-gray-700 mb-3">סיכום תהליך</h2>
         <div className="flex items-center gap-3 text-indigo-600">
           <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
@@ -59,7 +59,7 @@ function ProcessSummarySection({ clientId, clientPhone }) {
 
   if (!summary) {
     return (
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
+      <section className="bg-surface rounded-xl border border-gray-200 p-5">
         <h2 className="text-base font-semibold text-gray-700 mb-1">סיכום תהליך</h2>
         <p className="text-sm text-gray-400 mb-3">התהליך הסתיים. ניתן להפיק סיכום כולל.</p>
         <button
@@ -77,7 +77,7 @@ function ProcessSummarySection({ clientId, clientPhone }) {
   }
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-5">
+    <section className="bg-surface rounded-xl border border-gray-200 p-5">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-base font-semibold text-gray-700">סיכום תהליך</h2>
         <button
@@ -222,10 +222,10 @@ function TaskSessionPicker({ clientId, sessions, tasksToAdd, onClose, onSuccess 
             onClick={() => !adding && handleSelect(w)}
             disabled={adding}
             className={[
-              'w-full flex items-center justify-between px-4 py-2.5 border-b border-gray-100 last:border-0 text-sm transition-colors text-right',
+              'w-full flex items-center justify-between px-4 py-2.5 border-b border-gray-100 last:border-0 text-sm transition-colors text-start',
               isDone
-                ? 'bg-white hover:bg-gray-50 text-gray-700'
-                : 'bg-white hover:bg-indigo-50 text-gray-800',
+                ? 'bg-surface hover:bg-gray-50 text-gray-700'
+                : 'bg-surface hover:bg-indigo-50 text-gray-800',
               adding ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
             ].join(' ')}
           >
@@ -291,7 +291,7 @@ function AISummarySection({ clientId, sessions }) {
   // Empty state
   if (!summary && !isGenerating) {
     return (
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
+      <section className="bg-surface rounded-xl border border-gray-200 p-5">
         <div className="flex items-center justify-between mb-1">
           <h2 className="text-base font-semibold text-gray-700">סיכום AI</h2>
         </div>
@@ -315,7 +315,7 @@ function AISummarySection({ clientId, sessions }) {
   // Loading state
   if (isGenerating) {
     return (
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
+      <section className="bg-surface rounded-xl border border-gray-200 p-5">
         <h2 className="text-base font-semibold text-gray-700 mb-3">סיכום AI</h2>
         <div className="flex items-center gap-3 text-indigo-600">
           <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
@@ -332,7 +332,7 @@ function AISummarySection({ clientId, sessions }) {
 
   // Summary display
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-5">
+    <section className="bg-surface rounded-xl border border-gray-200 p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-base font-semibold text-gray-700">סיכום AI</h2>
@@ -623,7 +623,7 @@ function ProtocolAssignment({ client }) {
           <select
             value={selectedId}
             onChange={(e) => setSelectedId(e.target.value)}
-            className="text-sm rounded-lg border border-gray-300 px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            className="text-sm rounded-lg border border-gray-300 px-2 py-1.5 bg-surface focus:outline-none focus:ring-2 focus:ring-indigo-400"
           >
             <option value="">בחר פרוטוקול...</option>
             {protocols.map((p) => (
@@ -716,7 +716,7 @@ function ProtocolAssignment({ client }) {
                           'w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition-colors cursor-pointer',
                           isDone
                             ? 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
-                            : 'border-indigo-200 bg-white hover:bg-indigo-50 text-gray-800',
+                            : 'border-indigo-200 bg-surface hover:bg-indigo-50 text-gray-800',
                         ].join(' ')}
                       >
                         <span className="font-medium">פגישה {w.session_number}</span>
@@ -790,7 +790,7 @@ function ClientProfile({ client, sessions }) {
   const lastWeight = lastSession?.weight ?? null;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-5">
+    <div className="bg-surface rounded-xl border border-gray-200 p-5">
         {/* Profile fields grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
           <ProfileField label="גיל" value={client.age} />
@@ -1299,7 +1299,7 @@ function WeightsTab({ clientId }) {
             <thead>
               <tr style={{ background: 'var(--surface-2)', borderBottom: '2px solid var(--line)' }}>
                 {['שבוע', 'שקילת שני', 'שקילת חמישי', 'ממוצע'].map((h) => (
-                  <th key={h} style={{ padding: '8px 14px', fontWeight: 600, color: 'var(--ink-2)', textAlign: 'right', whiteSpace: 'nowrap' }}>{h}</th>
+                  <th key={h} style={{ padding: '8px 14px', fontWeight: 600, color: 'var(--ink-2)', textAlign: 'start', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -1333,7 +1333,7 @@ function WeightsTab({ clientId }) {
                     </td>
                     <td style={{ padding: '8px 14px', fontWeight: 500, color: 'var(--ink-1)' }}>
                       {w.average !== null
-                        ? <>{w.average}{w.average_approximate && <span style={{ fontSize: 11, color: 'var(--ink-3)', marginRight: 2 }}>*</span>}</>
+                        ? <>{w.average}{w.average_approximate && <span style={{ fontSize: 11, color: 'var(--ink-3)', marginInlineStart: 2 }}>*</span>}</>
                         : <span style={{ color: 'var(--ink-4)' }}>—</span>}
                     </td>
                   </tr>
@@ -1428,7 +1428,7 @@ function StopProcessButton({ client, onSuccess }) {
         type="button"
         onClick={() => { setOpen(true); setError(null); }}
         className="crm-btn crm-btn--sm"
-        style={{ background: '#dc2626', borderColor: '#dc2626', color: 'white' }}
+        style={{ background: 'var(--red-ink)', borderColor: 'var(--red-ink)', color: 'white' }}
       >
         עצור תהליך
       </button>
@@ -1443,15 +1443,15 @@ function StopProcessButton({ client, onSuccess }) {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                     borderRadius: 8, cursor: 'pointer',
-                    border: `1.5px solid ${reason === opt.value ? '#567DBF' : 'var(--hairline)'}`,
-                    background: reason === opt.value ? '#eff6ff' : 'white',
+                    border: `1.5px solid ${reason === opt.value ? 'var(--blue)' : 'var(--hairline)'}`,
+                    background: reason === opt.value ? 'var(--blue-soft)' : 'white',
                   }}
                 >
                   <input
                     type="radio" name="stop_reason" value={opt.value}
                     checked={reason === opt.value}
                     onChange={() => setReason(opt.value)}
-                    style={{ accentColor: '#567DBF' }}
+                    style={{ accentColor: 'var(--blue)' }}
                   />
                   <span style={{ fontSize: 14 }}>{opt.label}</span>
                 </label>
@@ -1460,7 +1460,7 @@ function StopProcessButton({ client, onSuccess }) {
 
             {reason === 'frozen' ? (
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ink-2)', marginBottom: 4 }}>
                   משך ההקפאה (ימים)
                 </label>
                 <input
@@ -1471,7 +1471,7 @@ function StopProcessButton({ client, onSuccess }) {
               </div>
             ) : (
               <div>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#555', marginBottom: 4 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--ink-2)', marginBottom: 4 }}>
                   פרטים נוספים (אופציונלי)
                 </label>
                 <textarea
@@ -1482,13 +1482,13 @@ function StopProcessButton({ client, onSuccess }) {
               </div>
             )}
 
-            {error && <p style={{ fontSize: 13, color: '#dc2626', margin: 0 }}>{error}</p>}
+            {error && <p style={{ fontSize: 13, color: 'var(--red-ink)', margin: 0 }}>{error}</p>}
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="submit" disabled={loading}
                 className="crm-btn crm-btn--primary"
-                style={{ flex: 1, background: '#dc2626', borderColor: '#dc2626' }}
+                style={{ flex: 1, background: 'var(--red-ink)', borderColor: 'var(--red-ink)' }}
               >
                 {loading ? '...' : (reason === 'frozen' ? 'הקפא תהליך' : 'עצור תהליך')}
               </button>
@@ -1568,7 +1568,7 @@ function FoodBankLinkButton({ clientId }) {
                 width: '100%', fontSize: 12, padding: '8px 12px',
                 border: '1px solid var(--hairline)', borderRadius: 8,
                 background: 'var(--surface-2)', color: 'var(--ink-1)',
-                direction: 'ltr', textAlign: 'left', outline: 'none',
+                direction: 'ltr', textAlign: 'start', outline: 'none',
                 boxSizing: 'border-box',
               }}
             />
@@ -1655,7 +1655,7 @@ function WeightLinkButton({ clientId }) {
                 width: '100%', fontSize: 12, padding: '8px 12px',
                 border: '1px solid var(--hairline)', borderRadius: 8,
                 background: 'var(--surface-2)', color: 'var(--ink-1)',
-                direction: 'ltr', textAlign: 'left', outline: 'none',
+                direction: 'ltr', textAlign: 'start', outline: 'none',
                 boxSizing: 'border-box',
               }}
             />
@@ -1832,7 +1832,7 @@ export default function ClientDetail() {
                 {CLIENT_STATUS_LABEL[client.status] ?? client.status}
               </span>
               {client.status === 'frozen' && client.frozen_until && (
-                <span style={{ fontSize: 11, color: '#2563eb', background: '#dbeafe', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
+                <span style={{ fontSize: 11, color: 'var(--blue)', background: 'var(--blue-soft)', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>
                   מוקפא עד {new Date(client.frozen_until + 'T12:00:00Z').toLocaleDateString('he-IL')}
                 </span>
               )}

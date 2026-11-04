@@ -174,7 +174,7 @@ function TemplateModal({ template, onClose, onSaved }) {
           {triggerLocked ? (
             <div style={{ fontSize: 13, color: 'var(--ink-3)', background: 'var(--surface-2)', borderRadius: 8, padding: '8px 12px', border: '1px solid var(--line)' }}>
               {TRIGGER_LABELS[template.trigger_event] ?? template.trigger_event}
-              <span style={{ fontSize: 11.5, color: 'var(--ink-4)', marginRight: 8 }}>(לא ניתן לשינוי)</span>
+              <span style={{ fontSize: 11.5, color: 'var(--ink-4)', marginInlineStart: 8 }}>(לא ניתן לשינוי)</span>
             </div>
           ) : (
             <select value={triggerEvent} onChange={(e) => setTriggerEvent(e.target.value)} className="field-input" style={{ width: '100%' }}>

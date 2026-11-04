@@ -32,7 +32,7 @@ export default function Modal({ title, onClose, children, size = 'md' }) {
       />
       {/* Card */}
       <div
-        className={`relative bg-white w-full ${SIZE[size] ?? SIZE.md} rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col`}
+        className={`relative bg-surface w-full ${SIZE[size] ?? SIZE.md} rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

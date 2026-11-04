@@ -27,7 +27,7 @@ function MarkdownText({ text }) {
 
         if (isUnordered) {
           return (
-            <ul key={bi} style={{ paddingRight: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <ul key={bi} style={{ paddingInlineStart: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {lines.map((l, li) => (
                 <li key={li}>{parseBold(l.replace(/^\s*[-•*]\s*/, ''))}</li>
               ))}
@@ -37,7 +37,7 @@ function MarkdownText({ text }) {
 
         if (isOrdered) {
           return (
-            <ol key={bi} style={{ paddingRight: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <ol key={bi} style={{ paddingInlineStart: 18, margin: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
               {lines.map((l, li) => (
                 <li key={li}>{parseBold(l.replace(/^\s*\d+\.\s*/, ''))}</li>
               ))}
@@ -175,14 +175,17 @@ export default function AIAssistant({ isOpen, onClose }) {
       <div
         dir="rtl"
         style={{
-          position: 'fixed', top: 0, bottom: 0, right: 0, zIndex: 1000,
+          position: 'fixed', top: 0, bottom: 0, insetInlineEnd: 0, zIndex: 1000, // opposite the (right-hand) sidebar
           width: 'min(380px, 100vw)',
           display: 'flex', flexDirection: 'column',
           background: 'var(--surface-1)',
-          borderLeft: '1px solid var(--line)',
-          boxShadow: isOpen ? '-4px 0 32px rgba(0,0,0,0.10)' : 'none',
-          transform: isOpen ? 'translateX(0)' : 'translateX(100%)',
-          transition: 'transform 0.25s ease',
+          borderInlineStart: '1px solid var(--line)', // inner edge, facing the content
+          // The drawer sits on the left (inline-end under RTL): it hides by
+          // sliding further left, and is invisible to focus/AT while closed.
+          boxShadow: isOpen ? '4px 0 32px rgba(0,0,0,0.25)' : 'none',
+          transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
+          visibility: isOpen ? 'visible' : 'hidden',
+          transition: isOpen ? 'transform 0.25s ease' : 'transform 0.25s ease, visibility 0s linear 0.25s',
         }}
         aria-label="עוזר AI"
         role="complementary"
@@ -236,7 +239,7 @@ export default function AIAssistant({ isOpen, onClose }) {
                     type="button"
                     onClick={() => sendMessage(chip)}
                     style={{
-                      fontSize: 13, textAlign: 'right', padding: '10px 14px',
+                      fontSize: 13, textAlign: 'start', padding: '10px 14px',
                       borderRadius: 10, border: '1px solid var(--line)',
                       background: 'var(--surface-1)', color: 'var(--ink-2)',
                       cursor: 'pointer', transition: 'border-color 0.15s',
@@ -259,7 +262,7 @@ export default function AIAssistant({ isOpen, onClose }) {
                       maxWidth: msg.role === 'user' ? '80%' : '90%',
                       borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                       background: msg.role === 'user' ? 'var(--blue)' : 'var(--surface-2)',
-                      color: msg.role === 'user' ? '#fff' : 'var(--ink-1)',
+                      color: msg.role === 'user' ? 'var(--on-accent)' : 'var(--ink-1)',
                     }}
                   >
                     {msg.role === 'assistant' ? (
@@ -311,7 +314,7 @@ export default function AIAssistant({ isOpen, onClose }) {
               disabled={!inputText.trim() || isLoading}
               style={{
                 flexShrink: 0, width: 36, height: 36, borderRadius: 10,
-                background: 'var(--blue)', color: '#fff', border: 'none', cursor: 'pointer',
+                background: 'var(--blue)', color: 'var(--on-accent)', border: 'none', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 opacity: (!inputText.trim() || isLoading) ? 0.4 : 1,
                 transition: 'opacity 0.15s',

@@ -200,7 +200,7 @@ export default function InboxCard() {
     <section className="card inbox" aria-labelledby="inbox-title">
       <div className="card__head inbox__head">
         <div>
-          <div id="inbox-title" className="h-2" style={{ fontWeight: 600 }}>תיבת פעולות</div>
+          <div id="inbox-title" className="t-h2" style={{ fontWeight: 600 }}>תיבת פעולות</div>
           <div className="t-sm t-muted" style={{ marginTop: 5 }}>
             {isLoading ? '...' : open > 0 ? `${open} פריטים ממתינים לטיפול` : 'אין פעולות פתוחות'}
           </div>

@@ -6,7 +6,7 @@
  */
 export default function StatCard({ value, label, color = 'text-indigo-600' }) {
   return (
-    <div className="flex-1 bg-white rounded-xl border border-gray-200 p-5 flex flex-col items-center gap-1 min-w-0">
+    <div className="flex-1 bg-surface rounded-xl border border-gray-200 p-5 flex flex-col items-center gap-1 min-w-0">
       <span className={`text-3xl font-bold ${color}`}>
         {value ?? '—'}
       </span>

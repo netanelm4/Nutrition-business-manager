@@ -85,7 +85,7 @@ function ProgressCard({ clients, isLoading }) {
     return (
       <section className="card">
         <div className="card__head">
-          <div className="h-2" style={{ fontWeight: 600 }}>התקדמות מטופלים</div>
+          <div className="t-h2" style={{ fontWeight: 600 }}>התקדמות מטופלים</div>
         </div>
         <div className="card__body" style={{ padding: '10px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {[1, 2, 3].map((i) => <Skel key={i} style={{ height: 50 }} />)}
@@ -100,7 +100,7 @@ function ProgressCard({ clients, isLoading }) {
     <section className="card">
       <div className="card__head">
         <div>
-          <div className="h-2" style={{ fontWeight: 600 }}>התקדמות מטופלים</div>
+          <div className="t-h2" style={{ fontWeight: 600 }}>התקדמות מטופלים</div>
           <div className="t-sm t-muted" style={{ marginTop: 2 }}>{clients.length} פעילים</div>
         </div>
         <Link to="/clients" className="crm-btn crm-btn--ghost crm-btn--sm" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -188,7 +188,7 @@ function LeadSessRow({ item }) {
   const timeStr  = formatTimeHebrew(item.start_time);
   const [hh, mm] = timeStr.split(':');
   return (
-    <button type="button" className="sess-row" style={{ textAlign: 'right' }} onClick={() => navigate(`/leads/${item.lead_id}`)}>
+    <button type="button" className="sess-row" style={{ textAlign: 'start' }} onClick={() => navigate(`/leads/${item.lead_id}`)}>
       <div className="sess-time">
         <span className="sess-hh">{hh}</span>
         <span className="sess-mm">{mm}</span>
@@ -259,7 +259,7 @@ function SessionsCard({ clientSessions, leadMeetings, isLoading, isError }) {
     <section className="card">
       <div className="card__head">
         <div>
-          <div className="h-2" style={{ fontWeight: 600 }}>פגישות השבוע</div>
+          <div className="t-h2" style={{ fontWeight: 600 }}>פגישות השבוע</div>
           <div className="t-sm t-muted" style={{ marginTop: 5 }}>
             {isLoading ? '...' : `${total} פגישות`}
           </div>
@@ -372,7 +372,7 @@ function UnpaidCard({ unpaidClients, templates, isLoading }) {
     <section className="card">
       <div className="card__head">
         <div>
-          <div className="h-2" style={{ fontWeight: 600 }}>תשלומים פתוחים</div>
+          <div className="t-h2" style={{ fontWeight: 600 }}>תשלומים פתוחים</div>
           <div className="t-sm t-muted" style={{ marginTop: 5 }}>{unpaidClients.length} מטופלים עם יתרה</div>
         </div>
       </div>

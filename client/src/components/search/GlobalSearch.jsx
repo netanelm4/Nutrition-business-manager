@@ -106,7 +106,7 @@ export default function GlobalSearch({ onClose }) {
   return (
     <div ref={containerRef} className="relative w-full max-w-md">
       <div className="relative">
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
+        <span className="absolute start-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
           🔍
         </span>
         <input
@@ -115,13 +115,13 @@ export default function GlobalSearch({ onClose }) {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           placeholder="חיפוש לקוח או ליד… (⌘K)"
-          className="w-full rounded-xl border border-gray-200 bg-gray-50 pr-9 pl-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white transition-colors"
+          className="w-full rounded-xl border border-gray-200 bg-gray-50 ps-9 pe-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-surface transition-colors"
           dir="rtl"
         />
       </div>
 
       {isOpen && (
-        <div className="absolute top-full mt-1 right-0 left-0 z-50 bg-white rounded-xl shadow-lg border border-gray-200 max-h-80 overflow-y-auto">
+        <div className="absolute top-full mt-1 start-0 end-0 z-50 bg-surface rounded-xl shadow-lg border border-gray-200 max-h-80 overflow-y-auto">
           {!hasResults ? (
             <p className="text-sm text-gray-500 px-4 py-3">
               לא נמצאו תוצאות עבור &quot;{query}&quot;
@@ -138,7 +138,7 @@ export default function GlobalSearch({ onClose }) {
                       key={c.id}
                       type="button"
                       onClick={() => handleSelect(`/clients/${c.id}`)}
-                      className="w-full text-right px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+                      className="w-full text-start px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
                     >
                       <p className="text-sm font-medium text-gray-900">{c.full_name}</p>
                       <p className="text-xs text-gray-500 truncate">
@@ -158,7 +158,7 @@ export default function GlobalSearch({ onClose }) {
                       key={l.id}
                       type="button"
                       onClick={() => handleSelect(`/leads/${l.id}`)}
-                      className="w-full text-right px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
+                      className="w-full text-start px-4 py-2.5 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0"
                     >
                       <p className="text-sm font-medium text-gray-900">{l.full_name}</p>
                       <p className="text-xs text-gray-500 truncate">

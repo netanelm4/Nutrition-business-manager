@@ -39,7 +39,7 @@ function ProgressDots({ sessionsRecorded = [] }) {
           className={`w-3 h-3 rounded-full border-2 ${
             recorded.has(i + 1)
               ? 'bg-indigo-500 border-indigo-500'
-              : 'bg-white border-gray-300'
+              : 'bg-surface border-gray-300'
           }`}
         />
       ))}
@@ -56,7 +56,7 @@ export default function ClientCard({ client }) {
 
   return (
     <>
-      <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow">
+      <div className="bg-surface rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-shadow">
         {/* Top row: name + status + alert */}
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">

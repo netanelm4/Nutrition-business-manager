@@ -48,7 +48,7 @@ export default function Settings() {
       <h1 className="page-title" style={{ marginBottom: 24 }}>הגדרות</h1>
 
       {/* ── משתמשים ── */}
-      <section className="bg-white rounded-xl border border-gray-200 p-5" style={{ marginBottom: 24 }}>
+      <section className="bg-surface rounded-xl border border-gray-200 p-5" style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
           <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink-1)' }}>משתמשים</h2>
           <button
@@ -160,7 +160,7 @@ export default function Settings() {
       </section>
 
       {/* ── פעילות אחרונה ── */}
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
+      <section className="bg-surface rounded-xl border border-gray-200 p-5">
         <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink-1)', marginBottom: 16 }}>
           פעילות אחרונה
         </h2>

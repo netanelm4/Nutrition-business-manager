@@ -5,9 +5,19 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- PWA / iPhone -->
-    <meta name="theme-color" content="#fcf4f9" />
+    <meta name="theme-color" content="#09090B" />
+    <!-- Theme before first paint (no light flash): internal CRM = obsidian dark;
+         public client pages (/w/ weight logging, /food/ food bank) = light brand -->
+    <script>
+      (function () {
+        var p = location.pathname;
+        var isPublic = p.indexOf('/w/') === 0 || p.indexOf('/food/') === 0;
+        document.documentElement.setAttribute('data-theme', isPublic ? 'light' : 'dark');
+        if (isPublic) document.querySelector('meta[name="theme-color"]').setAttribute('content', '#fcf4f9');
+      })();
+    </script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="תזונה CRM" />
     <link rel="apple-touch-icon" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.json" />

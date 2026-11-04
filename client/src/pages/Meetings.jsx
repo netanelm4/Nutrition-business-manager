@@ -42,7 +42,7 @@ function Toast({ msg, onClose }) {
     <div style={{
       position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
       zIndex: 50, display: 'flex', alignItems: 'center', gap: 10,
-      background: 'var(--ink-1)', color: '#fff', fontSize: 13,
+      background: 'var(--ink-1)', color: 'var(--canvas)', fontSize: 13,
       padding: '10px 16px', borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
       whiteSpace: 'nowrap',
     }}>
@@ -101,7 +101,7 @@ function ClientPicker({ title, bookingUrl, templates, onClose }) {
             <li key={c.id} style={{ borderTop: '1px solid var(--hairline)' }}>
               <button
                 onClick={() => handleSelect(c)}
-                style={{ width: '100%', textAlign: 'right', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', display: 'block' }}
+                style={{ width: '100%', textAlign: 'start', padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', display: 'block' }}
                 onMouseEnter={(e) => e.currentTarget.style.background = 'var(--surface-2)'}
                 onMouseLeave={(e) => e.currentTarget.style.background = ''}
               >

@@ -65,7 +65,7 @@ function OverrideForm({ window, clientId, onClose }) {
         <button
           type="button"
           onClick={onClose}
-          className="flex-1 py-1.5 rounded-lg bg-white border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
+          className="flex-1 py-1.5 rounded-lg bg-surface border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
         >
           ביטול
         </button>
@@ -86,7 +86,7 @@ function TimelineSlot({ window, session, clientId, clientName, clientPhone }) {
 
   return (
     <>
-      <div className="flex flex-col gap-2 bg-white rounded-xl border border-gray-200 p-3">
+      <div className="flex flex-col gap-2 bg-surface rounded-xl border border-gray-200 p-3">
         {/* Header */}
         <div className="flex items-center justify-between gap-1">
           <span className="text-xs font-semibold text-gray-700">פגישה {window.session_number}</span>

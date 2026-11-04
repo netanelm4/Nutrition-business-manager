@@ -148,7 +148,7 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-white hover:bg-gray-50 transition-colors text-right"
+          className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-surface hover:bg-gray-50 transition-colors text-start"
         >
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <span className="text-sm font-semibold text-gray-900 flex-shrink-0">

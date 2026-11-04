@@ -269,7 +269,7 @@ export default function SessionModal({ clientId, session, sessionNumber, onSucce
           rows={5}
           className={inputClass}
         />
-        <p className="text-xs text-gray-400 text-left">{form.highlights.length} תווים</p>
+        <p className="text-xs text-gray-400 text-end">{form.highlights.length} תווים</p>
       </div>
 
       {/* Protocol loader — first session only */}

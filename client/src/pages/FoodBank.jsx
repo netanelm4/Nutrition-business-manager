@@ -219,7 +219,7 @@ function FoodSearch({ macroType, onAdd }) {
         <div style={{
           position: 'absolute', top: 'calc(100% + 4px)',
           insetInlineStart: 0, insetInlineEnd: 0, zIndex: 50,
-          background: 'white', borderRadius: 10,
+          background: 'var(--surface)', borderRadius: 10,
           border: '1px solid var(--hairline, #e8e8e8)',
           boxShadow: '0 6px 32px rgba(0,0,0,0.11)',
           overflow: 'hidden',
@@ -309,8 +309,8 @@ function PendingApprovalSection({ onApproved }) {
 
   return (
     <div style={{
-      marginBottom: 28, border: '1px solid #fde68a',
-      borderRadius: 12, background: '#fffbeb', overflow: 'hidden',
+      marginBottom: 28, border: '1px solid var(--amber-soft)',
+      borderRadius: 12, background: 'var(--amber-soft)', overflow: 'hidden',
     }}>
       <button
         type="button"
@@ -318,54 +318,54 @@ function PendingApprovalSection({ onApproved }) {
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           width: '100%', padding: '12px 16px', border: 'none', background: 'transparent',
-          cursor: 'pointer', textAlign: 'right',
+          cursor: 'pointer', textAlign: 'start',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#92400e' }}>מזונות לאישור</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--amber-ink)' }}>מזונות לאישור</span>
           {!isLoading && (
             <span style={{
               fontSize: 12, fontWeight: 700, padding: '2px 9px',
-              borderRadius: 99, background: '#f59e0b', color: 'white',
+              borderRadius: 99, background: 'var(--amber-ink)', color: 'white',
             }}>
               {pending.length}
             </span>
           )}
         </div>
-        <span style={{ fontSize: 12, color: '#92400e' }}>{collapsed ? '▲' : '▼'}</span>
+        <span style={{ fontSize: 12, color: 'var(--amber-ink)' }}>{collapsed ? '▲' : '▼'}</span>
       </button>
 
       {!collapsed && (
         <div style={{ overflowX: 'auto' }}>
           {isLoading ? (
-            <div style={{ padding: '16px', fontSize: 13, color: '#92400e' }}>טוען...</div>
+            <div style={{ padding: '16px', fontSize: 13, color: 'var(--amber-ink)' }}>טוען...</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
-                <tr style={{ background: '#fef3c7', borderTop: '1px solid #fde68a' }}>
-                  <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, color: '#78350f', fontSize: 12 }}>שם</th>
-                  <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, color: '#78350f', fontSize: 12 }}>קטגוריה</th>
-                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: '#78350f', fontSize: 12 }}>סוג</th>
-                  <th style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 600, color: '#78350f', fontSize: 12 }}>מנה</th>
-                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: '#78350f', fontSize: 12 }}>קק״ל</th>
-                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: '#78350f', fontSize: 12 }}>חלבון</th>
-                  <th style={{ padding: '7px 12px', fontWeight: 600, color: '#78350f', fontSize: 12 }} />
+                <tr style={{ background: 'var(--amber-soft)', borderTop: '1px solid var(--amber-soft)' }}>
+                  <th style={{ padding: '7px 12px', textAlign: 'start', fontWeight: 600, color: 'var(--amber-ink)', fontSize: 12 }}>שם</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'start', fontWeight: 600, color: 'var(--amber-ink)', fontSize: 12 }}>קטגוריה</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--amber-ink)', fontSize: 12 }}>סוג</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'start', fontWeight: 600, color: 'var(--amber-ink)', fontSize: 12 }}>מנה</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--amber-ink)', fontSize: 12 }}>קק״ל</th>
+                  <th style={{ padding: '7px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--amber-ink)', fontSize: 12 }}>חלבון</th>
+                  <th style={{ padding: '7px 12px', fontWeight: 600, color: 'var(--amber-ink)', fontSize: 12 }} />
                 </tr>
               </thead>
               <tbody>
                 {pending.map((item) => (
-                  <tr key={item.id} style={{ borderTop: '1px solid #fde68a' }}>
+                  <tr key={item.id} style={{ borderTop: '1px solid var(--amber-soft)' }}>
                     <td style={{ padding: '8px 12px', fontWeight: 500 }}>{item.name_he}</td>
-                    <td style={{ padding: '8px 12px', color: '#78350f', fontSize: 12 }}>{item.category_name}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--amber-ink)', fontSize: 12 }}>{item.category_name}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                       <span style={{
                         fontSize: 11, fontWeight: 600, padding: '1px 7px',
-                        borderRadius: 99, background: '#fde68a', color: '#78350f',
+                        borderRadius: 99, background: 'var(--amber-soft)', color: 'var(--amber-ink)',
                       }}>
                         {MACRO_LABELS_FULL[item.macro_type] ?? item.macro_type}
                       </span>
                     </td>
-                    <td style={{ padding: '8px 12px', fontSize: 12, color: '#44403c' }}>
+                    <td style={{ padding: '8px 12px', fontSize: 12, color: 'var(--ink-2)' }}>
                       {item.portion_description || (item.portion_grams ? `${item.portion_grams}ג׳` : '—')}
                     </td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>
@@ -374,7 +374,7 @@ function PendingApprovalSection({ onApproved }) {
                     <td style={{ padding: '8px 12px', textAlign: 'center' }}>
                       {item.protein_grams ?? '—'}
                     </td>
-                    <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', textAlign: 'left' }}>
+                    <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', textAlign: 'end' }}>
                       <button
                         type="button"
                         onClick={() => approveMutation.mutate(item.id)}
@@ -571,7 +571,79 @@ export default function FoodBank() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="crm-page" style={{ display: 'flex', flexDirection: 'row', gap: 0, height: '100%', minHeight: 0 }}>
+    <div className="crm-page foodbank" style={{ display: 'flex', flexDirection: 'row', gap: 0, height: '100%', minHeight: 0 }}>
+
+      {/* ── Categories panel (first in DOM = right side in RTL) ─────────────────────────────────────────── */}
+      <aside className="foodbank__cats" style={{
+        width: 232, flexShrink: 0, borderInlineEnd: '1px solid var(--hairline, #f0f0f0)',
+        overflowY: 'auto', padding: '20px 0',
+        background: 'var(--surface-1, #fafafa)',
+      }}>
+        {catsLoading ? (
+          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="animate-pulse" style={{ height: 32, background: 'var(--surface-2)', borderRadius: 6 }} />
+            ))}
+          </div>
+        ) : (
+          MACRO_ORDER.map((type) => {
+            const cats = grouped[type];
+            if (!cats?.length) return null;
+            const isMacroActive = selectedMacro === type;
+            return (
+              <div key={type} style={{ marginBottom: 16 }}>
+                <button
+                  type="button"
+                  onClick={() => selectMacro(type)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'start',
+                    padding: '4px 16px 6px', border: 'none', cursor: 'pointer',
+                    fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: isMacroActive ? 'var(--blue, #567DBF)' : 'var(--ink-3)',
+                    background: isMacroActive ? 'var(--blue-soft, #eff6ff)' : 'transparent',
+                    borderInlineStart: isMacroActive ? '3px solid var(--blue, #567DBF)' : '3px solid transparent',
+                    transition: 'background 0.12s',
+                  }}
+                >
+                  {MACRO_LABELS[type]}
+                </button>
+                {cats.map((cat) => {
+                  const isActive = cat.id === selectedId;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => selectCategory(cat.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        width: '100%', padding: '7px 16px', border: 'none', cursor: 'pointer',
+                        textAlign: 'start', fontSize: 13, fontWeight: isActive ? 600 : 400,
+                        background: isActive ? 'var(--blue-soft, #eff6ff)' : 'transparent',
+                        color: isActive ? 'var(--blue-ink, #1d4ed8)' : 'var(--ink-1)',
+                        borderInlineStart: isActive ? '3px solid var(--blue, #567DBF)' : '3px solid transparent',
+                        transition: 'background 0.12s',
+                      }}
+                    >
+                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {cat.name_he}
+                      </span>
+                      <span style={{
+                        flexShrink: 0, marginInlineStart: 6,
+                        fontSize: 11, fontWeight: 600, padding: '1px 7px',
+                        borderRadius: 99, background: isActive ? 'var(--blue, #567DBF)' : 'var(--surface-3, #e8e8e8)',
+                        color: isActive ? 'white' : 'var(--ink-3)',
+                      }}>
+                        {cat.item_count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })
+        )}
+      </aside>
 
       {/* ── Main content ──────────────────────────────────────────────────────── */}
       <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '20px 20px 40px' }}>
@@ -628,7 +700,9 @@ export default function FoodBank() {
         {/* No selection */}
         {!selectedId && !selectedMacro && (
           <div style={{ padding: '48px 0', textAlign: 'center', color: 'var(--ink-3)', fontSize: 14 }}>
-            בחר קטגוריה מהרשימה בצד ימין
+            יש לבחור קטגוריה מהרשימה{' '}
+            <span className="foodbank__hint--desktop">בצד ימין</span>
+            <span className="foodbank__hint--mobile">למעלה</span>
           </div>
         )}
 
@@ -651,16 +725,16 @@ export default function FoodBank() {
                 }}>
                   {cat.name_he}
                 </div>
-                <div style={{ background: 'white', borderRadius: '0 0 12px 12px', border: '1px solid var(--hairline, #f0f0f0)', overflowX: 'auto' }}>
+                <div style={{ background: 'var(--surface)', borderRadius: '0 0 12px 12px', border: '1px solid var(--hairline, #f0f0f0)', overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                     <thead>
                       <tr style={{ background: 'var(--surface-2, #f8f8f8)', borderBottom: '1px solid var(--hairline, #f0f0f0)' }}>
-                        <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>שם</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>כמות (מנה)</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'start', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>שם</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'start', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>כמות (מנה)</th>
                         <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>גרמים</th>
                         <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>קק״ל</th>
                         <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>חלבון (ג׳)</th>
-                        <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>הערות</th>
+                        <th style={{ padding: '8px 10px', textAlign: 'start', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>הערות</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -698,7 +772,7 @@ export default function FoodBank() {
               onAdd={handleAddFromSearch}
             />
 
-            <div style={{ background: 'white', borderRadius: 12, border: '1px solid var(--hairline, #f0f0f0)', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--hairline, #f0f0f0)', overflow: 'hidden' }}>
               {itemsLoading ? (
                 <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {[1, 2, 3].map((i) => (
@@ -710,12 +784,12 @@ export default function FoodBank() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
                     <thead>
                       <tr style={{ background: 'var(--surface-2, #f8f8f8)', borderBottom: '1px solid var(--hairline, #f0f0f0)' }}>
-                        <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>שם</th>
-                        <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>כמות (מנה)</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'start', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>שם</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'start', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>כמות (מנה)</th>
                         <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>גרמים</th>
                         <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>קק״ל</th>
                         <th style={{ padding: '10px 10px', textAlign: 'center', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>חלבון (ג׳)</th>
-                        <th style={{ padding: '10px 10px', textAlign: 'right', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>הערות</th>
+                        <th style={{ padding: '10px 10px', textAlign: 'start', fontWeight: 600, fontSize: 12, color: 'var(--ink-2)' }}>הערות</th>
                         <th style={{ padding: '10px 10px', width: 140 }} />
                       </tr>
                     </thead>
@@ -771,78 +845,6 @@ export default function FoodBank() {
           </>
         )}
       </div>
-
-      {/* ── Right sidebar: categories ─────────────────────────────────────────── */}
-      <aside style={{
-        width: 232, flexShrink: 0, borderInlineStart: '1px solid var(--hairline, #f0f0f0)',
-        overflowY: 'auto', padding: '20px 0',
-        background: 'var(--surface-1, #fafafa)',
-      }}>
-        {catsLoading ? (
-          <div style={{ padding: '0 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="animate-pulse" style={{ height: 32, background: 'var(--surface-2)', borderRadius: 6 }} />
-            ))}
-          </div>
-        ) : (
-          MACRO_ORDER.map((type) => {
-            const cats = grouped[type];
-            if (!cats?.length) return null;
-            const isMacroActive = selectedMacro === type;
-            return (
-              <div key={type} style={{ marginBottom: 16 }}>
-                <button
-                  type="button"
-                  onClick={() => selectMacro(type)}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'right',
-                    padding: '4px 16px 6px', border: 'none', cursor: 'pointer',
-                    fontSize: 11, fontWeight: 700, letterSpacing: '0.04em',
-                    textTransform: 'uppercase',
-                    color: isMacroActive ? 'var(--blue, #567DBF)' : 'var(--ink-3)',
-                    background: isMacroActive ? 'var(--blue-soft, #eff6ff)' : 'transparent',
-                    borderInlineStart: isMacroActive ? '3px solid var(--blue, #567DBF)' : '3px solid transparent',
-                    transition: 'background 0.12s',
-                  }}
-                >
-                  {MACRO_LABELS[type]}
-                </button>
-                {cats.map((cat) => {
-                  const isActive = cat.id === selectedId;
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => selectCategory(cat.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        width: '100%', padding: '7px 16px', border: 'none', cursor: 'pointer',
-                        textAlign: 'right', fontSize: 13, fontWeight: isActive ? 600 : 400,
-                        background: isActive ? 'var(--blue-soft, #eff6ff)' : 'transparent',
-                        color: isActive ? 'var(--blue-ink, #1d4ed8)' : 'var(--ink-1)',
-                        borderInlineStart: isActive ? '3px solid var(--blue, #567DBF)' : '3px solid transparent',
-                        transition: 'background 0.12s',
-                      }}
-                    >
-                      <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {cat.name_he}
-                      </span>
-                      <span style={{
-                        flexShrink: 0, marginInlineStart: 6,
-                        fontSize: 11, fontWeight: 600, padding: '1px 7px',
-                        borderRadius: 99, background: isActive ? 'var(--blue, #567DBF)' : 'var(--surface-3, #e8e8e8)',
-                        color: isActive ? 'white' : 'var(--ink-3)',
-                      }}>
-                        {cat.item_count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            );
-          })
-        )}
-      </aside>
     </div>
   );
 }

@@ -117,7 +117,7 @@ export function ReadonlyTaskList({ tasks = [] }) {
           >
             {task.text}
             {task.carried_over_from_session && (
-              <span className="mr-1.5 text-xs text-gray-400">
+              <span className="ms-1.5 text-xs text-gray-400">
                 (הועבר מפגישה {task.carried_over_from_session})
               </span>
             )}

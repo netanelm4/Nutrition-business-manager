@@ -50,7 +50,7 @@ function InlineField({ label, value, onSave, type = 'text', dir }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--hairline)' }}>
-      <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, paddingTop: 2, textAlign: 'right' }}>
+      <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, paddingTop: 2, textAlign: 'start' }}>
         {label}
       </span>
       <div style={{ flex: 1 }}>
@@ -98,7 +98,7 @@ function InlineField({ label, value, onSave, type = 'text', dir }) {
 function InlineSelect({ label, value, options, onSave }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--hairline)' }}>
-      <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, textAlign: 'right' }}>
+      <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, textAlign: 'start' }}>
         {label}
       </span>
       <div style={{ flex: 1 }}>
@@ -141,7 +141,7 @@ function StepIndicator({ currentStatus, onStepClick, disabled }) {
                   fontSize: 12, fontWeight: 700, cursor: disabled ? 'default' : 'pointer',
                   transition: 'background 0.15s',
                   background: (isCompleted || isActive) ? 'var(--blue)' : 'var(--surface-3)',
-                  color: (isCompleted || isActive) ? '#fff' : 'var(--ink-3)',
+                  color: (isCompleted || isActive) ? 'var(--on-accent)' : 'var(--ink-3)',
                   boxShadow: isActive ? '0 0 0 3px var(--blue-soft)' : 'none',
                 }}
               >
@@ -453,7 +453,7 @@ export default function LeadDetail() {
                         } catch {}
                       }}
                       className="crm-btn"
-                      style={{ flex: 1, justifyContent: 'center', background: 'var(--ink-1)', color: '#fff', border: 'none' }}
+                      style={{ flex: 1, justifyContent: 'center', background: 'var(--ink-1)', color: 'var(--canvas)', border: 'none' }}
                     >
                       אישור
                     </button>
@@ -507,7 +507,7 @@ export default function LeadDetail() {
 
         {/* Follow-up date */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--hairline)' }}>
-          <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, paddingTop: 2, textAlign: 'right' }}>
+          <span style={{ fontSize: 12.5, color: 'var(--ink-3)', width: 96, flexShrink: 0, paddingTop: 2, textAlign: 'start' }}>
             תאריך מעקב
           </span>
           <div style={{ flex: 1 }}>
@@ -667,7 +667,7 @@ function FollowUpInlineField({ value, isOverdue, onSave }) {
       {displayLabel ? (
         <>
           {displayLabel}
-          {isOverdue && <span style={{ marginRight: 4, fontSize: 11 }}>(באיחור)</span>}
+          {isOverdue && <span style={{ marginInlineStart: 4, fontSize: 11 }}>(באיחור)</span>}
         </>
       ) : (
         <span style={{ color: 'var(--ink-4)' }}>—</span>

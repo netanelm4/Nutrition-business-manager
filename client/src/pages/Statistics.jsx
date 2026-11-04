@@ -14,7 +14,7 @@ export default function Statistics() {
     <div className="crm-page" style={{ maxWidth: 800 }}>
       <h1 className="page-title" style={{ marginBottom: 24 }}>סטטיסטיקות</h1>
 
-      <section className="bg-white rounded-xl border border-gray-200 p-5">
+      <section className="bg-surface rounded-xl border border-gray-200 p-5">
         <h2 style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink-1)', marginBottom: 16 }}>
           סיבות עצירת תהליך
         </h2>
@@ -54,7 +54,7 @@ export default function Statistics() {
                 <div key={r.reason} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ width: 12, height: 12, borderRadius: 3, background: COLORS[i % COLORS.length], flexShrink: 0 }} />
                   <span style={{ fontSize: 13, color: 'var(--ink-1)', fontWeight: 500 }}>{r.label}</span>
-                  <span style={{ fontSize: 12, color: 'var(--ink-3)', marginRight: 'auto' }}>
+                  <span style={{ fontSize: 12, color: 'var(--ink-3)', marginInlineStart: 'auto' }}>
                     {r.count} · {r.percentage}%
                   </span>
                 </div>

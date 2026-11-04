@@ -51,7 +51,7 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose, ex
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
+      <div className="bg-surface rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-5">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-gray-800">
             {isEdit ? 'עדכון פגישה' : 'פרטי הפגישה'}
@@ -77,7 +77,7 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose, ex
             <input
               type="date"
               dir="ltr"
-              style={{ textAlign: 'left' }}
+              style={{ textAlign: 'end' }}
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
@@ -89,7 +89,7 @@ export default function MeetingScheduleModal({ lead, onSave, onSkip, onClose, ex
             <input
               type="time"
               dir="ltr"
-              style={{ textAlign: 'left' }}
+              style={{ textAlign: 'end' }}
               value={time}
               onChange={(e) => setTime(e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"

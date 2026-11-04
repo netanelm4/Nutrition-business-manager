@@ -70,7 +70,7 @@ function ItemList({ items, onChange, placeholder }) {
       <button
         type="button"
         onClick={add}
-        style={{ fontSize: 13, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'right' }}
+        style={{ fontSize: 13, color: 'var(--blue)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'start' }}
       >
         + הוסף פריט
       </button>

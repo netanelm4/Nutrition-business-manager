@@ -96,7 +96,7 @@ export default function PaymentsSection({ client, engagementId = null }) {
   }
 
   return (
-    <section className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+    <section className="bg-surface rounded-xl border border-gray-200 p-5 space-y-4">
       {/* Header row */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-base font-semibold text-gray-700">מעקב תשלומים</h2>
@@ -131,7 +131,7 @@ export default function PaymentsSection({ client, engagementId = null }) {
                 <span className="text-sm font-semibold text-gray-900">
                   {p.amount.toLocaleString()} ₪
                 </span>
-                <span className="text-xs text-gray-400 mr-2">{formatDateHebrew(p.paid_at)}</span>
+                <span className="text-xs text-gray-400 ms-2">{formatDateHebrew(p.paid_at)}</span>
                 {p.note && (
                   <p className="text-xs text-gray-500 truncate">{p.note}</p>
                 )}

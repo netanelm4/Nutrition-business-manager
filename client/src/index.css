@@ -68,7 +68,89 @@
   --sidebar-w: 232px;
   --topbar-h:  56px;
   --pad: 24px;
+
+  /* WhatsApp preview + misc */
+  --wa-chat-bg:  #e2ffc7;
+  --wa-bubble:   #ffffff;
+  --scrollbar:   oklch(0.88 0.01 320);
+  --overlay:     oklch(0 0 0 / 0.35);
+  --focus-ring:  0 0 0 2px var(--canvas), 0 0 0 4px var(--blue);
+  --on-accent:   #ffffff;   /* text on --blue / --green fills */
+
+  /* Aliases — these names were used in components but never defined */
+  --surface-1:     var(--surface);
+  --border:        var(--line);
+  --red:           var(--red-ink);
+  --red-surface:   var(--red-soft);
+  --accent:        var(--blue);
+  --accent-bg:     var(--blue-soft);
+  --accent-border: var(--blue);
+  --shadow:        var(--shadow-2);
+  --text-h:        var(--ink-1);
+  --social-bg:     var(--surface-2);
 }
+
+/* ── Obsidian dark theme (internal CRM) ─────────────────────────────────────────
+   <html data-theme="dark"> is set by index.html for every route except the
+   public pages (/w/:token weight logging, /food/:token food bank), which keep
+   the light brand look. Semantic tokens only — components never hard-code colours. */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --canvas:    #09090B;
+  --bg-warm:   #0C0C0F;
+  --surface:   #0F0F12;
+  --surface-2: #141418;
+  --surface-3: #1A1A1F;
+
+  /* Borders */
+  --line:        #1F1F24;
+  --line-2:      #27272A;
+  --line-strong: #3F3F46;
+  --hairline:    #18181B;
+
+  /* Ink */
+  --ink-1: #FAFAFA;
+  --ink-2: #D4D4D8;
+  --ink-3: #A1A1AA;
+  --ink-4: #71717A;
+
+  /* Brand → accents, lifted for contrast on near-black (WCAG AA on --surface) */
+  --blue:        #7B9DDB;
+  --blue-deep:   #567DBF;
+  --blue-soft:   rgba(86, 125, 191, 0.16);
+  --blue-ink:    #A9C1EC;
+  --green:       #3FD1A9;
+  --green-deep:  #31B996;
+  --green-soft:  rgba(49, 185, 150, 0.14);
+  --green-ink:   #6EE0BF;
+  --pink:        #E8A9CB;
+  --pink-deep:   #D98BB6;
+  --pink-soft:   rgba(245, 219, 234, 0.10);
+  --pink-ink:    #F2C6DD;
+
+  --amber-soft:  rgba(245, 158, 11, 0.12);
+  --amber-ink:   #FBBF24;
+  --red-soft:    rgba(239, 68, 68, 0.12);
+  --red-ink:     #F87171;
+
+  /* Elevation on dark = hairline ring + soft drop, not light-mode shadows */
+  --shadow-1:   0 0 0 1px var(--line);
+  --shadow-2:   0 0 0 1px var(--line), 0 8px 24px rgba(0, 0, 0, 0.40);
+  --shadow-pop: 0 0 0 1px var(--line-2), 0 16px 48px rgba(0, 0, 0, 0.60);
+
+  --on-accent: #09090B;
+  --wa-chat-bg: #0B141A;
+  --wa-bubble:  #1F2C34;
+  --scrollbar:  #3F3F46;
+  --overlay:    rgba(0, 0, 0, 0.60);
+}
+
+/* Primary buttons: the lifted blue needs dark text for contrast */
+[data-theme="dark"] .crm-btn--primary { color: var(--on-accent); }
+[data-theme="dark"] ::selection { background: rgba(123, 157, 219, 0.35); }
+button:focus-visible, a:focus-visible, [role="tab"]:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* ── Base ───────────────────────────────────────────────────────────────────── */
 @layer base {
@@ -91,8 +173,11 @@
   grid-template-columns: 1fr;
   min-height: 100vh;
 }
+/* RTL: grid column 1 is the RIGHT edge under dir="rtl". The sidebar is column 1
+   (right), the content column 2 (left) — the old "1fr var(--sidebar-w)" put the
+   sidebar on the left. */
 @media (min-width: 768px) {
-  .crm-app { grid-template-columns: 1fr var(--sidebar-w); }
+  .crm-app { grid-template-columns: var(--sidebar-w) 1fr; }
 }
 .crm-main {
   min-width: 0;
@@ -100,14 +185,18 @@
   flex-direction: column;
   grid-column: 1;
 }
+@media (min-width: 768px) {
+  .crm-main { grid-column: 2; }
+}
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────────── */
 .crm-side {
-  grid-column: 2;
+  grid-column: 1;
+  grid-row: 1;
   position: sticky; top: 0; align-self: start;
   height: 100vh;
   background: var(--surface);
-  border-inline-start: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);   /* the edge facing the content */
   display: none;
   flex-direction: column;
   padding: 14px 12px;
@@ -122,7 +211,7 @@
 .crm-overlay {
   display: none;
   position: fixed; inset: 0; z-index: 40;
-  background: oklch(0 0 0 / 0.35);
+  background: var(--overlay);
   backdrop-filter: blur(1px);
 }
 .crm-overlay.is-open { display: block; }
@@ -533,14 +622,14 @@
 /* ── Scrollbar ───────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-thumb {
-  background: oklch(0.88 0.01 320);
+  background: var(--scrollbar);
   border: 2px solid transparent;
   background-clip: padding-box;
   border-radius: 10px;
 }
 
 /* ── Typography helpers ───────────────────────────────────────────────────────── */
-.h-2 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink-1); line-height: 1.25; }
+.t-h2 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; color: var(--ink-1); line-height: 1.25; }
 .t-sm { font-size: 12.5px; }
 .t-xs { font-size: 11.5px; }
 .t-muted { color: var(--ink-3); }
@@ -607,7 +696,7 @@
 /* ── Table (clients list) ────────────────────────────────────────────────────── */
 .table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .table th {
-  padding: 10px 16px; text-align: right;
+  padding: 10px 16px; text-align: start;
   font-size: 11.5px; font-weight: 600; color: var(--ink-3);
   letter-spacing: 0.02em; border-bottom: 1px solid var(--hairline);
   white-space: nowrap; background: var(--surface-2);
@@ -739,11 +828,11 @@
 .macro-mini > div b { font-size: 15px; font-weight: 700; color: var(--ink-1); display: block; font-variant-numeric: tabular-nums; }
 
 .ai-banner {
-  background: linear-gradient(120deg, oklch(0.97 0.02 255) 0%, var(--surface) 70%);
-  border-color: oklch(0.91 0.04 255);
+  background: linear-gradient(120deg, var(--blue-soft) 0%, var(--surface) 70%);
+  border-color: var(--line-2);
   padding: 16px 18px; margin-bottom: 16px;
   display: flex; align-items: center; gap: 14px;
-  border: 1px solid oklch(0.91 0.04 255);
+  border: 1px solid var(--line-2);
   border-radius: var(--r-lg); box-shadow: var(--shadow-1);
 }
 .ai-banner__icon {
@@ -774,11 +863,11 @@
 .tpl-row__foot { font-size: 11px; color: var(--ink-4); margin-top: 4px; }
 
 .phone-preview {
-  background: #e2ffc7; border-radius: 14px;
+  background: var(--wa-chat-bg); border-radius: 14px;
   padding: 12px; min-height: 180px;
 }
 .msg-bubble {
-  background: #fff; border-radius: 10px 10px 10px 2px;
+  background: var(--wa-bubble); color: var(--ink-1); border-radius: 10px 10px 10px 2px;
   padding: 10px 12px; font-size: 13px; line-height: 1.6;
   max-width: 90%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
@@ -955,6 +1044,7 @@
 .status-chip--ended   { background: var(--surface-3);  color: var(--ink-3);     }
 .status-chip--overdue { background: var(--red-soft);   color: var(--red-ink);   }
 
+
 /* ── Inbox (action queue) ───────────────────────────────────────────────────── */
 .inbox__head { align-items: flex-start; }
 .inbox__tools { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -1014,4 +1104,17 @@ a.inbox-row__title:hover { text-decoration: underline; }
 @media (max-width: 640px) {
   .inbox-row { grid-template-columns: auto 1fr; }
   .inbox-row__actions { grid-column: 2; justify-content: flex-start; }
+}
+
+/* ── Food bank: categories panel on the right (desktop), stacked on top (mobile) ── */
+.foodbank__hint--mobile { display: none; }
+@media (max-width: 767px) {
+  /* !important: the page uses inline flex/width styles */
+  .foodbank { flex-direction: column !important; height: auto !important; }
+  .foodbank__cats {
+    width: 100% !important; max-height: 38vh; padding: 12px 0 !important;
+    border-inline-end: none !important; border-bottom: 1px solid var(--hairline);
+  }
+  .foodbank__hint--desktop { display: none; }
+  .foodbank__hint--mobile { display: inline; }
 }

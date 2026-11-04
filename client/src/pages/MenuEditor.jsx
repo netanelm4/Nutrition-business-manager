@@ -437,7 +437,7 @@ export default function MenuEditor() {
       </div>
 
       {generateError && (
-        <p style={{ fontSize: 12, color: 'var(--red-ink)', marginBottom: 12, padding: '8px 12px', background: '#fff5f5', borderRadius: 8, border: '1px solid #fecaca' }}>
+        <p style={{ fontSize: 12, color: 'var(--red-ink)', marginBottom: 12, padding: '8px 12px', background: 'var(--red-soft)', borderRadius: 8, border: '1px solid var(--red-soft)' }}>
           שגיאה: {generateError}
         </p>
       )}
