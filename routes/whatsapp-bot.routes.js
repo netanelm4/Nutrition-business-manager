@@ -1,6 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const { processIncomingMessage } = require('../services/whatsapp-bot.service');
+const { verifyMetaSignature } = require('../middleware/webhook-signature');
 
 const router = express.Router();
 
@@ -20,7 +21,7 @@ router.get('/webhook', (req, res) => {
 
 // ─── POST /api/whatsapp/webhook — incoming messages from Meta ─────────────────
 
-router.post('/webhook', (req, res) => {
+router.post('/webhook', verifyMetaSignature, (req, res) => {
   // Acknowledge immediately — Meta requires fast 200
   res.sendStatus(200);
 

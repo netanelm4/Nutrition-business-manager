@@ -25,9 +25,11 @@ router.get('/', (req, res) => {
     const today = todayISO();
 
     // ── 1. Active clients with their windows and sessions ──────────────────
+    // Only clients in an active process generate session / alert items.
+    // frozen and paused clients are surfaced via their freeze reminders instead.
     const clients = db
-      .prepare("SELECT * FROM clients WHERE status != ? ORDER BY full_name")
-      .all(CLIENT_STATUS.ENDED);
+      .prepare('SELECT * FROM clients WHERE status IN (?, ?) ORDER BY full_name')
+      .all(CLIENT_STATUS.ACTIVE, CLIENT_STATUS.ENDING_SOON);
 
     const allWindows = db.prepare('SELECT * FROM session_windows').all();
     const allSessions = db.prepare('SELECT * FROM sessions').all();

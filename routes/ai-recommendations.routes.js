@@ -11,7 +11,11 @@ router.get('/', (req, res) => {
       FROM ai_recommendations r
       JOIN clients c ON c.id = r.client_id
       WHERE r.is_dismissed = 0
+        AND r.is_sent = 0
         AND (r.expires_at IS NULL OR r.expires_at > datetime('now'))
+        -- frozen / paused / ended clients only surface their freeze reminders
+        AND (c.status IN ('active', 'ending_soon')
+             OR r.type IN ('freeze_reminder', 'freeze_expired'))
       ORDER BY
         CASE r.priority WHEN 'urgent' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END,
         r.created_at DESC
@@ -27,7 +31,7 @@ router.get('/', (req, res) => {
 router.post('/:id/dismiss', (req, res) => {
   try {
     const result = db.prepare(
-      'UPDATE ai_recommendations SET is_dismissed = 1 WHERE id = ?'
+      "UPDATE ai_recommendations SET is_dismissed = 1, handled_at = datetime('now') WHERE id = ?"
     ).run(req.params.id);
     if (result.changes === 0) {
       return res.status(404).json({ success: false, error: 'Not found' });
@@ -43,7 +47,7 @@ router.post('/:id/dismiss', (req, res) => {
 router.post('/:id/sent', (req, res) => {
   try {
     const result = db.prepare(
-      'UPDATE ai_recommendations SET is_sent = 1 WHERE id = ?'
+      "UPDATE ai_recommendations SET is_sent = 1, handled_at = datetime('now') WHERE id = ?"
     ).run(req.params.id);
     if (result.changes === 0) {
       return res.status(404).json({ success: false, error: 'Not found' });

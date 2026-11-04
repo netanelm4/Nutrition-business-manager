@@ -48,8 +48,14 @@ seedProtocols(db);
 // ─── App setup ────────────────────────────────────────────────────────────────
 const app = express();
 
+// Railway terminates TLS at one proxy hop — needed for a real req.ip (rate limiting)
+app.set('trust proxy', 1);
+
 app.use(cors());
-app.use(express.json());
+// Keep the raw bytes: webhook signature verification must HMAC the exact payload
+app.use(express.json({
+  verify: (req, res, buf) => { req.rawBody = buf; },
+}));
 
 // ─── Public API routes (no auth) ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }));
@@ -58,10 +64,6 @@ app.use('/api', publicRouter);
 app.use('/api/calendly',  webhookRouter);
 app.use('/api/google',    googleRouter);      // callback must be public (no auth)
 app.use('/api/whatsapp',  whatsappBotRouter); // webhook is public; /test applies auth internally
-
-// ─── TEMPORARY: diagnostic + repair routes (NO AUTH — remove after use) ──────
-const tempAdminRouter = require('./routes/temp-admin.routes');
-app.use('/api/admin', tempAdminRouter);
 
 // ─── Landing page static files ────────────────────────────────────────────────
 app.use('/landing', express.static(path.join(__dirname, 'landing')));

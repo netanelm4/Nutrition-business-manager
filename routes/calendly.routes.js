@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../database/db');
 const { generateLink } = require('../services/whatsapp.service');
 const { deleteCalendarEvent, updateCalendarEvent } = require('../services/google-calendar.service');
+const { verifyCalendlySignature } = require('../middleware/webhook-signature');
 
 // Two routers:
 //   webhookRouter  — mounted BEFORE requireAuth (no auth)
@@ -133,7 +134,7 @@ function handleCanceled(payload) {
 
 // ── POST /api/calendly/webhook ────────────────────────────────────────────────
 
-webhookRouter.post('/webhook', (req, res) => {
+webhookRouter.post('/webhook', verifyCalendlySignature, (req, res) => {
   // Respond immediately so Calendly doesn't retry on slow processing
   res.json({ received: true });
 

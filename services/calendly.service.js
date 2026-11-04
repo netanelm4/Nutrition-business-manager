@@ -56,6 +56,10 @@ async function registerCalendlyWebhook() {
       organization: organizationUri,
       user: userUri,
       scope: 'user',
+      // Calendly signs every delivery with this key when provided
+      ...(process.env.CALENDLY_WEBHOOK_SIGNING_KEY
+        ? { signing_key: process.env.CALENDLY_WEBHOOK_SIGNING_KEY }
+        : {}),
     }),
   });
 

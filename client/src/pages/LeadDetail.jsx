@@ -222,6 +222,10 @@ export default function LeadDetail() {
   // ── Step click ───────────────────────────────────────────────────────────────
 
   function handleStepClick(status) {
+    if (status === LEAD_STATUS.BECAME_CLIENT) {
+      handleConvert();
+      return;
+    }
     if (status === LEAD_STATUS.MEETING_SCHEDULED) {
       save({ status });
       setMeetingModalOpen(true);

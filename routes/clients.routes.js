@@ -8,6 +8,7 @@ const { CLIENT_STATUS, TASK_STATUS } = require('../constants/statuses');
 const { parseJsonArray } = require('../utils/parseJson');
 
 const { AI_MODEL } = require('../config/ai');
+const { ensureActiveEngagement, closeActiveEngagements, generateWeightToken } = require('../services/client-lifecycle.service');
 let _aiClient = null;
 function getAIClient() {
   if (!_aiClient) _aiClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
@@ -215,6 +216,12 @@ router.post('/', (req, res) => {
     });
 
     const clientId = result.lastInsertRowid;
+
+    // Every client starts with engagement #1 and a personal weight-entry token
+    ensureActiveEngagement(db, clientId, start_date || null);
+    db.prepare('UPDATE clients SET weight_token = ? WHERE id = ? AND weight_token IS NULL')
+      .run(generateWeightToken(), clientId);
+
     console.log(`[POST /clients] Created client id=${clientId} name="${full_name}" status=${status || CLIENT_STATUS.ACTIVE} converted_from_lead=${converted_from_lead_id || null}`);
 
     // If converted from a lead that has intake data, store it as pending for session 1
@@ -353,6 +360,7 @@ router.put('/:id', (req, res) => {
 
     // If status just changed to 'ended', fire-and-forget process summary generation
     if (updates.status === CLIENT_STATUS.ENDED && client.status !== CLIENT_STATUS.ENDED) {
+      closeActiveEngagements(db, Number(req.params.id));
       if (!updated.process_summary) {
         triggerProcessSummary(req.params.id);
       }
@@ -371,7 +379,21 @@ router.delete('/:id', (req, res) => {
   try {
     const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
     if (!client) return fail(res, 404, 'Client not found.');
-    db.prepare('DELETE FROM clients WHERE id = ?').run(req.params.id);
+
+    // These tables reference clients without ON DELETE CASCADE, so the FK refuses
+    // a bare DELETE (every client has an engagement). Remove them explicitly, atomically.
+    // sessions, windows, payments, intakes, whatsapp_log cascade; calendly_events and
+    // daily_tasks are SET NULL by their FKs.
+    const deleteClient = db.transaction((id) => {
+      db.prepare('DELETE FROM menu_examples WHERE menu_id IN (SELECT id FROM menus WHERE client_id = ?)').run(id);
+      db.prepare('DELETE FROM menus WHERE client_id = ?').run(id);
+      for (const table of ['ai_recommendations', 'weight_logs', 'ai_memory', 'client_food_favorites', 'engagements']) {
+        db.prepare(`DELETE FROM ${table} WHERE client_id = ?`).run(id);
+      }
+      db.prepare('DELETE FROM clients WHERE id = ?').run(id);
+    });
+    deleteClient(Number(req.params.id));
+
     return ok(res, { id: Number(req.params.id) });
   } catch (err) {
     console.error('[DELETE /clients/:id]', err);
@@ -614,7 +636,7 @@ router.post('/:id/stop', (req, res) => {
     return fail(res, 400, 'reason must be one of: ' + VALID_REASONS.join(', '));
   }
   try {
-    const client = db.prepare('SELECT id FROM clients WHERE id = ?').get(req.params.id);
+    const client = db.prepare('SELECT id, status, process_summary FROM clients WHERE id = ?').get(req.params.id);
     if (!client) return fail(res, 404, 'Client not found.');
 
     db.prepare(`
@@ -626,6 +648,13 @@ router.post('/:id/stop', (req, res) => {
           stopped_at = datetime('now')
       WHERE id = ?
     `).run(reason, reason_text || null, req.params.id);
+
+    closeActiveEngagements(db, Number(req.params.id));
+
+    // Same side effect as PUT status=ended: generate the process summary once
+    if (client.status !== CLIENT_STATUS.ENDED && !client.process_summary) {
+      triggerProcessSummary(req.params.id);
+    }
 
     const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
     console.log(`[POST /clients/${req.params.id}/stop] reason=${reason}`);

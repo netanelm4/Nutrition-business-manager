@@ -1,7 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
-const { calculateSessionWindows } = require('../utils/dates');
+const { calculateSessionWindows, calculateProcessEndDate, todayISO } = require('../utils/dates');
 const { AI_MODEL } = require('../config/ai');
 
 const DEFAULT_DB_DIR = path.join(__dirname, '..', 'data');
@@ -1889,5 +1889,143 @@ try {
 } catch (err) {
   console.error('[seed] Owner user seed failed:', err.message);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 1 flow repairs (2026-11-04)
+// Runs last so every table referenced below already exists. All idempotent.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ai_recommendations.handled_at — when it was sent/dismissed (drives the cooldown
+// that stops handled recommendations from being regenerated)
+try { db.exec('ALTER TABLE ai_recommendations ADD COLUMN handled_at TEXT'); } catch { /* exists */ }
+
+// ── Repair 7: every client has start_date (when derivable) and process_end_date ──
+// Converted leads never got process_end_date, so "ending soon" / "ended" alerts
+// could not fire for them. Covers every status (active, ending_soon, ended, paused, frozen).
+function repairProcessDates(database) {
+  try {
+    const missingStart = database.prepare(`
+      SELECT c.id, MIN(s.session_date) AS first_session
+      FROM clients c
+      JOIN sessions s ON s.client_id = c.id AND s.session_date IS NOT NULL AND s.session_date != ''
+      WHERE c.start_date IS NULL OR c.start_date = ''
+      GROUP BY c.id
+    `).all();
+    for (const row of missingStart) {
+      const startDate = String(row.first_session).slice(0, 10);
+      database.prepare('UPDATE clients SET start_date = ? WHERE id = ?').run(startDate, row.id);
+      console.log(`[repair] Set start_date=${startDate} for client ${row.id} (from first session)`);
+    }
+
+    const missingEnd = database.prepare(`
+      SELECT id, start_date FROM clients
+      WHERE (process_end_date IS NULL OR process_end_date = '')
+        AND start_date IS NOT NULL AND start_date != ''
+    `).all();
+    for (const c of missingEnd) {
+      const endDate = calculateProcessEndDate(String(c.start_date).slice(0, 10));
+      if (!endDate) continue;
+      database.prepare('UPDATE clients SET process_end_date = ? WHERE id = ?').run(endDate, c.id);
+      console.log(`[repair] Set process_end_date=${endDate} for client ${c.id}`);
+    }
+  } catch (err) {
+    console.error('[repair] repairProcessDates failed:', err.message);
+  }
+}
+
+// ── Repair 8: engagements are consistent and every row is linked to one ───────
+function repairEngagementLinks(database) {
+  try {
+    // a) every client has at least engagement #1
+    const noEngagement = database.prepare(`
+      SELECT id, COALESCE(start_date, substr(created_at, 1, 10)) AS started
+      FROM clients WHERE id NOT IN (SELECT client_id FROM engagements)
+    `).all();
+    for (const c of noEngagement) {
+      database.prepare(
+        "INSERT INTO engagements (client_id, number, status, started_at) VALUES (?, 1, 'active', ?)"
+      ).run(c.id, c.started);
+      console.log(`[repair] Created engagement #1 for client ${c.id}`);
+    }
+
+    // b) ended clients must not keep an active engagement
+    const endedActive = database.prepare(`
+      SELECT e.id, e.client_id,
+             COALESCE(c.stop_date, c.process_end_date, ?) AS ended_at
+      FROM engagements e JOIN clients c ON c.id = e.client_id
+      WHERE c.status = 'ended' AND e.status = 'active'
+    `).all(todayISO());
+    for (const e of endedActive) {
+      database.prepare("UPDATE engagements SET status = 'completed', ended_at = ? WHERE id = ?")
+        .run(e.ended_at, e.id);
+      console.log(`[repair] Closed engagement ${e.id} for ended client ${e.client_id}`);
+    }
+
+    // c) link sessions / payments / calendly_events that have no engagement_id
+    //    to the client's active engagement, or its latest one if none is active
+    const targetEngagement = `
+      (SELECT e.id FROM engagements e
+       WHERE e.client_id = t.client_id
+       ORDER BY (e.status = 'active') DESC, e.number DESC LIMIT 1)`;
+    for (const table of ['sessions', 'payments', 'calendly_events']) {
+      const result = database.prepare(`
+        UPDATE ${table} AS t SET engagement_id = ${targetEngagement}
+        WHERE t.engagement_id IS NULL AND t.client_id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM engagements e WHERE e.client_id = t.client_id)
+      `).run();
+      if (result.changes > 0) {
+        console.log(`[repair] Linked ${result.changes} ${table} row(s) to their engagement`);
+      }
+    }
+  } catch (err) {
+    console.error('[repair] repairEngagementLinks failed:', err.message);
+  }
+}
+
+// ── Repair 9: clients with a finalized menu are marked menu_sent ─────────────
+function repairMenuSentFromFinalMenus(database) {
+  try {
+    const rows = database.prepare(`
+      SELECT c.id, MIN(substr(m.created_at, 1, 10)) AS first_final
+      FROM clients c
+      JOIN menus m ON m.client_id = c.id AND m.status = 'final'
+      WHERE c.menu_sent = 0
+      GROUP BY c.id
+    `).all();
+    for (const r of rows) {
+      database.prepare(`
+        UPDATE clients SET menu_sent = 1, menu_sent_date = COALESCE(menu_sent_date, ?)
+        WHERE id = ?
+      `).run(r.first_final, r.id);
+      database.prepare(`
+        UPDATE ai_recommendations SET is_dismissed = 1, handled_at = datetime('now')
+        WHERE client_id = ? AND type = 'menu_update_needed' AND is_dismissed = 0
+      `).run(r.id);
+      console.log(`[repair] Marked menu_sent for client ${r.id} (final menu from ${r.first_final})`);
+    }
+  } catch (err) {
+    console.error('[repair] repairMenuSentFromFinalMenus failed:', err.message);
+  }
+}
+
+// ── Repair 10: weight_token for any client still missing one ─────────────────
+function repairWeightTokens(database) {
+  try {
+    const result = database.prepare(
+      "UPDATE clients SET weight_token = lower(hex(randomblob(8))) WHERE weight_token IS NULL OR weight_token = ''"
+    ).run();
+    if (result.changes > 0) console.log(`[repair] Generated weight_token for ${result.changes} client(s)`);
+  } catch (err) {
+    console.error('[repair] repairWeightTokens failed:', err.message);
+  }
+}
+
+// Orphaned converted leads (became_client with no client row) are repaired by
+// repairOrphanedConvertedLeads above; the repairs below then complete the rows
+// it creates (process_end_date, engagement, links, token) in the same startup.
+repairProcessDates(db);
+repairEngagementLinks(db);
+repairMenuSentFromFinalMenus(db);
+repairWeightTokens(db);
 
 module.exports = db;

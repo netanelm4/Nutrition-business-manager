@@ -259,6 +259,20 @@ router.post('/:id/finalize', (req, res) => {
 
     db.prepare("UPDATE menus SET status = 'final' WHERE id = ?").run(req.params.id);
 
+    // A finalized menu IS the menu the client receives — keep clients.menu_sent in
+    // sync (it drives the "menu not sent" alert) and close the related recommendations.
+    // menu_sent_date keeps the first date; later menus do not overwrite it.
+    db.prepare(`
+      UPDATE clients
+      SET menu_sent = 1,
+          menu_sent_date = COALESCE(menu_sent_date, date('now'))
+      WHERE id = ?
+    `).run(menu.client_id);
+    db.prepare(`
+      UPDATE ai_recommendations SET is_dismissed = 1, handled_at = datetime('now')
+      WHERE client_id = ? AND type = 'menu_update_needed' AND is_dismissed = 0
+    `).run(menu.client_id);
+
     try {
       db.prepare(
         "INSERT INTO ai_memory (client_id, memory_type, content, source_type, source_id) VALUES (?, 'menu_insight', ?, 'menu', ?)"

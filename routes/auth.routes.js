@@ -2,6 +2,7 @@ const express = require('express');
 const crypto  = require('crypto');
 const bcrypt  = require('bcrypt');
 const db      = require('../database/db');
+const { loginLimiter } = require('../middleware/rate-limit');
 
 const router = express.Router();
 
@@ -9,7 +10,7 @@ function ok(res, data)              { return res.json({ success: true, data }); 
 function fail(res, status, message) { return res.status(status).json({ success: false, error: message }); }
 
 // ─── POST /api/auth/login ──────────────────────────────────────────────────────
-router.post('/login', (req, res) => {
+router.post('/login', loginLimiter, (req, res) => {
   try {
     const { name, password } = req.body;
     if (!name?.trim() || !password) {

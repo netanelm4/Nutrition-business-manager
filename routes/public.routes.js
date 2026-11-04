@@ -3,52 +3,14 @@ const db = require('../database/db');
 
 const router = express.Router();
 
-// ─── In-memory rate limiter: 5 requests per IP per hour ───────────────────────
+const { createRateLimiter, publicFormLimiter, publicActionLimiter } = require('../middleware/rate-limit');
 
-const rateLimitMap = new Map(); // ip -> { count, resetAt }
-const RATE_LIMIT_MAX = 5;
-const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-
-function isRateLimited(ip) {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    return false;
-  }
-
-  if (entry.count >= RATE_LIMIT_MAX) {
-    return true;
-  }
-
-  entry.count += 1;
-  return false;
-}
-
-// Clean up stale entries every hour to prevent memory growth
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, entry] of rateLimitMap.entries()) {
-    if (now > entry.resetAt) rateLimitMap.delete(ip);
-  }
-}, RATE_LIMIT_WINDOW_MS);
+// Landing-page lead form: 5 submissions per IP per hour
+const leadFormLimiter = createRateLimiter({ name: 'lead-form', windowMs: 60 * 60 * 1000, max: 5 });
 
 // ─── POST /api/leads/public ───────────────────────────────────────────────────
 
-router.post('/leads/public', (req, res) => {
-  const ip =
-    req.headers['x-forwarded-for']?.split(',')[0].trim() ||
-    req.socket.remoteAddress ||
-    'unknown';
-
-  if (isRateLimited(ip)) {
-    return res.status(429).json({
-      success: false,
-      error: 'שלחת יותר מידי בקשות. נסה שוב מאוחר יותר.',
-    });
-  }
-
+router.post('/leads/public', leadFormLimiter, (req, res) => {
   const { full_name, phone, goal, notes } = req.body;
 
   if (!full_name || !full_name.trim()) {
@@ -162,7 +124,7 @@ router.get('/public/weight/:token', (req, res) => {
 
 // ─── POST /api/public/weight/:token ──────────────────────────────────────────
 
-router.post('/public/weight/:token', (req, res) => {
+router.post('/public/weight/:token', publicActionLimiter, (req, res) => {
   try {
     ensureWeightSchema();
     const client = db.prepare('SELECT id FROM clients WHERE weight_token = ?').get(req.params.token);
@@ -195,34 +157,6 @@ router.post('/public/weight/:token', (req, res) => {
     console.error('[POST /public/weight/:token]', err.message);
     return res.status(500).json({ success: false, error: 'שגיאה פנימית' });
   }
-});
-
-// ─── TEMP DEBUG: GET /api/public/debug/weight-schema (no auth) ───────────────
-
-router.get('/public/debug/weight-schema', (req, res) => {
-  const result = {};
-
-  try {
-    result.clients_sql = db.prepare(
-      "SELECT sql FROM sqlite_master WHERE type='table' AND name='clients'"
-    ).get();
-  } catch (err) {
-    result.clients_sql_error = err.message;
-  }
-
-  try {
-    result.clients_sample = db.prepare('SELECT id, full_name FROM clients LIMIT 3').all();
-  } catch (err) {
-    result.clients_sample_error = err.message;
-  }
-
-  try {
-    result.weight_token_sample = db.prepare('SELECT weight_token FROM clients LIMIT 1').get();
-  } catch (err) {
-    result.weight_token_error = err.message;
-  }
-
-  return res.json(result);
 });
 
 // ─── Food & Recipe public endpoints ──────────────────────────────────────────
@@ -355,7 +289,7 @@ router.get('/public/foods/search', async (req, res) => {
 
 // ─── POST /api/public/foods/submit ───────────────────────────────────────────
 
-router.post('/public/foods/submit', (req, res) => {
+router.post('/public/foods/submit', publicFormLimiter, (req, res) => {
   const { token, name_he, calories_per_100g, protein_per_100g,
           fat_per_100g, carb_per_100g, category_id } = req.body;
 
@@ -449,7 +383,7 @@ router.get('/public/recipes/:id', (req, res) => {
 
 // ─── POST /api/public/recipes?token= ─────────────────────────────────────────
 
-router.post('/public/recipes', (req, res) => {
+router.post('/public/recipes', publicFormLimiter, (req, res) => {
   const { token, name, description, servings, ingredients = [] } = req.body;
 
   const client = findClientByToken(token);
@@ -513,7 +447,7 @@ router.get('/public/favorites/:token', (req, res) => {
 
 // ─── POST /api/public/favorites/:token ───────────────────────────────────────
 
-router.post('/public/favorites/:token', (req, res) => {
+router.post('/public/favorites/:token', publicActionLimiter, (req, res) => {
   const client = findClientByToken(req.params.token);
   if (!client) return res.status(403).json({ success: false, error: 'טוקן לא תקין' });
 
@@ -547,7 +481,7 @@ router.post('/public/favorites/:token', (req, res) => {
 
 // ─── DELETE /api/public/favorites/:token/:id ──────────────────────────────────
 
-router.delete('/public/favorites/:token/:id', (req, res) => {
+router.delete('/public/favorites/:token/:id', publicActionLimiter, (req, res) => {
   const client = findClientByToken(req.params.token);
   if (!client) return res.status(403).json({ success: false, error: 'טוקן לא תקין' });
   try {

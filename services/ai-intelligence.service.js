@@ -38,9 +38,27 @@ async function callClaude(userPrompt) {
 
 // ─── DB helpers ───────────────────────────────────────────────────────────────
 
+// A recommendation the nutritionist already sent or dismissed is not raised
+// again for this many days — this is what stops the endless alert loop.
+const HANDLED_COOLDOWN_DAYS = 7;
+
+function wasHandledRecently(clientId, type) {
+  const row = db.prepare(`
+    SELECT 1 FROM ai_recommendations
+    WHERE client_id = ? AND type = ?
+      AND (is_sent = 1 OR is_dismissed = 1)
+      AND COALESCE(handled_at, created_at) > datetime('now', ?)
+    LIMIT 1
+  `).get(clientId, type, `-${HANDLED_COOLDOWN_DAYS} days`);
+  return !!row;
+}
+
 function saveRecommendation(clientId, type, priority, title, messageDraft, actionSuggestion) {
+  if (wasHandledRecently(clientId, type)) return;
+
+  // Replace only the still-pending one — never touch handled history
   db.prepare(
-    'DELETE FROM ai_recommendations WHERE client_id = ? AND type = ? AND is_dismissed = 0'
+    'DELETE FROM ai_recommendations WHERE client_id = ? AND type = ? AND is_dismissed = 0 AND is_sent = 0'
   ).run(clientId, type);
 
   db.prepare(`
@@ -163,6 +181,7 @@ function checkWeightMissing(client, recentWeights) {
 // ─── Check 2: weight_not_progressing ─────────────────────────────────────────
 
 async function checkWeightNotProgressing(client, recentWeights) {
+  if (wasHandledRecently(client.id, 'weight_not_progressing')) return; // no Claude call
   if (recentWeights.length < 3) return;
 
   const weeklyAvgs = buildWeeklyAverages(recentWeights);
@@ -205,6 +224,7 @@ ${weightTrendLines}
 // ─── Check 3: no_contact ──────────────────────────────────────────────────────
 
 async function checkNoContact(client, sessions) {
+  if (wasHandledRecently(client.id, 'no_contact')) return; // no Claude call
   const sessionsWithDate = sessions.filter((s) => s.session_date);
   if (sessionsWithDate.length === 0) return;
 
@@ -240,6 +260,7 @@ async function checkNoContact(client, sessions) {
 // ─── Check 4: upcoming_meeting ────────────────────────────────────────────────
 
 async function checkUpcomingMeeting(client, sessions, nextMeeting) {
+  if (wasHandledRecently(client.id, 'upcoming_meeting')) return; // no Claude call
   if (!nextMeeting) return;
 
   const lastSession = sessions.filter((s) => s.highlights).pop();
@@ -299,6 +320,7 @@ function checkBloodTestDue(client, sessions, latestIntake) {
 // ─── Check 6: motivation_drop ─────────────────────────────────────────────────
 
 async function checkMotivationDrop(client, sessions, recentWeights) {
+  if (wasHandledRecently(client.id, 'motivation_drop')) return; // no Claude call
   const withHighlights = sessions.filter((s) => s.highlights).slice(-3);
   if (withHighlights.length < 2) return;
 

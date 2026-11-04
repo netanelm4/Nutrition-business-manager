@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchLeads, updateLead } from '../lib/api';
+import { fetchLeads, updateLead, convertLead } from '../lib/api';
 import { LEAD_STATUS, LEAD_STATUS_LABEL } from '../constants/statuses';
 import KanbanBoard from '../components/leads/KanbanBoard';
 import LeadCard from '../components/leads/LeadCard';
@@ -74,7 +74,24 @@ export default function Leads() {
     onError: (err) => setStatusError(err.message || 'אירעה שגיאה בעדכון הסטטוס. נסה שוב.'),
   });
 
+  // Dropping a lead on "הפך למטופל" runs the full transactional conversion
+  // (client, session 1, 6 windows, engagement, intake) — never a bare status flip.
+  const convertMutation = useMutation({
+    mutationFn: (leadId) => convertLead(leadId),
+    onSuccess: () => {
+      setStatusError(null);
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: (err) => setStatusError(err.message || 'אירעה שגיאה בהמרת הליד. נסו שוב.'),
+  });
+
   function handleStatusChange(leadId, newStatus) {
+    if (newStatus === LEAD_STATUS.BECAME_CLIENT) {
+      convertMutation.mutate(leadId);
+      return;
+    }
     if (newStatus === LEAD_STATUS.MEETING_SCHEDULED) {
       const lead = leads.find((l) => l.id === leadId);
       if (lead) {
