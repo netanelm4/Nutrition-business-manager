@@ -1,7 +1,9 @@
+const db = require('../database/db');
+
 /**
- * Simple single-user password middleware.
- * Expects: Authorization: Bearer <password>
- * The password is compared to AUTH_PASSWORD from the environment.
+ * Multi-user session middleware.
+ * Expects: Authorization: Bearer <session-token>
+ * The token must match an active session whose user is still active.
  */
 function requireAuth(req, res, next) {
   const header = req.headers['authorization'];
@@ -12,10 +14,18 @@ function requireAuth(req, res, next) {
 
   const token = header.slice('Bearer '.length);
 
-  if (token !== process.env.AUTH_PASSWORD) {
-    return res.status(401).json({ success: false, error: 'Invalid password.' });
+  const row = db.prepare(`
+    SELECT u.id, u.name
+    FROM auth_sessions s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.token = ? AND u.is_active = 1
+  `).get(token);
+
+  if (!row) {
+    return res.status(401).json({ success: false, error: 'Invalid or expired session.' });
   }
 
+  req.user = { id: row.id, name: row.name };
   next();
 }
 

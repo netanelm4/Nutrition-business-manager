@@ -3,6 +3,7 @@ client/node_modules/
 client/dist/
 data/
 *.db
+*.xlsx
 .env
 .DS_Store
 .playwright-mcp/

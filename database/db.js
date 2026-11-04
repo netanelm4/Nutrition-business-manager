@@ -1832,4 +1832,62 @@ try {
   console.error('[migrate] clients CHECK migration failed:', err.message);
 }
 
+// ── Multi-user auth: users, sessions, activity_log tables ────────────────────
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      name          TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      is_active     INTEGER NOT NULL DEFAULT 1,
+      created_at    TEXT DEFAULT CURRENT_TIMESTAMP,
+      last_login_at TEXT
+    )
+  `);
+} catch (err) {
+  console.error('[migrate] users table failed:', err.message);
+}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS auth_sessions (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER NOT NULL REFERENCES users(id),
+      token      TEXT NOT NULL UNIQUE,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch (err) {
+  console.error('[migrate] auth_sessions table failed:', err.message);
+}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER REFERENCES users(id),
+      user_name  TEXT NOT NULL,
+      method     TEXT NOT NULL,
+      path       TEXT NOT NULL,
+      label      TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+} catch (err) {
+  console.error('[migrate] activity_log table failed:', err.message);
+}
+
+// ── Seed: bootstrap one owner user from AUTH_PASSWORD (one-time only) ────────
+try {
+  const userCount = db.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+  if (userCount === 0 && process.env.AUTH_PASSWORD) {
+    const bcrypt = require('bcrypt');
+    const hash = bcrypt.hashSync(process.env.AUTH_PASSWORD, 10);
+    db.prepare('INSERT INTO users (name, password_hash) VALUES (?, ?)').run('נתנאל מלכה', hash);
+    console.log('[seed] Created initial owner user "נתנאל מלכה" from AUTH_PASSWORD');
+  }
+} catch (err) {
+  console.error('[seed] Owner user seed failed:', err.message);
+}
+
 module.exports = db;

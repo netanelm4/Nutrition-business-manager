@@ -1,5 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { logout } from '../../lib/api';
+
+async function handleLogout() {
+  try {
+    await logout();
+  } catch {
+    // Ignore — clearing the local token is enough to force the login screen
+  }
+  localStorage.removeItem('auth_token');
+  window.location.href = '/';
+}
 
 // ── Minimal inline SVG icon set ───────────────────────────────────────────────
 
@@ -27,6 +38,7 @@ const Icons = {
   settings: () => <Ic><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.6 1.6 0 0 0 9 19.4a1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.6 1.6 0 0 0 4.6 9a1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></Ic>,
   food:     () => <Ic><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></Ic>,
   stats:    () => <Ic><path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-8"/></Ic>,
+  logout:   () => <Ic><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></Ic>,
 };
 
 const WORK_NAV = [
@@ -109,13 +121,22 @@ export function DesktopSidebar({ onToggleAssistant }) {
           <div style={{ fontSize: 13, fontWeight: 600 }}>נתנאל מלכה</div>
           <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>דיאטן קליני</div>
         </div>
-        <button
-          type="button"
+        <NavLink
+          to="/settings"
           className="crm-btn crm-btn--ghost crm-btn--icon"
           title="הגדרות"
           style={{ width: 28, height: 28 }}
         >
           <Icons.settings />
+        </NavLink>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="crm-btn crm-btn--ghost crm-btn--icon"
+          title="התנתקות"
+          style={{ width: 28, height: 28 }}
+        >
+          <Icons.logout />
         </button>
       </div>
     </aside>
@@ -238,6 +259,23 @@ export function MobileDrawer({ isOpen, onClose, onToggleAssistant }) {
             <div style={{ fontSize: 13, fontWeight: 600 }}>נתנאל מלכה</div>
             <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>דיאטן קליני</div>
           </div>
+          <NavLink
+            to="/settings"
+            className="crm-btn crm-btn--ghost crm-btn--icon"
+            title="הגדרות"
+            style={{ width: 28, height: 28 }}
+          >
+            <Icons.settings />
+          </NavLink>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="crm-btn crm-btn--ghost crm-btn--icon"
+            title="התנתקות"
+            style={{ width: 28, height: 28 }}
+          >
+            <Icons.logout />
+          </button>
         </div>
       </aside>
     </>

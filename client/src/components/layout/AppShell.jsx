@@ -15,6 +15,7 @@ const PATH_LABELS = {
   '/templates':  ['כלים', 'תבניות WhatsApp'],
   '/food-bank':   ['כלים', 'מאגר מזון'],
   '/statistics':  ['כלים', 'סטטיסטיקות'],
+  '/settings':    ['עבודה', 'הגדרות'],
 };
 
 function useCrumbs() {

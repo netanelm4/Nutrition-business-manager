@@ -1,23 +1,24 @@
 import { useState } from 'react';
-import { checkHealth } from '../lib/api';
+import { login } from '../lib/api';
 
 export default function Login({ onLogin }) {
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!password.trim()) return;
+    if (!name.trim() || !password.trim()) return;
     setLoading(true);
     setError('');
     try {
-      const result = await checkHealth(password);
-      if (result.ok) {
-        localStorage.setItem('auth_password', password);
+      const result = await login(name.trim(), password);
+      if (result.success) {
+        localStorage.setItem('auth_token', result.data.token);
         onLogin();
       } else {
-        setError('סיסמה שגויה');
+        setError('שם או סיסמה שגויים');
       }
     } catch {
       setError('לא ניתן להתחבר לשרת. בדוק שהשרת פועל.');
@@ -51,6 +52,19 @@ export default function Login({ onLogin }) {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>שם</label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="הזן שם"
+              className="field-input"
+              style={{ width: '100%' }}
+              autoFocus
+            />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <label style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)' }}>סיסמה</label>
             <input
               type="password"
@@ -59,7 +73,6 @@ export default function Login({ onLogin }) {
               placeholder="הזן סיסמה"
               className="field-input"
               style={{ width: '100%' }}
-              autoFocus
             />
           </div>
 

@@ -14,10 +14,11 @@ import MenuEditor from './pages/MenuEditor';
 import PublicWeight from './pages/PublicWeight';
 import PublicFoodBank from './pages/PublicFoodBank';
 import Statistics from './pages/Statistics';
+import Settings from './pages/Settings';
 import Login from './pages/Login';
 
 export default function App() {
-  const [authed, setAuthed] = useState(() => !!localStorage.getItem('auth_password'));
+  const [authed, setAuthed] = useState(() => !!localStorage.getItem('auth_token'));
 
   // Public pages bypass auth entirely
   const isPublicPage =
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="calendly" element={<CalendlySettings />} />
           <Route path="food-bank" element={<FoodBank />} />
           <Route path="statistics" element={<Statistics />} />
+          <Route path="settings" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>

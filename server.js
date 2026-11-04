@@ -18,6 +18,7 @@ const whatsappRouter = require('./routes/whatsapp.routes');
 const paymentsRouter = require('./routes/payments.routes');
 const protocolsRouter = require('./routes/protocols.routes');
 const publicRouter = require('./routes/public.routes');
+const authRouter = require('./routes/auth.routes');
 const { webhookRouter, calendlyRouter } = require('./routes/calendly.routes');
 const intakesRouter  = require('./routes/intakes.routes');
 const adminRouter    = require('./routes/admin.routes');
@@ -32,6 +33,8 @@ const aiRecommendationsRouter = require('./routes/ai-recommendations.routes');
 const weightRouter             = require('./routes/weight.routes');
 const whatsappBotRouter        = require('./routes/whatsapp-bot.routes');
 const statsRouter              = require('./routes/stats.routes');
+const settingsRouter           = require('./routes/settings.routes');
+const { logActivity }          = require('./middleware/activity-log');
 const { checkUpcomingReminders } = require('./services/reminders.service');
 const { registerCalendlyWebhook } = require('./services/calendly.service');
 const { loadStoredToken, syncCanceledEvents, pollNewBookings } = require('./services/google-calendar.service');
@@ -50,6 +53,7 @@ app.use(express.json());
 
 // ─── Public API routes (no auth) ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }));
+app.use('/api/auth', authRouter);
 app.use('/api', publicRouter);
 app.use('/api/calendly',  webhookRouter);
 app.use('/api/google',    googleRouter);      // callback must be public (no auth)
@@ -64,6 +68,7 @@ app.use('/landing', express.static(path.join(__dirname, 'landing')));
 
 // ─── Protected API routes ─────────────────────────────────────────────────────
 app.use('/api', requireAuth);
+app.use('/api', logActivity);
 
 app.use('/api/dashboard',        dashboardRouter);
 app.use('/api/clients',          clientsRouter);
@@ -86,6 +91,7 @@ app.use('/api/menus',            menusRouter);
 app.use('/api/ai-recommendations', aiRecommendationsRouter);
 app.use('/api/weight',             weightRouter);
 app.use('/api/stats',              statsRouter);
+app.use('/api/settings',           settingsRouter);
 
 // Session sub-routes are mounted on the clients router (/:id/sessions, /:id/windows)
 // Direct session access (/api/sessions/:id) is mounted here for GET/PUT/POST insights

@@ -73,13 +73,15 @@ function MiniRing({ pct = 0 }) {
 const STATUS_CHIP = {
   active:      'chip--green',
   paused:      '',
-  ended:       '',
+  ended:       'chip--red',
+  frozen:      'chip--blue',
   ending_soon: 'chip--amber',
 };
 const STATUS_LABELS_HE = {
   active:      'פעיל',
   paused:      'מושהה',
-  ended:       'סיים',
+  ended:       'הסתיים',
+  frozen:      'מוקפא',
   ending_soon: 'מסיים בקרוב',
 };
 
@@ -119,24 +121,23 @@ export default function Clients() {
   const prefill = location.state?.prefill ?? null;
 
   const [addOpen, setAddOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('active');
   const [search, setSearch] = useState('');
-  const [includeEnded, setIncludeEnded] = useState(false);
 
   useEffect(() => {
     if (prefill) setAddOpen(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data: clients = [], isLoading, isError } = useQuery({
-    queryKey: ['clients', includeEnded],
-    queryFn: () => fetchClients(includeEnded),
+    queryKey: ['clients'],
+    queryFn: fetchClients,
   });
 
   const counts = useMemo(() => ({
     all:     clients.length,
     active:  clients.filter((c) => c.status === CLIENT_STATUS.ACTIVE).length,
-    paused:  clients.filter((c) => c.status === CLIENT_STATUS.PAUSED).length,
     ended:   clients.filter((c) => c.status === CLIENT_STATUS.ENDED).length,
+    frozen:  clients.filter((c) => c.status === CLIENT_STATUS.FROZEN).length,
   }), [clients]);
 
   const filtered = useMemo(() => {
@@ -156,10 +157,10 @@ export default function Clients() {
   }, [clients, statusFilter, search]);
 
   const STATUS_TABS = [
-    { id: 'all',    label: 'הכל' },
-    { id: CLIENT_STATUS.ACTIVE, label: 'פעילים' },
-    { id: CLIENT_STATUS.PAUSED, label: 'מושהים' },
-    { id: CLIENT_STATUS.ENDED,  label: 'סיימו' },
+    { id: 'all',                  label: 'הכל'    },
+    { id: CLIENT_STATUS.ACTIVE,   label: 'פעילים' },
+    { id: CLIENT_STATUS.ENDED,    label: 'סיימו'  },
+    { id: CLIENT_STATUS.FROZEN,   label: 'מוקפאים'},
   ];
 
   return (
@@ -167,29 +168,17 @@ export default function Clients() {
       <div className="crm-page">
         {/* ── Subhead ── */}
         <div className="subhead">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <div className="seg">
-              {STATUS_TABS.map((t) => (
-                <button
-                  key={t.id}
-                  className={statusFilter === t.id ? 'is-active' : ''}
-                  onClick={() => setStatusFilter(t.id)}
-                >
-                  {t.label}
-                  <span className="count">{t.id === 'all' ? counts.all : (counts[t.id] ?? 0)}</span>
-                </button>
-              ))}
-            </div>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--ink-3)', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={includeEnded}
-                onChange={(e) => setIncludeEnded(e.target.checked)}
-                style={{ accentColor: 'var(--blue)' }}
-              />
-              כולל שסיימו
-            </label>
+          <div className="seg">
+            {STATUS_TABS.map((t) => (
+              <button
+                key={t.id}
+                className={statusFilter === t.id ? 'is-active' : ''}
+                onClick={() => setStatusFilter(t.id)}
+              >
+                {t.label}
+                <span className="count">{t.id === 'all' ? counts.all : (counts[t.id] ?? 0)}</span>
+              </button>
+            ))}
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>

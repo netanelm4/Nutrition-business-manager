@@ -1,10 +1,10 @@
 // All API calls live here — no fetch() in components.
-// Password is stored in localStorage under key 'auth_password'.
+// Session token is stored in localStorage under key 'auth_token'.
 
 const BASE = '/api';
 
-function getPassword() {
-  return localStorage.getItem('auth_password') || '';
+function getToken() {
+  return localStorage.getItem('auth_token') || '';
 }
 
 async function request(method, path, body) {
@@ -12,16 +12,16 @@ async function request(method, path, body) {
     method,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getPassword()}`,
+      Authorization: `Bearer ${getToken()}`,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
   const json = await res.json();
 
-  // If 401, clear password and reload to trigger login screen
+  // If 401, clear token and reload to trigger login screen
   if (res.status === 401) {
-    localStorage.removeItem('auth_password');
+    localStorage.removeItem('auth_token');
     window.location.href = '/';
     return; // unreachable but makes intent clear
   }
@@ -39,8 +39,7 @@ async function request(method, path, body) {
 export const fetchDashboard = () => request('GET', '/dashboard');
 
 // ── Clients ──────────────────────────────────────────────────────────────────
-export const fetchClients = (includeEnded = false) =>
-  request('GET', `/clients${includeEnded ? '?include_ended=true' : ''}`);
+export const fetchClients = () => request('GET', '/clients');
 export const fetchClient      = (id)       => request('GET',    `/clients/${id}`);
 export const createClient     = (data)     => request('POST',   '/clients', data);
 export const updateClient     = (id, data) => request('PUT',    `/clients/${id}`, data);
@@ -143,7 +142,7 @@ export function uploadLeadLabPdf(leadId, file) {
   formData.append('pdf', file);
   return fetch(`/api/leads/${leadId}/intake/lab-pdf`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${localStorage.getItem('auth_password') || ''}` },
+    headers: { Authorization: `Bearer ${getToken()}` },
     body: formData,
   }).then((r) => r.json()).then((json) => {
     if (!json.success) throw new Error(json.error || 'Upload failed');
@@ -156,7 +155,7 @@ export function uploadLabPdf(sessionId, file) {
   formData.append('pdf', file);
   return fetch(`/api/sessions/${sessionId}/intake/lab-pdf`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${localStorage.getItem('auth_password') || ''}` },
+    headers: { Authorization: `Bearer ${getToken()}` },
     body: formData,
   }).then((r) => r.json()).then((json) => {
     if (!json.success) throw new Error(json.error || 'Upload failed');
@@ -208,13 +207,13 @@ async function reqMenus(method, path, body) {
     method,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${getPassword()}`,
+      Authorization: `Bearer ${getToken()}`,
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const json = await res.json();
   if (res.status === 401) {
-    localStorage.removeItem('auth_password');
+    localStorage.removeItem('auth_token');
     window.location.href = '/';
     return;
   }
@@ -255,7 +254,18 @@ export const markRecommendationSent  = (id) => request('POST', `/ai-recommendati
 export const runAIAnalysis           = ()   => request('POST', '/ai-recommendations/run');
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-export const checkHealth = (password) =>
-  fetch('/api/health', {
-    headers: { Authorization: `Bearer ${password}` },
+export const login = (name, password) =>
+  fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, password }),
   }).then((r) => r.json());
+
+export const logout = () => request('POST', '/auth/logout');
+
+// ── Settings: Users & Activity ────────────────────────────────────────────────
+export const fetchUsers        = ()               => request('GET',  '/settings/users');
+export const createUser        = (name, password) => request('POST', '/settings/users', { name, password });
+export const toggleUserActive   = (id)             => request('PUT',  `/settings/users/${id}/toggle`);
+export const resetUserPassword  = (id, password)   => request('PUT',  `/settings/users/${id}/password`, { password });
+export const fetchActivityLog   = ()               => request('GET',  '/settings/activity');
