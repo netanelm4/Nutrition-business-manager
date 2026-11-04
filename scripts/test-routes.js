@@ -326,15 +326,10 @@ async function run() {
       !(d2.data.retention_alerts || []).some((a) => a.id === overdueId));
   }
 
-  // ── Phase 1: handled recommendations disappear ──────────────────────────────
-  console.log('\n── Phase 1: recommendations ──');
+  // ── Recommendations moved to the inbox (Phase 4); legacy endpoint still answers ──
   {
-    const r1 = await req('GET', '/ai-recommendations');
-    const rec = (r1.data || []).find((x) => x.client_id === overdueId && x.type === 'freeze_reminder');
-    assert('Freeze reminder visible for frozen client', !!rec);
-    await req('POST', `/ai-recommendations/${rec?.id}/sent`);
-    const r2 = await req('GET', '/ai-recommendations');
-    assert('Sent recommendation no longer listed', !(r2.data || []).some((x) => x.id === rec?.id));
+    const r = await req('GET', '/ai-recommendations');
+    assert('Legacy ai-recommendations endpoint responds', r.success && Array.isArray(r.data));
   }
 
   // ── Phase 1: stop closes the engagement ─────────────────────────────────────
@@ -372,8 +367,9 @@ async function run() {
     const r = await req('POST', '/meetings/check-reminders');
     assert('Reminder generated for meeting in 24h', r.success && r.data.count >= 1, JSON.stringify(r));
     const m = await req('GET', `/leads/${lead.data?.id}/meeting`);
-    assert('confirmation_sent = 1', m.data?.confirmation_sent === 1);
+    // Deeplink mode: queued for one-click sending, confirmed only once approved (Phase 4)
     assert('Confirmation link is wa.me', (m.data?.confirmation_link || '').startsWith('https://wa.me/'));
+    assert('Not marked sent before approval', m.data?.confirmation_sent === 0);
   }
 
   // ── Phase 3: session lifecycle ─────────────────────────────────────────────
@@ -456,6 +452,122 @@ async function run() {
     assert('Template body uses {{booking_link}}', booking?.body_template.includes('{{booking_link}}'));
     const cfg = await req('GET', '/meetings/config');
     assert('Booking links served from env', cfg.data?.followupLink === FOLLOWUP_LINK, JSON.stringify(cfg));
+  }
+
+  // ── Phase 4: inbox (action_queue), jobs, SSE ──────────────────────────────
+  console.log('\n── Phase 4: inbox ──');
+  {
+    const overdue = async (name, phone) =>
+      (await req('POST', '/clients', { full_name: name, phone, start_date: isoDaysFromToday(-60) })).data.id;
+    const inbox = async () => (await req('GET', '/inbox')).data;
+    const itemFor = (data, clientId, kind) => data.items.find((i) => i.client_id === clientId && i.kind === kind);
+
+    // Rule → item, with a booking-link draft
+    const c1 = await overdue('תיבה אחת', '0521310001');
+    await req('POST', '/inbox/refresh');
+    let box = await inbox();
+    let it = itemFor(box, c1, 'session_due');
+    assert('Overdue window → session_due inbox item', !!it && it.priority === 'urgent', JSON.stringify(box.items.slice(0, 3)));
+    assert('Message draft carries the booking link', it?.category === 'message' && it.message?.includes(FOLLOWUP_LINK));
+    assert('wa.me link prepared', (it?.whatsapp_link || '').startsWith('https://wa.me/972'));
+
+    // Dedupe: refreshing again does not duplicate
+    const dueIdsBefore = box.items.filter((i) => i.kind === 'session_due').map((i) => i.id).sort().join(',');
+    await req('POST', '/inbox/refresh');
+    box = await inbox();
+    const dueIdsAfter = box.items.filter((i) => i.kind === 'session_due').map((i) => i.id).sort().join(',');
+    assert('Refresh is idempotent (no duplicates)', dueIdsBefore === dueIdsAfter && box.items.filter((i) => i.client_id === c1 && i.kind === 'session_due').length === 1, `${dueIdsBefore} vs ${dueIdsAfter}`);
+
+    // Approve (deeplink mode) → manual link returned, item leaves the inbox and never returns
+    const ap = await req('POST', `/inbox/${it.id}/approve`);
+    assert('Approve message → sent with manual wa.me link', ap.data?.status === 'sent' && ap.data?.delivered === 'manual' && ap.data?.whatsapp_link?.startsWith('https://wa.me/'), JSON.stringify(ap));
+    await req('POST', '/inbox/refresh');
+    box = await inbox();
+    assert('Handled item is not recreated', !itemFor(box, c1, 'session_due'));
+
+    // Dismiss
+    const c2 = await overdue('תיבה שתיים', '0521310002');
+    await req('POST', '/inbox/refresh');
+    const it2 = itemFor(await inbox(), c2, 'session_due');
+    await req('POST', `/inbox/${it2.id}/dismiss`);
+    await req('POST', '/inbox/refresh');
+    assert('Dismissed item stays dismissed', !itemFor(await inbox(), c2, 'session_due'));
+
+    // Snooze hides the item until the time passes
+    const c3 = await overdue('תיבה שלוש', '0521310003');
+    await req('POST', '/inbox/refresh');
+    const it3 = itemFor(await inbox(), c3, 'session_due');
+    const sn = await req('POST', `/inbox/${it3.id}/snooze`, { hours: 24 });
+    assert('Snooze accepted', sn.success && !!sn.data.snoozed_until);
+    assert('Snoozed item hidden from the inbox', !itemFor(await inbox(), c3, 'session_due'));
+
+    // Batch approve
+    const c4 = await overdue('תיבה ארבע', '0521310004');
+    const c5 = await overdue('תיבה חמש', '0521310005');
+    await req('POST', '/inbox/refresh');
+    box = await inbox();
+    const ids = [itemFor(box, c4, 'session_due').id, itemFor(box, c5, 'session_due').id];
+    const batch = await req('POST', '/inbox/batch', { ids, action: 'approve' });
+    assert('Batch approve sends both', batch.data?.results?.length === 2 && batch.data.results.every((r) => r.status === 'sent' && r.whatsapp_link), JSON.stringify(batch));
+    const badBatch = await req('POST', '/inbox/batch', { ids: [], action: 'approve' });
+    assert('Empty batch rejected (400)', badBatch.status === 400);
+
+    // Auto-resolve: the condition disappears → the pending item closes itself
+    const c6 = await overdue('תיבה שש', '0521310006');
+    await req('POST', '/inbox/refresh');
+    assert('Item created for c6', !!itemFor(await inbox(), c6, 'session_due'));
+    await req('POST', `/clients/${c6}/freeze`, { days: 30 });
+    await req('POST', '/inbox/refresh');
+    assert('Frozen client → pending item auto-resolved', !itemFor(await inbox(), c6, 'session_due'));
+
+    // 24h reminder job → inbox (deeplink mode: no auto-send) → approve marks the meeting confirmed
+    const target = new Date(Date.now() + 23 * 3600 * 1000);
+    const date = target.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+    const time = target.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Jerusalem' });
+    const lead = await req('POST', '/leads', { full_name: 'בדיקת תזכורת אוטומטית', phone: '0521310007' });
+    await req('POST', `/leads/${lead.data.id}/meeting`, { date, time, event_type: 'first_meeting' });
+    const meeting = (await req('GET', `/leads/${lead.data.id}/meeting`)).data;
+    const run = await req('POST', '/meetings/check-reminders');
+    assert('Reminder job ran', run.success && run.data.count >= 1, JSON.stringify(run));
+    const rem = (await inbox()).items.find((i) => i.kind === 'meeting_reminder' && i.meeting_id === meeting.id);
+    assert('Reminder queued in inbox (no auto-send in deeplink mode)', !!rem && rem.priority === 'urgent');
+    await req('POST', `/inbox/${rem.id}/approve`);
+    const m2 = (await req('GET', `/leads/${lead.data.id}/meeting`)).data;
+    assert('Approving the reminder marks the meeting confirmed', m2.confirmation_sent === 1);
+    const run2 = await req('POST', '/meetings/check-reminders');
+    assert('No second reminder for a confirmed meeting', run2.data.count === 0 && !(await inbox()).items.some((i) => i.meeting_id === meeting.id));
+
+    const dash = await req('GET', '/dashboard');
+    assert('Dashboard counter = open inbox items', dash.data.counters.inbox_open === (await inbox()).open);
+  }
+
+  // ── Phase 4: SSE stream pushes mutations ──────────────────────────────────
+  {
+    const ctrl = new AbortController();
+    const res = await fetch(`${BASE}/stream`, { headers: { Authorization: AUTH }, signal: ctrl.signal });
+    assert('SSE stream opens (text/event-stream)', res.ok && (res.headers.get('content-type') || '').includes('text/event-stream'));
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    const got = new Promise((resolve) => {
+      (async () => {
+        try {
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            if (buf.includes('event: mutation') && buf.includes('/leads')) { resolve(true); break; }
+          }
+        } catch { /* aborted */ }
+        resolve(false);
+      })();
+    });
+    await req('POST', '/leads', { full_name: 'בדיקת SSE', phone: '0521310008' });
+    const received = await Promise.race([got, new Promise((r) => setTimeout(() => r(false), 3000))]);
+    ctrl.abort();
+    assert('Mutation broadcast received over SSE', received === true, buf.slice(0, 200));
+    const noAuth = await fetch(`${BASE}/stream`);
+    assert('SSE requires auth (401)', noAuth.status === 401);
   }
 
   // ── Cleanup ────────────────────────────────────────────────────────────────

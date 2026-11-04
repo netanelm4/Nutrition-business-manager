@@ -714,24 +714,8 @@ router.post('/:id/freeze', (req, res) => {
       WHERE id = ?
     `).run(frozenUntil, req.params.id);
 
-    // Reminder recommendation — visible until the freeze expires
-    try {
-      db.prepare(
-        'DELETE FROM ai_recommendations WHERE client_id = ? AND type = ? AND is_dismissed = 0'
-      ).run(req.params.id, 'freeze_reminder');
-      db.prepare(`
-        INSERT INTO ai_recommendations
-          (client_id, type, priority, title, action_suggestion, expires_at)
-        VALUES (?, 'freeze_reminder', 'medium', ?, ?, ?)
-      `).run(
-        req.params.id,
-        `ההקפאה של ${client.full_name} מסתיימת ב-${frozenUntil}`,
-        'בדוק אם הלקוח מעוניין לחזור לתהליך',
-        frozenUntil
-      );
-    } catch (err) {
-      console.error('[freeze] recommendation insert failed:', err.message);
-    }
+    // The freeze_end job (services/jobs.service.js) puts a "return to the
+    // process?" item in the inbox on frozen_until; reactivating resolves it.
 
     const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
     console.log(`[POST /clients/${req.params.id}/freeze] frozen_until=${frozenUntil}`);
@@ -760,12 +744,7 @@ router.post('/:id/reactivate', (req, res) => {
       WHERE id = ?
     `).run(req.params.id);
 
-    // Dismiss any pending freeze reminders
-    try {
-      db.prepare(
-        "DELETE FROM ai_recommendations WHERE client_id = ? AND type IN ('freeze_reminder', 'freeze_expired') AND is_dismissed = 0"
-      ).run(req.params.id);
-    } catch {}
+    // Pending freeze_end inbox items / jobs are resolved by the reconcilers
 
     const updated = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
     console.log(`[POST /clients/${req.params.id}/reactivate]`);

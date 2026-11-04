@@ -270,3 +270,52 @@ export const createUser        = (name, password) => request('POST', '/settings/
 export const toggleUserActive   = (id)             => request('PUT',  `/settings/users/${id}/toggle`);
 export const resetUserPassword  = (id, password)   => request('PUT',  `/settings/users/${id}/password`, { password });
 export const fetchActivityLog   = ()               => request('GET',  '/settings/activity');
+
+// ── Inbox (action queue) ──────────────────────────────────────────────────────
+export const fetchInbox        = ()             => request('GET',  '/inbox');
+export const approveInboxItem  = (id)           => request('POST', `/inbox/${id}/approve`);
+export const dismissInboxItem  = (id)           => request('POST', `/inbox/${id}/dismiss`);
+export const snoozeInboxItem   = (id, hours)    => request('POST', `/inbox/${id}/snooze`, { hours });
+export const batchInbox        = (ids, action)  => request('POST', '/inbox/batch', { ids, action });
+export const refreshInbox      = ()             => request('POST', '/inbox/refresh');
+
+// ── Live updates (SSE) ────────────────────────────────────────────────────────
+// fetch() + stream reader so the session token travels in the Authorization
+// header (EventSource cannot send headers). Returns an AbortController.
+export function openEventStream(onEvent, onClose) {
+  const ctrl = new AbortController();
+  (async () => {
+    try {
+      const res = await fetch(`${BASE}/stream`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+        signal: ctrl.signal,
+      });
+      if (!res.ok || !res.body) throw new Error(`stream HTTP ${res.status}`);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let sep;
+        while ((sep = buf.indexOf('\n\n')) !== -1) {
+          const frame = buf.slice(0, sep);
+          buf = buf.slice(sep + 2);
+          let type = 'message';
+          let data = '';
+          for (const line of frame.split('\n')) {
+            if (line.startsWith('event: ')) type = line.slice(7);
+            else if (line.startsWith('data: ')) data += line.slice(6);
+          }
+          if (!data) continue; // comment / heartbeat
+          try { onEvent(type, JSON.parse(data)); } catch { /* malformed frame */ }
+        }
+      }
+      onClose?.(null);
+    } catch (err) {
+      if (err.name !== 'AbortError') onClose?.(err);
+    }
+  })();
+  return ctrl;
+}

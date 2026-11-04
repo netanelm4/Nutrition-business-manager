@@ -4,6 +4,7 @@ const { toUtcISO, nowUtcISO, addHoursUtcISO } = require('../utils/dates');
 const {
   cancelSessionsForEvent, rescheduleSessionsForEvent, scheduleSessionForEvent,
 } = require('./session-lifecycle.service');
+const { publish } = require('./event-bus.service');
 
 
 // ── normalizePhone ────────────────────────────────────────────────────────────
@@ -264,8 +265,10 @@ function processCalendarEvent(database, event) {
   if (existing) {
     if (existing.status === 'canceled') return 'ignored';
     if (existing.start_time === startTime && existing.end_time === endTime) return 'ignored';
-    database.prepare('UPDATE meetings SET start_time = ?, end_time = ? WHERE id = ?')
-      .run(startTime, endTime, existing.id);
+    database.prepare(`
+      UPDATE meetings SET start_time = ?, end_time = ?, confirmation_sent = 0, confirmation_link = NULL
+      WHERE id = ?
+    `).run(startTime, endTime, existing.id);
     rescheduleSessionsForEvent(database, existing.id, startTime);
     console.log(`[google-sync] Rescheduled meeting ${existing.id}: ${existing.start_time} → ${startTime}`);
     return 'updated';
@@ -378,6 +381,7 @@ async function syncGoogleCalendar({ listEvents, database = db } = {}) {
     })();
 
     if (stats.created || stats.updated || stats.canceled) {
+      publish(database, 'meeting.synced', { payload: stats });
       console.log(`[google-sync] ${mode}: +${stats.created} new, ${stats.updated} rescheduled, ${stats.canceled} canceled`);
     }
     return stats;

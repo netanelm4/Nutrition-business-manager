@@ -244,7 +244,23 @@ function todayIsraelISO() {
   return zonedParts(new Date()).date;
 }
 
+/**
+ * ISO week key of the Israel calendar date of a value (default: now), e.g. "2026-W45".
+ * Used as a deterministic dedupe bucket for weekly inbox items.
+ */
+function isoWeekKey(value = new Date()) {
+  const date = israelDateOf(value instanceof Date ? value.toISOString() : value);
+  if (!date) return null;
+  const d = new Date(`${date}T00:00:00Z`);
+  const dayNum = (d.getUTCDay() + 6) % 7;            // Mon=0..Sun=6
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);          // Thursday of this week
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((d - firstThursday) / 864e5 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
+}
+
 module.exports = {
+  isoWeekKey,
   BUSINESS_TZ,
   toUtcISO,
   isCanonicalInstant,

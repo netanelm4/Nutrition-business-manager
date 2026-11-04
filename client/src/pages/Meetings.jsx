@@ -189,7 +189,7 @@ export default function Meetings() {
   const { data: upcoming = [], isLoading: upcomingLoading } = useQuery({
     queryKey: ['upcomingMeetings'],
     queryFn: fetchUpcomingMeetings,
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000, // fallback only — SSE keeps it live
   });
 
   const { data: templates = [] } = useQuery({

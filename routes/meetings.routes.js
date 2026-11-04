@@ -6,6 +6,7 @@ const {
 } = require('../services/session-lifecycle.service');
 const { israelLocalToUtcISO, addHoursUtcISO, nowUtcISO } = require('../utils/dates');
 const { bookingLinks } = require('../config/booking');
+const { publish } = require('../services/event-bus.service');
 
 // ─── Meetings (Google Calendar is the single scheduling source) ──────────────
 // Mounted at /api/meetings, after requireAuth. Bookings arrive through the
@@ -62,9 +63,15 @@ router.put('/events/:id', async (req, res) => {
     const endISO = addHoursUtcISO(MEETING_DURATION_HOURS, new Date(startISO));
     const type = event_type || event.event_type;
 
-    db.prepare('UPDATE meetings SET start_time = ?, end_time = ?, event_type = ?, notes = ? WHERE id = ?')
-      .run(startISO, endISO, type, notes || null, req.params.id);
+    const moved = startISO !== event.start_time;
+    db.prepare(`
+      UPDATE meetings SET start_time = ?, end_time = ?, event_type = ?, notes = ?,
+             confirmation_sent = CASE WHEN ? THEN 0 ELSE confirmation_sent END,
+             confirmation_link = CASE WHEN ? THEN NULL ELSE confirmation_link END
+      WHERE id = ?
+    `).run(startISO, endISO, type, notes || null, moved ? 1 : 0, moved ? 1 : 0, req.params.id);
     rescheduleSessionsForEvent(db, req.params.id, startISO);
+    if (moved) publish(db, 'meeting.rescheduled', { entityType: 'meeting', entityId: req.params.id, payload: { from: event.start_time, to: startISO } });
 
     if (event.google_event_id) {
       const lead   = event.lead_id   ? db.prepare('SELECT full_name FROM leads   WHERE id = ?').get(event.lead_id)   : null;
@@ -96,6 +103,7 @@ router.put('/events/:id/cancel', async (req, res) => {
 
     db.prepare("UPDATE meetings SET status = 'canceled' WHERE id = ?").run(req.params.id);
     const sessions = cancelSessionsForEvent(db, event);
+    publish(db, 'meeting.canceled', { entityType: 'meeting', entityId: req.params.id, payload: { sessions } });
 
     if (event.google_event_id) {
       const result = await deleteCalendarEvent(event.google_event_id);
@@ -116,6 +124,7 @@ router.put('/events/:id/complete', (req, res) => {
 
     db.prepare("UPDATE meetings SET status = 'completed' WHERE id = ?").run(req.params.id);
     const sessionsHeld = markEventSessionsHeld(db, req.params.id);
+    publish(db, 'meeting.completed', { entityType: 'meeting', entityId: req.params.id, payload: { sessionsHeld } });
     const updated = db.prepare('SELECT * FROM meetings WHERE id = ?').get(req.params.id);
     return ok(res, { ...updated, sessions_held: sessionsHeld });
   } catch (err) {
@@ -142,8 +151,14 @@ router.get('/clients/:clientId/events', (req, res) => {
 // ── POST /api/meetings/check-reminders — manual trigger ──────────────────────
 router.post('/check-reminders', (req, res) => {
   try {
-    const { checkUpcomingReminders } = require('../services/reminders.service');
-    return ok(res, { count: checkUpcomingReminders() });
+    // Reminders are scheduled jobs now: derive due jobs and run them immediately
+    const { reconcileJobs, runDueJobs } = require('../services/jobs.service');
+    reconcileJobs(db);
+    runDueJobs(db).then((r) => ok(res, { count: r.ran })).catch((err) => {
+      console.error('[POST /meetings/check-reminders]', err);
+      fail(res, 500, 'Failed to check reminders.');
+    });
+    return;
   } catch (err) {
     console.error('[POST /meetings/check-reminders]', err);
     return fail(res, 500, 'Failed to check reminders.');

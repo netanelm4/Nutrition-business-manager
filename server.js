@@ -35,7 +35,11 @@ const whatsappBotRouter        = require('./routes/whatsapp-bot.routes');
 const statsRouter              = require('./routes/stats.routes');
 const settingsRouter           = require('./routes/settings.routes');
 const { logActivity }          = require('./middleware/activity-log');
-const { checkUpcomingReminders } = require('./services/reminders.service');
+const inboxRouter              = require('./routes/inbox.routes');
+const { streamHandler, broadcastMutations } = require('./middleware/realtime');
+const { reconcileInbox, scheduleReconcile } = require('./services/inbox-rules.service');
+const { reconcileJobs, runDueJobs } = require('./services/jobs.service');
+const { publish } = require('./services/event-bus.service');
 const { autoMarkHeldSessions } = require('./services/session-lifecycle.service');
 const { loadStoredToken, syncGoogleCalendar } = require('./services/google-calendar.service');
 const cron = require('node-cron');
@@ -71,6 +75,10 @@ app.use('/landing', express.static(path.join(__dirname, 'landing')));
 app.use('/api', requireAuth);
 app.use('/api', logActivity);
 
+// Live updates: SSE stream + broadcast after every successful mutation
+app.get('/api/stream', streamHandler);
+app.use('/api', broadcastMutations(() => scheduleReconcile(db)));
+
 app.use('/api/dashboard',        dashboardRouter);
 app.use('/api/clients',          clientsRouter);
 app.use('/api/sessions',         sessionsRouter);
@@ -93,6 +101,7 @@ app.use('/api/ai-recommendations', aiRecommendationsRouter);
 app.use('/api/weight',             weightRouter);
 app.use('/api/stats',              statsRouter);
 app.use('/api/settings',           settingsRouter);
+app.use('/api/inbox',              inboxRouter);
 
 // Session sub-routes are mounted on the clients router (/:id/sessions, /:id/windows)
 // Direct session access (/api/sessions/:id) is mounted here for GET/PUT/POST insights
@@ -121,14 +130,28 @@ app.listen(PORT, async () => {
     console.error('[debug] Failed to query recent clients:', err.message);
   }
 
-  // ── Reminder service: check for upcoming sessions every 30 minutes ──────────
-  // Initial run after 10 s so the server is fully ready before any DB queries
-  setTimeout(checkUpcomingReminders, 10_000);
-  setInterval(checkUpcomingReminders, 30 * 60 * 1000);
+  // ── Scheduled jobs: derive jobs from data (24h reminders, menu SLA, freeze
+  //    end) every 5 min; execute due jobs every minute. Persisted → deploy-safe.
+  const runJobs = async () => {
+    try { reconcileJobs(db); await runDueJobs(db); } catch (err) { console.error('[jobs] error:', err.message); }
+  };
+  setTimeout(runJobs, 10_000);
+  setInterval(() => runDueJobs(db).catch((err) => console.error('[jobs] run error:', err.message)), 60 * 1000);
+  setInterval(() => { try { reconcileJobs(db); } catch (err) { console.error('[jobs] reconcile error:', err.message); } }, 5 * 60 * 1000);
+
+  // ── Inbox rules: startup + every 15 min (and ~2 s after any mutation) ─────
+  const runInboxRules = () => {
+    try { reconcileInbox(db); } catch (err) { console.error('[inbox] reconcile error:', err.message); }
+  };
+  setTimeout(runInboxRules, 12_000);
+  setInterval(runInboxRules, 15 * 60 * 1000);
 
   // ── Session lifecycle: scheduled → held 24h after the meeting (no cancellation) ──
   const runSessionLifecycle = () => {
-    try { autoMarkHeldSessions(db); } catch (err) { console.error('[sessions] auto-held error:', err.message); }
+    try {
+      const r = autoMarkHeldSessions(db);
+      if (r.held || r.canceled || r.deleted) publish(db, 'session.lifecycle', { payload: r });
+    } catch (err) { console.error('[sessions] auto-held error:', err.message); }
   };
   setTimeout(runSessionLifecycle, 20_000);
   setInterval(runSessionLifecycle, 30 * 60 * 1000);
@@ -151,6 +174,6 @@ app.listen(PORT, async () => {
   cron.schedule('0 8 * * *',  () => runAnalysis().catch(e => console.error('[ai-intelligence] cron error:', e.message)), { timezone: 'Asia/Jerusalem' });
   cron.schedule('0 17 * * *', () => runAnalysis().catch(e => console.error('[ai-intelligence] cron error:', e.message)), { timezone: 'Asia/Jerusalem' });
   console.log('[ai-intelligence] Cron jobs scheduled: 08:00 and 17:00 Israel time');
-  // Initial run after server is ready (60 s delay to avoid startup noise)
-  setTimeout(() => runAnalysis().catch(e => console.error('[ai-intelligence] startup run error:', e.message)), 60_000);
+  // No startup run: every deploy used to re-run the full Claude analysis.
+  // Manual run: POST /api/ai-recommendations/run (Inbox → "הרץ ניתוח AI").
 });

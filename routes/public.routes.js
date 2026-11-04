@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../database/db');
+const { upsertAction } = require('../services/action-queue.service');
 
 const router = express.Router();
 
@@ -331,7 +332,7 @@ router.post('/public/foods/submit', publicFormLimiter, (req, res) => {
     const calPerPortion  = Math.round(cal100 * portionGrams / 100);
     const protPerPortion = Math.round(prot100 * portionGrams / 100 * 10) / 10;
 
-    db.prepare(`
+    const foodRes = db.prepare(`
       INSERT INTO food_items
         (category_id, name_he, portion_description, portion_grams,
          calories_per_half_portion, protein_grams, submitted_by_client, approved, is_active)
@@ -339,14 +340,21 @@ router.post('/public/foods/submit', publicFormLimiter, (req, res) => {
     `).run(resolvedCategoryId, name_he.trim(), `${portionGrams} גרם`,
            portionGrams, calPerPortion, protPerPortion);
 
-    // Notify Natanel via ai_recommendations
+    // Inbox: review the client's submission
     try {
-      db.prepare(`
-        INSERT INTO ai_recommendations
-          (client_id, type, priority, title, action_suggestion, expires_at)
-        VALUES (?, 'new_food_submitted', 'low', ?, ?, datetime('now', '+7 days'))
-      `).run(client.id, `מזון חדש הוגש: ${name_he.trim()}`, 'בדוק ואשר את המזון במאגר');
-    } catch {}
+      upsertAction(db, {
+        kind: 'food_submitted',
+        dedupeKey: `food_submitted:item:${foodRes.lastInsertRowid}`,
+        title: `מזון חדש הוגש: ${name_he.trim()}`,
+        body: 'לבדוק ולאשר את המזון במאגר',
+        clientId: client.id,
+        link: '/food-bank',
+        priority: 'low',
+        source: 'system',
+      });
+    } catch (err) {
+      console.error('[public/foods/submit] inbox item failed:', err.message);
+    }
 
     return res.json({ success: true });
   } catch (err) {

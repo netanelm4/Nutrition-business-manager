@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 const { computeClientAlerts, hasActiveAlert } = require('../services/alerts.service');
+const { countOpen } = require('../services/action-queue.service');
 const { CLIENT_STATUS, LEAD_STATUS, ALERT_STATE, SESSION_STATUS } = require('../constants/statuses');
 const { todayISO, addDays, toISODate, parseDate, israelLocalToUtcISO } = require('../utils/dates');
 
@@ -273,6 +274,7 @@ router.get('/', (req, res) => {
         active_clients: activeCount,
         leads_this_month: leadsThisMonth,
         sessions_this_week: sessionsThisWeek,
+        inbox_open: countOpen(db),
       },
     });
   } catch (err) {

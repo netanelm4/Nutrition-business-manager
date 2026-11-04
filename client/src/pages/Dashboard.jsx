@@ -3,8 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   fetchDashboard, fetchTemplates, renderTemplate, repairAIAssessments,
-  fetchAIRecommendations, dismissRecommendation, markRecommendationSent, runAIAnalysis,
 } from '../lib/api';
+import InboxCard from '../components/inbox/InboxCard';
 import { formatDateHebrew, formatTimeHebrew, relativeLabel, israelDateOf, todayIsraelISO } from '../lib/dates';
 import { ALERT_STATE } from '../constants/statuses';
 
@@ -334,44 +334,6 @@ function WhatsAppButton({ clientId, phone, triggerEvent, templates }) {
   );
 }
 
-const ALERT_DEFS = [
-  {
-    key: 'processEnded',
-    icon: IcFlag, kind: 'is-red',
-    filter: (a) => a.process_ended_alert,
-    title: 'עבר תאריך סיום',
-    body: (a) => `תהליך הסתיים ${formatDateHebrew(a.process_end_date)}`,
-    trigger: 'process_ending',
-  },
-  {
-    key: 'endingSoon',
-    icon: IcClock, kind: '',
-    filter: (a) => a.ending_soon_alert && !a.process_ended_alert,
-    title: 'מסתיים בקרוב',
-    body: (a) => `${formatDateHebrew(a.process_end_date)} · ${relativeLabel(a.process_end_date)}`,
-    trigger: 'process_ending',
-  },
-  {
-    key: 'menu',
-    icon: IcMsg, kind: 'is-blue',
-    filter: (a) => a.menu_alert,
-    title: 'תפריט לא נשלח',
-    body: () => 'עברו יותר מיומיים מהפגישה הראשונה',
-    trigger: 'menu_sent',
-  },
-  {
-    key: 'overdue',
-    icon: IcWarn, kind: 'is-red',
-    filter: (a) => a.window_alerts?.some((w) => w.state === ALERT_STATE.RED),
-    title: 'חלון פגישה עבר',
-    body: (a) => {
-      const red = a.window_alerts?.find((w) => w.state === ALERT_STATE.RED);
-      return red ? `פגישה ${red.session_number} — הייתה ${formatDateHebrew(red.expected_date)}` : 'חלון פגישה עבר';
-    },
-    trigger: 'session_reminder',
-  },
-];
-
 function AlertRow({ item, def, templates, linkPrefix = '/clients' }) {
   const Icon = def.icon;
   return (
@@ -393,76 +355,36 @@ function AlertRow({ item, def, templates, linkPrefix = '/clients' }) {
 
 const PAYMENT_LABEL = { partial: 'תשלום חלקי', unpaid: 'טרם שולם' };
 
-function AlertsCard({ alerts, frozenLeads, retentionAlerts, unpaidClients, templates, isLoading, isError }) {
-  const sections = [];
+// Outstanding balances stay visible regardless of treatment status (also
+// frozen / paused clients); everything else lives in the inbox.
+const UNPAID_DEF = {
+  icon: IcCash,
+  kind: 'is-red',
+  body: (u) => (u.package_price > 0
+    ? `${(u.package_price - u.total_paid).toLocaleString()} ₪ יתרה`
+    : PAYMENT_LABEL[u.payment_status] ?? u.payment_status),
+  trigger: 'payment_reminder',
+};
 
-  if (!isLoading && !isError) {
-    ALERT_DEFS.forEach((def) => {
-      const items = (alerts ?? []).filter(def.filter);
-      if (items.length) sections.push({ type: 'clients', def, items });
-    });
-
-    if (frozenLeads?.length) {
-      sections.push({
-        type: 'frozen',
-        def: { icon: IcSnow, kind: '', title: 'לידים קפואים', body: (a) => `קפוא מזה ${a.days_frozen} ימים`, trigger: null },
-        items: frozenLeads,
-        linkPrefix: '/leads',
-      });
-    }
-    if (retentionAlerts?.length) {
-      sections.push({
-        type: 'retention',
-        def: { icon: IcHeart, kind: 'is-green', title: 'לקוחות ללא קשר', body: (a) => `לא היה קשר מזה ${a.days_since_contact} ימים`, trigger: 'weekly_checkin' },
-        items: retentionAlerts.map((r) => ({ ...r, client_id: r.id, client_name: r.full_name })),
-      });
-    }
-    if (unpaidClients?.length) {
-      sections.push({
-        type: 'unpaid',
-        def: { icon: IcCash, kind: 'is-red', title: 'תשלומים פתוחים', body: (u) => u.package_price > 0 ? `${(u.package_price - u.total_paid).toLocaleString()} ₪ יתרה` : PAYMENT_LABEL[u.payment_status] ?? u.payment_status, trigger: 'payment_reminder' },
-        items: unpaidClients.map((u) => ({ ...u, client_id: u.id, client_name: u.full_name })),
-      });
-    }
-  }
-
-  const totalCount = sections.reduce((s, sec) => s + sec.items.length, 0);
-
+function UnpaidCard({ unpaidClients, templates, isLoading }) {
+  if (isLoading || !unpaidClients?.length) return null;
   return (
     <section className="card">
       <div className="card__head">
         <div>
-          <div className="h-2" style={{ fontWeight: 600 }}>התראות</div>
-          <div className="t-sm t-muted" style={{ marginTop: 5 }}>
-            {isLoading ? '...' : totalCount > 0 ? `${totalCount} פריטים דורשים טיפול` : 'הכל תקין'}
-          </div>
+          <div className="h-2" style={{ fontWeight: 600 }}>תשלומים פתוחים</div>
+          <div className="t-sm t-muted" style={{ marginTop: 5 }}>{unpaidClients.length} מטופלים עם יתרה</div>
         </div>
       </div>
-
       <div className="card__body">
-        {isLoading ? (
-          <div style={{ padding: '10px 18px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[1, 2].map((i) => <Skel key={i} style={{ height: 48 }} />)}
-          </div>
-        ) : isError ? (
-          <div style={{ padding: '16px 18px', color: 'var(--red-ink)', fontSize: 13 }}>שגיאה</div>
-        ) : totalCount === 0 ? (
-          <div style={{ padding: '24px 18px', textAlign: 'center', color: 'var(--ink-4)', fontSize: 13 }}>
-            כל הלקוחות על המסלול הנכון ✓
-          </div>
-        ) : (
-          sections.map((sec) =>
-            sec.items.map((item) => (
-              <AlertRow
-                key={`${sec.type}-${item.client_id ?? item.id}`}
-                item={item}
-                def={sec.def}
-                templates={templates}
-                linkPrefix={sec.linkPrefix}
-              />
-            ))
-          )
-        )}
+        {unpaidClients.map((u) => (
+          <AlertRow
+            key={`unpaid-${u.id}`}
+            item={{ ...u, client_id: u.id, client_name: u.full_name }}
+            def={UNPAID_DEF}
+            templates={templates}
+          />
+        ))}
       </div>
     </section>
   );
@@ -497,191 +419,11 @@ function AdminRepairButton() {
   );
 }
 
-// ─── AI Recommendations card ──────────────────────────────────────────────────
-
-const REC_PRIORITY_STYLE = {
-  urgent: { bg: 'var(--red-surface, #fff1f1)', ink: 'oklch(0.55 0.18 25)', label: 'דחוף' },
-  medium: { bg: 'oklch(0.98 0.04 60)',         ink: 'oklch(0.58 0.15 55)', label: 'בינוני' },
-  low:    { bg: 'var(--surface-2)',             ink: 'var(--ink-3)',        label: 'נמוך' },
-};
-
-const REC_TYPE_LABEL = {
-  weight_missing:          'חסר משקל',
-  weight_not_progressing:  'קיפאון במשקל',
-  no_contact:              'אין קשר',
-  upcoming_meeting:        'פגישה קרובה',
-  blood_test_due:          'בדיקות דם',
-  motivation_drop:         'ירידה במוטיבציה',
-  menu_update_needed:      'תפריט לעדכון',
-};
-
-function RecRow({ rec, onDismiss, onSent }) {
-  const [expanded, setExpanded] = useState(false);
-  const pStyle = REC_PRIORITY_STYLE[rec.priority] || REC_PRIORITY_STYLE.low;
-
-  function buildWaLink() {
-    const phone = (rec.client_phone || '').replace(/\D/g, '');
-    if (!phone || !rec.message_draft) return null;
-    return `https://wa.me/${phone.startsWith('0') ? '972' + phone.slice(1) : phone}?text=${encodeURIComponent(rec.message_draft)}`;
-  }
-
-  const waLink = buildWaLink();
-
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', gap: 6,
-      padding: '10px 14px', borderRadius: 'var(--r-sm)',
-      background: pStyle.bg, border: '1px solid var(--line)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{
-          fontSize: 10.5, fontWeight: 600, padding: '1px 7px', borderRadius: 20,
-          background: pStyle.ink, color: '#fff', flexShrink: 0,
-        }}>{pStyle.label}</span>
-
-        <span style={{ fontSize: 10.5, color: 'var(--ink-3)', flexShrink: 0 }}>
-          {REC_TYPE_LABEL[rec.type] || rec.type}
-        </span>
-
-        <Link to={`/clients/${rec.client_id}`} style={{ fontSize: 13, fontWeight: 500, color: 'var(--blue)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {rec.client_name}
-        </Link>
-
-        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-          {rec.message_draft && (
-            <button
-              type="button"
-              onClick={() => setExpanded(v => !v)}
-              className="crm-btn crm-btn--ghost"
-              style={{ height: 26, fontSize: 11.5, padding: '0 8px' }}
-            >
-              {expanded ? 'הסתר' : 'הצג הודעה'}
-            </button>
-          )}
-          {waLink && (
-            <a
-              href={waLink}
-              target="_blank"
-              rel="noreferrer"
-              className="crm-btn crm-btn--primary"
-              style={{ height: 26, fontSize: 11.5, padding: '0 8px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}
-              onClick={() => onSent(rec.id)}
-            >
-              שלח
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={() => onDismiss(rec.id)}
-            className="crm-btn crm-btn--ghost"
-            style={{ height: 26, fontSize: 11.5, padding: '0 8px', opacity: 0.6 }}
-          >
-            סגור
-          </button>
-        </div>
-      </div>
-
-      {rec.action_suggestion && (
-        <div style={{ fontSize: 12, color: 'var(--ink-2)', paddingRight: 2 }}>
-          {rec.action_suggestion}
-        </div>
-      )}
-
-      {expanded && rec.message_draft && (
-        <div style={{
-          fontSize: 12.5, color: 'var(--ink-1)', background: 'var(--surface-1)',
-          border: '1px solid var(--line)', borderRadius: 'var(--r-sm)',
-          padding: '8px 12px', whiteSpace: 'pre-wrap', direction: 'rtl',
-        }}>
-          {rec.message_draft}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AIRecommendationsCard() {
-  const queryClient = useQueryClient();
-
-  const { data: recs, isLoading } = useQuery({
-    queryKey: ['ai-recommendations'],
-    queryFn:  fetchAIRecommendations,
-    refetchInterval: 5 * 60 * 1000,
-  });
-
-  const dismissMut = useMutation({
-    mutationFn: dismissRecommendation,
-    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] }),
-  });
-
-  const sentMut = useMutation({
-    mutationFn: markRecommendationSent,
-    onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] }),
-  });
-
-  const [running, setRunning] = useState(false);
-  async function handleRun() {
-    setRunning(true);
-    try { await runAIAnalysis(); setTimeout(() => queryClient.invalidateQueries({ queryKey: ['ai-recommendations'] }), 3000); }
-    finally { setRunning(false); }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="card" style={{ padding: '16px 20px' }}>
-        <Skel style={{ height: 18, width: 140, marginBottom: 10 }} />
-        <Skel style={{ height: 52 }} />
-      </div>
-    );
-  }
-
-  const list = recs ?? [];
-
-  return (
-    <div className="card" style={{ padding: '16px 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: list.length > 0 ? 12 : 0 }}>
-        <IcSparkle size={14} />
-        <span style={{ fontWeight: 600, fontSize: 14 }}>המלצות AI</span>
-        {list.length > 0 && (
-          <span className="chip chip--blue" style={{ fontSize: 10.5, height: 18, padding: '0 7px' }}>{list.length}</span>
-        )}
-        <button
-          type="button"
-          onClick={handleRun}
-          disabled={running}
-          className="crm-btn crm-btn--ghost"
-          style={{ marginRight: 'auto', height: 26, fontSize: 11.5, padding: '0 8px', opacity: 0.7 }}
-        >
-          {running ? 'סורק...' : 'עדכן'}
-        </button>
-      </div>
-      {list.length === 0 ? (
-        <p style={{ fontSize: 12.5, color: 'var(--ink-3)', margin: '10px 0 0', textAlign: 'center' }}>
-          אין המלצות פתוחות כרגע
-        </p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {list.map((rec) => (
-            <RecRow
-              key={rec.id}
-              rec={rec}
-              onDismiss={(id) => dismissMut.mutate(id)}
-              onSent={(id) => sentMut.mutate(id)}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function Dashboard() {
   const { data: dashboard, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn:  fetchDashboard,
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000, // fallback only — SSE keeps it live
   });
 
   const { data: templates } = useQuery({
@@ -699,10 +441,7 @@ export default function Dashboard() {
   ).length;
 
   const counters    = dashboard?.counters;
-  const totalAlerts = (dashboard?.alerts?.length ?? 0)
-    + (dashboard?.unpaid_clients?.length ?? 0)
-    + (dashboard?.frozen_leads?.length ?? 0)
-    + (dashboard?.retention_alerts?.length ?? 0);
+  const totalAlerts = counters?.inbox_open ?? 0;
 
   return (
     <div className="crm-page">
@@ -727,9 +466,6 @@ export default function Dashboard() {
           </Link>
         </div>
       </div>
-
-      {/* ── AI Recommendations ───────────────────────────────────────── */}
-      <AIRecommendationsCard />
 
       {/* ── Stats row ────────────────────────────────────────────────── */}
       <div className="dash-stats">
@@ -758,7 +494,7 @@ export default function Dashboard() {
               subColor="oklch(0.65 0.14 55)"
             />
             <StatCard
-              label="התראות פתוחות"
+              label="פעולות פתוחות"
               value={totalAlerts}
               sub={totalAlerts > 0 ? 'דורשות טיפול' : 'הכל תקין'}
               subColor={totalAlerts > 0 ? 'oklch(0.6 0.18 295)' : 'var(--green)'}
@@ -772,14 +508,11 @@ export default function Dashboard() {
 
         {/* Left column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <AlertsCard
-            alerts={dashboard?.alerts ?? []}
-            frozenLeads={dashboard?.frozen_leads}
-            retentionAlerts={dashboard?.retention_alerts}
+          <InboxCard />
+          <UnpaidCard
             unpaidClients={dashboard?.unpaid_clients}
             templates={templates}
             isLoading={isLoading}
-            isError={isError}
           />
           <AdminRepairButton />
         </div>

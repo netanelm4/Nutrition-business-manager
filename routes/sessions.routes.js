@@ -6,6 +6,7 @@ const { parseJsonArray } = require('../utils/parseJson');
 const { SESSION_STATUS } = require('../constants/statuses');
 const { todayISO, israelDateOf } = require('../utils/dates');
 const { isValidSessionStatus, autoMarkHeldSessions } = require('../services/session-lifecycle.service');
+const { publish } = require('../services/event-bus.service');
 
 const { AI_MODEL } = require('../config/ai');
 let _aiClient = null;
@@ -131,6 +132,7 @@ router.put('/:id/status', (req, res) => {
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
     if (!session) return fail(res, 404, 'Session not found.');
     db.prepare('UPDATE sessions SET status = ? WHERE id = ?').run(status, req.params.id);
+    publish(db, 'session.status_changed', { entityType: 'session', entityId: session.id, payload: { from: session.status, to: status, clientId: session.client_id } });
     return ok(res, serializeSession(db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id)));
   } catch (err) {
     console.error('[PUT /sessions/:id/status]', err);

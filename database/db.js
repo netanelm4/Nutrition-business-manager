@@ -2262,4 +2262,135 @@ try {
   console.error('[repair] autoMarkHeldSessions failed:', err.message);
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 4: event bus, scheduled jobs, action queue (Inbox) — 2026-11-04
+// All timestamps here are canonical UTC ISO (utils/dates.nowUtcISO()).
+// ─────────────────────────────────────────────────────────────────────────────
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS domain_events (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      type        TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id   TEXT,
+      payload     TEXT,
+      created_at  TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_domain_events_entity ON domain_events(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_domain_events_created ON domain_events(created_at);
+
+    CREATE TABLE IF NOT EXISTS scheduled_jobs (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      type        TEXT NOT NULL,
+      run_at      TEXT NOT NULL,
+      payload     TEXT,
+      status      TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending', 'running', 'done', 'failed', 'canceled')),
+      attempts    INTEGER NOT NULL DEFAULT 0,
+      last_error  TEXT,
+      dedupe_key  TEXT UNIQUE,
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_due ON scheduled_jobs(status, run_at);
+
+    CREATE TABLE IF NOT EXISTS action_queue (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind          TEXT NOT NULL,
+      category      TEXT NOT NULL DEFAULT 'task' CHECK (category IN ('message', 'task')),
+      title         TEXT NOT NULL,
+      body          TEXT,
+      client_id     INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+      lead_id       INTEGER REFERENCES leads(id)   ON DELETE CASCADE,
+      meeting_id    TEXT,
+      phone         TEXT,
+      message       TEXT,
+      link          TEXT,
+      priority      TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('urgent', 'medium', 'low')),
+      status        TEXT NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending', 'sent', 'done', 'dismissed')),
+      due_at        TEXT NOT NULL,
+      snoozed_until TEXT,
+      source        TEXT NOT NULL DEFAULT 'rule'
+                    CHECK (source IN ('rule', 'job', 'ai', 'bot', 'system', 'agent')),
+      dedupe_key    TEXT NOT NULL UNIQUE,
+      send_error    TEXT,
+      created_at    TEXT NOT NULL,
+      updated_at    TEXT,
+      resolved_at   TEXT,
+      resolved_by   TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_action_queue_status_due ON action_queue(status, due_at);
+    CREATE INDEX IF NOT EXISTS idx_action_queue_client ON action_queue(client_id, kind);
+  `);
+} catch (err) {
+  console.error('[migration] phase 4 tables failed:', err.message);
+}
+
+try { db.exec('ALTER TABLE ai_recommendations ADD COLUMN migrated_action_id INTEGER'); } catch { /* exists */ }
+
+// ── Repair 15: pending ai_recommendations → action_queue (Inbox) ─────────────
+// Deterministic dedupe keys: AI recommendations use the same key the analysis
+// now writes ("ai:<type>:client:<id>:<ISO week>"), so the next run updates the
+// migrated item instead of duplicating it. Other legacy rows use "legacy_rec:<id>".
+function repairMigrateRecommendations(database) {
+  try {
+    const { isoWeekKey, nowUtcISO, toUtcISO } = require('../utils/dates');
+    const rows = database.prepare(`
+      SELECT * FROM ai_recommendations
+      WHERE is_dismissed = 0 AND is_sent = 0 AND migrated_action_id IS NULL
+        AND (expires_at IS NULL OR expires_at > datetime('now'))
+    `).all();
+    if (rows.length === 0) return;
+
+    const KIND = {
+      whatsapp_flag: 'whatsapp_flag',
+      new_food_submitted: 'food_submitted',
+      freeze_reminder: 'freeze_end',
+      freeze_expired: 'freeze_end',
+    };
+    const insert = database.prepare(`
+      INSERT OR IGNORE INTO action_queue
+        (kind, category, title, body, client_id, phone, message, link, priority,
+         status, due_at, source, dedupe_key, created_at)
+      VALUES (@kind, @category, @title, @body, @client_id, @phone, @message, @link, @priority,
+              'pending', @due_at, @source, @dedupe_key, @created_at)
+    `);
+    for (const r of rows) {
+      const createdIso = toUtcISO(r.created_at ? `${r.created_at.replace(' ', 'T')}Z` : null) || nowUtcISO();
+      const legacyKind = KIND[r.type];
+      const kind = legacyKind || `ai_${r.type}`;
+      const dedupeKey = legacyKind
+        ? `legacy_rec:${r.id}`
+        : `ai:${r.type}:client:${r.client_id}:${isoWeekKey(createdIso)}`;
+      const phone = r.client_id
+        ? database.prepare('SELECT phone FROM clients WHERE id = ?').get(r.client_id)?.phone || null
+        : null;
+      insert.run({
+        kind,
+        category: r.message_draft ? 'message' : 'task',
+        title: r.title,
+        body: r.action_suggestion || null,
+        client_id: r.client_id || null,
+        phone: r.message_draft ? phone : null,
+        message: r.message_draft || null,
+        link: r.client_id ? `/clients/${r.client_id}` : null,
+        priority: r.priority,
+        due_at: createdIso,
+        source: r.type === 'whatsapp_flag' ? 'bot' : legacyKind ? 'system' : 'ai',
+        dedupe_key: dedupeKey,
+        created_at: createdIso,
+      });
+      const actionId = database.prepare('SELECT id FROM action_queue WHERE dedupe_key = ?').get(dedupeKey)?.id;
+      database.prepare('UPDATE ai_recommendations SET migrated_action_id = ? WHERE id = ?').run(actionId ?? -1, r.id);
+      console.log(`[repair] Migrated recommendation ${r.id} (${r.type}, client ${r.client_id}) → inbox item ${actionId} [${dedupeKey}]`);
+    }
+  } catch (err) {
+    console.error('[repair] repairMigrateRecommendations failed:', err.message);
+  }
+}
+
+repairMigrateRecommendations(db);
+
 module.exports = db;

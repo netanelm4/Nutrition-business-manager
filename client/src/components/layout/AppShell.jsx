@@ -3,6 +3,7 @@ import { Outlet, useLocation, NavLink } from 'react-router-dom';
 import { DesktopSidebar, MobileNav, MobileDrawer } from './Sidebar';
 import GlobalSearch from '../search/GlobalSearch';
 import AIAssistant from '../assistant/AIAssistant';
+import useLiveUpdates from '../../hooks/useLiveUpdates';
 
 // ── Page title map ─────────────────────────────────────────────────────────────
 
@@ -86,6 +87,7 @@ function MobileSearchOverlay({ onClose }) {
 // ── Main shell ─────────────────────────────────────────────────────────────────
 
 export default function AppShell() {
+  useLiveUpdates(); // SSE: server changes refresh the affected queries
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [assistantOpen,    setAssistantOpen]    = useState(false);
   const [drawerOpen,       setDrawerOpen]       = useState(false);

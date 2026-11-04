@@ -3,6 +3,7 @@ const router     = express.Router();
 const db         = require('../database/db');
 const Anthropic  = require('@anthropic-ai/sdk');
 const { AI_MODEL } = require('../config/ai');
+const { publish } = require('../services/event-bus.service');
 
 let _ai = null;
 function getAI() {
@@ -272,6 +273,12 @@ router.post('/:id/finalize', (req, res) => {
       UPDATE ai_recommendations SET is_dismissed = 1, handled_at = datetime('now')
       WHERE client_id = ? AND type = 'menu_update_needed' AND is_dismissed = 0
     `).run(menu.client_id);
+    // Inbox: the menu recommendation is handled (menu_overdue is resolved by the reconciler)
+    db.prepare(`
+      UPDATE action_queue SET status = 'done', resolved_at = ?, resolved_by = 'menu_finalized', updated_at = ?
+      WHERE client_id = ? AND kind = 'ai_menu_update_needed' AND status = 'pending'
+    `).run(new Date().toISOString(), new Date().toISOString(), menu.client_id);
+    publish(db, 'menu.finalized', { entityType: 'client', entityId: menu.client_id, payload: { menuId: Number(req.params.id) } });
 
     try {
       db.prepare(

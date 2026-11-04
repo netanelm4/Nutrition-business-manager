@@ -43,6 +43,7 @@ router.post('/webhook', verifyMetaSignature, (req, res) => {
       from_phone,
       message_text,
       timestamp: new Date().toISOString(),
+      message_id: message.id, // stable across Meta re-deliveries → inbox dedupe
     }).catch((err) => console.error('[whatsapp-bot] processIncomingMessage error:', err.message));
 
   } catch (err) {

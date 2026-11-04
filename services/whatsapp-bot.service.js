@@ -2,6 +2,7 @@ const db = require('../database/db');
 const Anthropic = require('@anthropic-ai/sdk');
 const { sendWhatsAppMessage } = require('./whatsapp-send.service');
 const { AI_MODEL } = require('../config/ai');
+const { upsertAction } = require('./action-queue.service');
 
 const ai = new Anthropic();
 
@@ -179,7 +180,7 @@ async function callWithTools(client, messageText, context) {
 
 // ─── Main entry point ─────────────────────────────────────────────────────────
 
-async function processIncomingMessage({ from_phone, message_text, timestamp }) {
+async function processIncomingMessage({ from_phone, message_text, timestamp, message_id }) {
   // Step 1 — identify client
   const normalized = normalizePhone(from_phone);
   if (!normalized) return { action: 'ignore' };
@@ -207,9 +208,25 @@ async function processIncomingMessage({ from_phone, message_text, timestamp }) {
   let result;
   let logType;
 
+  // Inbox items are keyed by the incoming message → re-delivery never duplicates
+  const msgKey = `${client.id}:${message_id || timestamp || Date.now()}`;
+
   if (tool === 'send_auto_reply') {
-    result  = { action: 'send_to_client', to_phone: from_phone, message: input.message };
-    logType = 'auto_reply';
+    // Decision #4: clinical answers need one-click approval — never auto-sent
+    upsertAction(db, {
+      kind: 'bot_reply',
+      category: 'message',
+      dedupeKey: `bot_reply:${msgKey}`,
+      title: `תשובה מוצעת ל${client.full_name}`,
+      body: `הודעה נכנסת: ${message_text}`,
+      clientId: client.id,
+      phone: client.phone || from_phone,
+      message: input.message,
+      priority: 'urgent',
+      source: 'bot',
+    });
+    result  = { action: 'queued_for_approval', draft: input.message };
+    logType = 'draft_for_approval';
 
   } else if (tool === 'send_draft_for_approval') {
     const approvalMsg =
@@ -223,22 +240,35 @@ async function processIncomingMessage({ from_phone, message_text, timestamp }) {
       client_id: client.id,
       reason:    input.reason,
     };
+    upsertAction(db, {
+      kind: 'bot_draft',
+      category: 'message',
+      dedupeKey: `bot_draft:${msgKey}`,
+      title: `טיוטה לאישור: ${client.full_name}`,
+      body: `${input.reason}\nהודעה נכנסת: ${message_text}`,
+      clientId: client.id,
+      phone: client.phone || from_phone,
+      message: input.draft_message,
+      priority: 'urgent',
+      source: 'bot',
+    });
     logType = 'draft_for_approval';
 
   } else if (tool === 'flag_for_attention') {
     const title = `🚨 דגל אדום — ${client.full_name}: ${input.reason}`;
     try {
-      db.prepare(`
-        INSERT INTO ai_recommendations
-          (client_id, type, priority, title, message_draft, action_suggestion, expires_at)
-        VALUES (?, 'whatsapp_flag', ?, ?, ?, ?, datetime('now', '+24 hours'))
-      `).run(
-        client.id,
-        input.urgency === 'high' ? 'urgent' : 'medium',
-        title,
-        input.suggested_response || null,
-        `בדוק את השיחה עם ${client.full_name} ודאג לחזור אליו`,
-      );
+      upsertAction(db, {
+        kind: 'whatsapp_flag',
+        category: input.suggested_response ? 'message' : 'task',
+        dedupeKey: `whatsapp_flag:${msgKey}`,
+        title: `דגל אדום: ${client.full_name}: ${input.reason}`,
+        body: `הודעה נכנסת: ${message_text}`,
+        clientId: client.id,
+        phone: input.suggested_response ? (client.phone || from_phone) : null,
+        message: input.suggested_response || null,
+        priority: input.urgency === 'high' ? 'urgent' : 'medium',
+        source: 'bot',
+      });
     } catch (err) {
       console.error('[whatsapp-bot] flag insert failed:', err.message);
     }

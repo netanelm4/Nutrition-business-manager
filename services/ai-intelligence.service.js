@@ -2,7 +2,8 @@ const Anthropic = require('@anthropic-ai/sdk');
 const db = require('../database/db');
 
 const { AI_MODEL: MODEL } = require('../config/ai');
-const { nowUtcISO, addHoursUtcISO } = require('../utils/dates');
+const { nowUtcISO, addHoursUtcISO, isoWeekKey } = require('../utils/dates');
+const { upsertAction } = require('./action-queue.service');
 const MAX_TOKENS = 600;
 
 let _client = null;
@@ -43,32 +44,44 @@ async function callClaude(userPrompt) {
 // again for this many days — this is what stops the endless alert loop.
 const HANDLED_COOLDOWN_DAYS = 7;
 
+// Handled = sent / done / dismissed in the inbox (or in the legacy table, for
+// recommendations handled before the inbox existed).
 function wasHandledRecently(clientId, type) {
-  const row = db.prepare(`
+  const since = addHoursUtcISO(-24 * HANDLED_COOLDOWN_DAYS);
+  const inInbox = db.prepare(`
+    SELECT 1 FROM action_queue
+    WHERE client_id = ? AND kind = ? AND status IN ('sent', 'done', 'dismissed')
+      AND resolved_by NOT IN ('superseded', 'auto_resolved') AND resolved_at > ?
+    LIMIT 1
+  `).get(clientId, `ai_${type}`, since);
+  if (inInbox) return true;
+  const legacy = db.prepare(`
     SELECT 1 FROM ai_recommendations
-    WHERE client_id = ? AND type = ?
-      AND (is_sent = 1 OR is_dismissed = 1)
+    WHERE client_id = ? AND type = ? AND (is_sent = 1 OR is_dismissed = 1)
       AND COALESCE(handled_at, created_at) > datetime('now', ?)
     LIMIT 1
   `).get(clientId, type, `-${HANDLED_COOLDOWN_DAYS} days`);
-  return !!row;
+  return !!legacy;
 }
 
+// Recommendations land in the inbox (action_queue). One item per client, type
+// and ISO week; a newer week supersedes the previous pending one.
 function saveRecommendation(clientId, type, priority, title, messageDraft, actionSuggestion) {
   if (wasHandledRecently(clientId, type)) return;
-
-  // Replace only the still-pending one — never touch handled history
-  db.prepare(
-    'DELETE FROM ai_recommendations WHERE client_id = ? AND type = ? AND is_dismissed = 0 AND is_sent = 0'
-  ).run(clientId, type);
-
-  db.prepare(`
-    INSERT INTO ai_recommendations
-      (client_id, type, priority, title, message_draft, action_suggestion, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+24 hours'))
-  `).run(clientId, type, priority, title, messageDraft || null, actionSuggestion || null);
-
-  console.log(`[ai-intelligence] saved rec type=${type} for client_id=${clientId}`);
+  const client = db.prepare('SELECT phone FROM clients WHERE id = ?').get(clientId);
+  upsertAction(db, {
+    kind: `ai_${type}`,
+    dedupeKey: `ai:${type}:client:${clientId}:${isoWeekKey()}`,
+    supersedePrefix: `ai:${type}:client:${clientId}:`,
+    title,
+    body: actionSuggestion || null,
+    clientId,
+    phone: messageDraft ? client?.phone : null,
+    message: messageDraft || null,
+    priority,
+    source: 'ai',
+  });
+  console.log(`[ai-intelligence] inbox item type=${type} for client_id=${clientId}`);
 }
 
 // ─── Week helpers ─────────────────────────────────────────────────────────────

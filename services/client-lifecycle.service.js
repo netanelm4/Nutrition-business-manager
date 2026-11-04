@@ -3,6 +3,7 @@ const { LEAD_STATUS, CLIENT_STATUS } = require('../constants/statuses');
 const { calculateSessionWindows, calculateProcessEndDate, todayISO, israelDateOf } = require('../utils/dates');
 const { initialStatusForInstant } = require('./session-lifecycle.service');
 const { SESSION_STATUS } = require('../constants/statuses');
+const { publish } = require('./event-bus.service');
 
 // ─── Client lifecycle commands ───────────────────────────────────────────────
 // Single source of truth for creating/closing a client's process.
@@ -206,6 +207,7 @@ function convertLeadToClient(database, leadId) {
   });
 
   const { clientId, sessionId } = run();
+  publish(database, 'lead.converted', { entityType: 'lead', entityId: lead.id, payload: { clientId, sessionId } });
   console.log(`[convert] lead ${lead.id} → client ${clientId} (session ${sessionId}, start ${sessionDate})`);
   return { clientId, sessionId, alreadyConverted: false };
 }
