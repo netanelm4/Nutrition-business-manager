@@ -454,6 +454,62 @@ async function run() {
     assert('Booking links served from env', cfg.data?.followupLink === FOLLOWUP_LINK, JSON.stringify(cfg));
   }
 
+  // ── Session date editing + rolling 14-day SLA ─────────────────────────────
+  console.log('\n── Session dates and rolling SLA ──');
+  {
+    // Israel calendar day (the server counts SLA days in Israel time)
+    const ilDay = (offset) => new Date(Date.now() + offset * 864e5).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+    const inboxItems = async () => (await req('GET', '/inbox')).data.items;
+    const dueFor = async (cid) => (await inboxItems()).filter((i) => i.client_id === cid && i.kind === 'session_due');
+    const clientAlerts = async (cid) => (await req('GET', `/clients/${cid}`)).data.alerts;
+    const sessionsOf = async (cid) => (await req('GET', `/clients/${cid}/sessions`)).data;
+
+    // The reported case: session 2 held today, outside its theoretical window
+    const cid = (await req('POST', '/clients', { full_name: 'SLA בדיקה', phone: '0521320001', start_date: ilDay(-40) })).data.id;
+    const s2 = (await req('POST', `/clients/${cid}/sessions`, { session_date: ilDay(0), status: 'held', weight: 70 })).data;
+    let alerts = await clientAlerts(cid);
+    assert('Held session outside its window → badge green (not "ממתין")',
+      alerts.windowAlerts.find((w) => w.session_number === s2.session_number)?.state === 'green', JSON.stringify(alerts.windowAlerts));
+
+    // Editing the date of a held session updates session_date itself
+    const newDate = ilDay(-3);
+    const upd = await req('PUT', `/sessions/${s2.id}`, { session_date: newDate });
+    assert('Edit held session date → session_date saved', upd.success && upd.data.session_date === newDate && upd.data.status === 'held', JSON.stringify(upd));
+    const reread = (await sessionsOf(cid)).find((s) => s.id === s2.id);
+    assert('Edited date visible on re-read', reread?.session_date === newDate);
+    const future = await req('PUT', `/sessions/${s2.id}`, { session_date: ilDay(5) });
+    assert('Held session cannot move to a future date (400)', future.status === 400, JSON.stringify(future));
+
+    // Rolling SLA: last held 3 days ago → not stale, no item, no red slot
+    await req('POST', '/inbox/refresh');
+    alerts = await clientAlerts(cid);
+    assert('Last held 3 days ago → SLA not stale', alerts.sessionSla.stale === false && alerts.sessionSla.lastHeldDate === newDate, JSON.stringify(alerts.sessionSla));
+    assert('No red/yellow slot from the theoretical schedule', !alerts.windowAlerts.some((w) => w.state === 'red' || w.state === 'yellow'), JSON.stringify(alerts.windowAlerts));
+    assert('No session_due item within 14 days', (await dueFor(cid)).length === 0);
+
+    // Retroactive edit to 20 days ago → stale → urgent item keyed by that date
+    const oldDate = ilDay(-20);
+    await req('PUT', `/sessions/${s2.id}`, { session_date: oldDate });
+    await req('POST', '/inbox/refresh');
+    alerts = await clientAlerts(cid);
+    const due = await dueFor(cid);
+    assert('20 days since last held, nothing booked → stale', alerts.sessionSla.stale === true && alerts.sessionSla.daysSinceHeld === 20, JSON.stringify(alerts.sessionSla));
+    assert('Stale → exactly one urgent session_due item', due.length === 1 && due[0].priority === 'urgent' && due[0].dedupe_key === `session_due:client:${cid}:after:${oldDate}`, JSON.stringify(due));
+    assert('Only the next open slot turns red', alerts.windowAlerts.filter((w) => w.state === 'red').length === 1, JSON.stringify(alerts.windowAlerts));
+
+    // Retroactive edit back inside 14 days → item auto-resolves
+    await req('PUT', `/sessions/${s2.id}`, { session_date: ilDay(-2) });
+    await req('POST', '/inbox/refresh');
+    assert('Date edited back within 14 days → item auto-resolved', (await dueFor(cid)).length === 0);
+
+    // Stale again, but an upcoming scheduled session suppresses the alert
+    await req('PUT', `/sessions/${s2.id}`, { session_date: oldDate });
+    await req('POST', `/clients/${cid}/sessions`, { session_date: ilDay(4), status: 'scheduled' });
+    await req('POST', '/inbox/refresh');
+    alerts = await clientAlerts(cid);
+    assert('Upcoming session booked → not stale, no item', alerts.sessionSla.stale === false && alerts.sessionSla.hasUpcoming === true && (await dueFor(cid)).length === 0, JSON.stringify(alerts.sessionSla));
+  }
+
   // ── Phase 4: inbox (action_queue), jobs, SSE ──────────────────────────────
   console.log('\n── Phase 4: inbox ──');
   {

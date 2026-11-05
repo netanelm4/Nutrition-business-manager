@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../database/db');
-const { computeClientAlerts, hasActiveAlert } = require('../services/alerts.service');
+const { computeClientAlerts, hasActiveAlert, hasUpcomingMeeting } = require('../services/alerts.service');
 const { countOpen } = require('../services/action-queue.service');
 const { CLIENT_STATUS, LEAD_STATUS, ALERT_STATE, SESSION_STATUS } = require('../constants/statuses');
 const { todayISO, addDays, toISODate, parseDate, israelLocalToUtcISO } = require('../utils/dates');
@@ -121,7 +121,7 @@ router.get('/', (req, res) => {
     for (const client of clients) {
       const windows = windowsByClient[client.id] || [];
       const sessions = sessionsByClient[client.id] || [];
-      const clientAlerts = computeClientAlerts(client, windows, sessions);
+      const clientAlerts = computeClientAlerts(client, windows, sessions, { hasUpcomingMeeting: hasUpcomingMeeting(db, client.id) });
 
       if (!hasActiveAlert(clientAlerts)) continue;
 
@@ -135,6 +135,7 @@ router.get('/', (req, res) => {
         menu_alert: clientAlerts.menuAlert,
         ending_soon_alert: clientAlerts.endingSoonAlert,
         process_ended_alert: clientAlerts.processEndedAlert,
+        session_sla: clientAlerts.sessionSla.stale ? clientAlerts.sessionSla : null,
         window_alerts: clientAlerts.windowAlerts.filter(
           (w) => w.state === ALERT_STATE.RED || w.state === ALERT_STATE.YELLOW
         ),
@@ -145,8 +146,8 @@ router.get('/', (req, res) => {
 
     // Sort: RED first, then YELLOW, then other alerts
     alerts.sort((a, b) => {
-      const aHasRed = a.window_alerts.some((w) => w.state === ALERT_STATE.RED);
-      const bHasRed = b.window_alerts.some((w) => w.state === ALERT_STATE.RED);
+      const aHasRed = !!a.session_sla || a.window_alerts.some((w) => w.state === ALERT_STATE.RED);
+      const bHasRed = !!b.session_sla || b.window_alerts.some((w) => w.state === ALERT_STATE.RED);
       if (aHasRed && !bHasRed) return -1;
       if (!aHasRed && bHasRed) return 1;
       return 0;

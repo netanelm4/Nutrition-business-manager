@@ -92,6 +92,12 @@ router.put('/:id', (req, res) => {
       updates.status = SESSION_STATUS.HELD;
     }
 
+    // A held session happened — its date cannot be in the future
+    const finalStatus = updates.status || session.status;
+    if (finalStatus === SESSION_STATUS.HELD && effectiveDate && effectiveDate > todayISO()) {
+      return fail(res, 400, 'תאריך של פגישה שהתקיימה לא יכול להיות עתידי.');
+    }
+
     const setClauses = Object.keys(updates).map((k) => `${k} = @${k}`).join(', ');
     db.prepare(`UPDATE sessions SET ${setClauses} WHERE id = @id`).run({ ...updates, id: req.params.id });
 

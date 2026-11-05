@@ -19,6 +19,11 @@ const SESSION_INTERVAL_DAYS = 14;
 // Tolerance around expected_date for alert state calculation (±3 days = 7-day window)
 const SESSION_TOLERANCE_DAYS = 3;
 
+// Rolling session SLA: a client needs a new session when more than this many
+// days passed since the last HELD session and nothing is booked ahead.
+// (Replaces alerts based on the theoretical session_windows schedule.)
+const SESSION_SLA_DAYS = 14;
+
 // Total duration of a standard client process in days (3 months)
 const PROCESS_DURATION_DAYS = 90;
 
@@ -36,6 +41,7 @@ module.exports = {
   TOTAL_SESSIONS,
   SESSION_INTERVAL_DAYS,
   SESSION_TOLERANCE_DAYS,
+  SESSION_SLA_DAYS,
   PROCESS_DURATION_DAYS,
   MENU_ALERT_THRESHOLD_DAYS,
   ENDING_SOON_THRESHOLD_DAYS,

@@ -1,6 +1,6 @@
 const { z } = require('zod');
 const { upsertAction, listActions } = require('../action-queue.service');
-const { computeClientAlerts } = require('../alerts.service');
+const { computeClientAlerts, hasUpcomingMeeting } = require('../alerts.service');
 const { publish } = require('../event-bus.service');
 const { LEAD_STATUS } = require('../../constants/statuses');
 const {
@@ -93,7 +93,7 @@ const READ = {
       const c = requireRow(db, 'clients', client_id, 'Client');
       const sessions = db.prepare('SELECT * FROM sessions WHERE client_id = ? ORDER BY session_number').all(client_id);
       const windows = db.prepare('SELECT * FROM session_windows WHERE client_id = ? ORDER BY session_number').all(client_id);
-      const alerts = computeClientAlerts(c, windows, sessions);
+      const alerts = computeClientAlerts(c, windows, sessions, { hasUpcomingMeeting: hasUpcomingMeeting(db, client_id) });
       const paid = db.prepare('SELECT COALESCE(SUM(amount), 0) AS t FROM payments WHERE client_id = ?').get(client_id).t;
       const protocol = c.protocol_id ? db.prepare('SELECT id, name FROM protocols WHERE id = ?').get(c.protocol_id) : null;
       const menu = db.prepare('SELECT id, title, calorie_target, status, created_at FROM menus WHERE client_id = ? ORDER BY id DESC LIMIT 1').get(client_id);

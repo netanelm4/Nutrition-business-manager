@@ -58,27 +58,31 @@ function reconcileInbox(database) {
 
   for (const c of clients) {
     const sessions = sessionsByClient[c.id] || [];
-    const alerts = computeClientAlerts(c, windowsByClient[c.id] || [], sessions);
+    const alerts = computeClientAlerts(c, windowsByClient[c.id] || [], sessions, { hasUpcomingMeeting: upcomingByClient.has(c.id) });
     const vars = { client_name: c.full_name, booking_link: followupLink, calendly_link: followupLink };
 
-    // ── Session window due / overdue → send the booking link ───────────────
-    const due = alerts.windowAlerts.find((w) => w.state === ALERT_STATE.RED || w.state === ALERT_STATE.YELLOW);
-    if (due) {
-      const key = `session_due:client:${c.id}:session:${due.session_number}`;
+    // ── Rolling SLA: >14 days since the last held session, nothing booked ──
+    // Keyed by the last held date: if that date is edited retroactively the
+    // old item auto-resolves and the condition is re-evaluated from scratch.
+    const sla = alerts.sessionSla;
+    if (sla.stale) {
+      const key = `session_due:client:${c.id}:after:${sla.anchorDate}`;
       keys.session_due.add(key);
       const message = followupLink ? draft(database, 'booking_link', vars) : null;
       upsertAction(database, {
         kind: 'session_due',
         dedupeKey: key,
-        title: due.state === ALERT_STATE.RED
-          ? `פגישה ${due.session_number} באיחור: ${c.full_name}`
-          : `הגיע זמן פגישה ${due.session_number}: ${c.full_name}`,
-        body: `חלון הפגישה: ${due.expected_date}. לשלוח קישור לקביעת פגישה`,
+        title: sla.anchor === 'held'
+          ? `עברו ${sla.daysSince} ימים מהפגישה האחרונה: ${c.full_name}`
+          : `עברו ${sla.daysSince} ימים מתחילת התהליך ללא פגישה: ${c.full_name}`,
+        body: sla.anchor === 'held'
+          ? `פגישה אחרונה התקיימה ב-${sla.anchorDate} ואין פגישה עתידית ביומן. לשלוח קישור לקביעת פגישה`
+          : `התהליך התחיל ב-${sla.anchorDate}, עדיין לא התקיימה פגישה ואין פגישה עתידית ביומן. לשלוח קישור לקביעת פגישה`,
         clientId: c.id,
         phone: message ? c.phone : null,
         message,
-        priority: due.state === ALERT_STATE.RED ? 'urgent' : 'medium',
-        dueAt: at9(due.expected_date),
+        priority: 'urgent',
+        dueAt: at9(sla.dueDate),
       });
     }
 

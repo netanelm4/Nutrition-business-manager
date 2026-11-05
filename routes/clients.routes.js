@@ -2,7 +2,7 @@ const express    = require('express');
 const { v4: uuidv4 } = require('uuid');
 const db         = require('../database/db');
 const { calculateSessionWindows, calculateProcessEndDate } = require('../utils/dates');
-const { computeClientAlerts } = require('../services/alerts.service');
+const { computeClientAlerts, hasUpcomingMeeting } = require('../services/alerts.service');
 const { CLIENT_STATUS, TASK_STATUS, SESSION_STATUS } = require('../constants/statuses');
 const { isValidSessionStatus, initialStatusForDate, isPlaceholderSession } = require('../services/session-lifecycle.service');
 const { parseJsonArray } = require('../utils/parseJson');
@@ -64,7 +64,7 @@ function getClientAlerts(clientId) {
 
 function attachAlerts(client) {
   const { windows, sessions } = getClientAlerts(client.id);
-  const alerts = computeClientAlerts(client, windows, sessions);
+  const alerts = computeClientAlerts(client, windows, sessions, { hasUpcomingMeeting: hasUpcomingMeeting(db, client.id) });
   return {
     ...client,
     alerts,

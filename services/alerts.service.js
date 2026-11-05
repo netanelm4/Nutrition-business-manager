@@ -1,45 +1,76 @@
 const { ALERT_STATE, CLIENT_STATUS, SESSION_STATUS } = require('../constants/statuses');
 const {
-  SESSION_TOLERANCE_DAYS,
+  SESSION_SLA_DAYS,
   MENU_ALERT_THRESHOLD_DAYS,
   ENDING_SOON_THRESHOLD_DAYS,
 } = require('../constants/events');
 const {
-  isWithinTolerance,
   isInThePast,
   isWithinNextDays,
   diffDays,
   todayISO,
+  addDays,
+  parseDate,
+  toISODate,
+  nowUtcISO,
 } = require('../utils/dates');
 
 /**
- * Compute the alert state for a single session window.
+ * Rolling session SLA (the only "session due" rule):
+ *   stale = more than SESSION_SLA_DAYS since the last HELD session
+ *           (or since the process start when nothing was held yet)
+ *           AND no upcoming session / calendar meeting.
+ * Derived from actual session dates, so editing a date retroactively
+ * recalculates it on the next read.
  *
- * @param {object} window     - A session_windows row: { session_number, expected_date, ... }
- * @param {object|null} session - The sessions row for the same session_number, or null if none exists
- * @returns {string} ALERT_STATE value
+ * @param {object}   client             - clients row (start_date is the fallback anchor)
+ * @param {object[]} sessions           - all sessions rows of the client
+ * @param {object}   [opts]
+ * @param {boolean}  [opts.hasUpcomingMeeting] - an active future meeting exists in meetings
  */
-function computeWindowAlertState(window, session) {
-  const { expected_date } = window;
-
-  if (session && session.session_date) {
-    // Session exists — check if it landed within tolerance
-    return isWithinTolerance(session.session_date, expected_date, SESSION_TOLERANCE_DAYS)
-      ? ALERT_STATE.GREEN
-      : ALERT_STATE.YELLOW; // session exists but outside the expected window
-  }
-
-  // No session yet — decide based on where today falls relative to the window
+function computeSessionSla(client, sessions, { hasUpcomingMeeting = false } = {}) {
   const today = todayISO();
-  if (isWithinTolerance(today, expected_date, SESSION_TOLERANCE_DAYS)) {
-    return ALERT_STATE.YELLOW; // inside window, no session scheduled
-  }
+  const held = sessions
+    .filter((s) => s.status === SESSION_STATUS.HELD && s.session_date)
+    .sort((a, b) => (a.session_date < b.session_date ? 1 : -1));
+  const lastHeldDate = held[0]?.session_date || null;
+  const hasUpcomingSession = sessions.some(
+    (s) => s.status === SESSION_STATUS.SCHEDULED && s.session_date && s.session_date >= today
+  );
+  const hasUpcoming = hasUpcomingSession || !!hasUpcomingMeeting;
+  const anchorDate = lastHeldDate || client?.start_date || null;
+  const daysSince = anchorDate ? diffDays(today, anchorDate) : null;
+  return {
+    lastHeldDate,
+    anchorDate,
+    anchor: lastHeldDate ? 'held' : 'start',
+    daysSinceHeld: lastHeldDate ? daysSince : null,
+    daysSince,
+    dueDate: anchorDate ? toISODate(addDays(parseDate(anchorDate), SESSION_SLA_DAYS)) : null,
+    hasUpcoming,
+    stale: daysSince !== null && daysSince > SESSION_SLA_DAYS && !hasUpcoming,
+  };
+}
 
-  if (isInThePast(expected_date) && diffDays(today, expected_date) > SESSION_TOLERANCE_DAYS) {
-    return ALERT_STATE.RED; // window has fully passed, no session recorded
-  }
+/** True when the client has an active calendar meeting in the future. */
+function hasUpcomingMeeting(database, clientId) {
+  return !!database.prepare(
+    "SELECT 1 FROM meetings WHERE client_id = ? AND status = 'active' AND start_time > ? LIMIT 1"
+  ).get(clientId, nowUtcISO());
+}
 
-  return ALERT_STATE.NONE; // window is still in the future
+/**
+ * Badge state of one timeline slot.
+ *   held / scheduled session → GREEN (done or booked)
+ *   empty slot               → RED only when it is the next open slot and the
+ *                              client breached the rolling SLA; otherwise NONE.
+ * The theoretical expected_date no longer drives alerts.
+ */
+function computeWindowAlertState(window, session, { isNextOpen = false, stale = false } = {}) {
+  if (session && (session.status === SESSION_STATUS.HELD || session.status === SESSION_STATUS.SCHEDULED)) {
+    return ALERT_STATE.GREEN;
+  }
+  return isNextOpen && stale ? ALERT_STATE.RED : ALERT_STATE.NONE;
 }
 
 /**
@@ -48,15 +79,15 @@ function computeWindowAlertState(window, session) {
  * @param {object}   client   - A clients row
  * @param {object[]} windows  - All session_windows rows for this client (sorted by session_number)
  * @param {object[]} sessions - All sessions rows for this client
+ * @param {object}   [opts]   - { hasUpcomingMeeting }
  * @returns {object} Alert summary
  *   {
  *     windowAlerts: [{ session_number, expected_date, manually_overridden, state }],
- *     menuAlert: boolean,
- *     endingSoonAlert: boolean,
- *     processEndedAlert: boolean,
+ *     sessionSla: { lastHeldDate, daysSinceHeld, dueDate, hasUpcoming, stale },
+ *     menuAlert, endingSoonAlert, processEndedAlert: boolean,
  *   }
  */
-function computeClientAlerts(client, windows, sessions) {
+function computeClientAlerts(client, windows, sessions, opts = {}) {
   // Index sessions by session_number for O(1) lookup.
   // Canceled / no-show sessions do not fill their window — it stays open.
   const sessionByNumber = {};
@@ -65,13 +96,21 @@ function computeClientAlerts(client, windows, sessions) {
     sessionByNumber[s.session_number] = s;
   }
 
+  const sessionSla = computeSessionSla(client, sessions, opts);
+  const nextOpen = [...windows]
+    .sort((a, b) => a.session_number - b.session_number)
+    .find((w) => !sessionByNumber[w.session_number]);
+
   // Window-level alert states
   const windowAlerts = windows.map((w) => ({
     session_number: w.session_number,
     expected_date: w.expected_date,
     manually_overridden: w.manually_overridden === 1,
     override_note: w.override_note || null,
-    state: computeWindowAlertState(w, sessionByNumber[w.session_number] || null),
+    state: computeWindowAlertState(w, sessionByNumber[w.session_number] || null, {
+      isNextOpen: nextOpen?.session_number === w.session_number,
+      stale: sessionSla.stale,
+    }),
   }));
 
   // Menu alert: session 1 was held more than MENU_ALERT_THRESHOLD_DAYS ago, menu not sent
@@ -97,6 +136,7 @@ function computeClientAlerts(client, windows, sessions) {
 
   return {
     windowAlerts,
+    sessionSla,
     menuAlert,
     endingSoonAlert,
     processEndedAlert,
@@ -111,7 +151,7 @@ function hasActiveAlert(alerts) {
   const hasRedOrYellow = alerts.windowAlerts.some(
     (w) => w.state === ALERT_STATE.RED || w.state === ALERT_STATE.YELLOW
   );
-  return hasRedOrYellow || alerts.menuAlert || alerts.endingSoonAlert || alerts.processEndedAlert;
+  return hasRedOrYellow || !!alerts.sessionSla?.stale || alerts.menuAlert || alerts.endingSoonAlert || alerts.processEndedAlert;
 }
 
-module.exports = { computeWindowAlertState, computeClientAlerts, hasActiveAlert };
+module.exports = { computeWindowAlertState, computeClientAlerts, computeSessionSla, hasUpcomingMeeting, hasActiveAlert };

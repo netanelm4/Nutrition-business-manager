@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateWindow } from '../../lib/api';
-import { formatDateHebrew } from '../../lib/dates';
+import { updateWindow, updateSession } from '../../lib/api';
+import { formatDateHebrew, todayIsraelISO } from '../../lib/dates';
+import { SESSION_STATUS_META } from '../../constants/statuses';
 import AlertBadge from '../ui/AlertBadge';
 import Modal from '../ui/Modal';
 import SessionModal from './SessionModal';
@@ -17,8 +18,70 @@ function normaliseForWA(phone) {
 const inputClass =
   'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent';
 
+/** Queries that depend on a session date (badges, SLA, inbox, dashboard). */
+function invalidateSessionViews(queryClient, clientId) {
+  queryClient.invalidateQueries({ queryKey: ['client', String(clientId)] });
+  queryClient.invalidateQueries({ queryKey: ['sessions', String(clientId)] });
+  queryClient.invalidateQueries({ queryKey: ['inbox'] });
+  queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+}
+
 /**
- * Inline override form for a single session window.
+ * Edit the actual date of an existing session (session_date).
+ * A held session cannot move into the future.
+ */
+function SessionDateForm({ session, clientId, onClose }) {
+  const queryClient = useQueryClient();
+  const isHeld = session.status === 'held';
+  const [date, setDate] = useState(session.session_date ?? '');
+  const [error, setError] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: () => updateSession(session.id, { session_date: date }),
+    onSuccess: () => {
+      invalidateSessionViews(queryClient, clientId);
+      onClose();
+    },
+    onError: (err) => setError(err.message || 'שגיאה בעדכון'),
+  });
+
+  return (
+    <div className="mt-2 space-y-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
+      <p className="text-xs font-medium text-orange-700">
+        {isHeld ? 'תאריך שבו התקיימה הפגישה' : 'תאריך הפגישה'}
+      </p>
+      <input
+        type="date"
+        value={date}
+        max={isHeld ? todayIsraelISO() : undefined}
+        onChange={(e) => setDate(e.target.value)}
+        className={inputClass}
+        dir="ltr"
+      />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => mutation.mutate()}
+          disabled={!date || date === session.session_date || mutation.isPending}
+          className="flex-1 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-medium hover:bg-orange-700 transition-colors disabled:opacity-50"
+        >
+          {mutation.isPending ? 'שומר...' : 'עדכן'}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 py-1.5 rounded-lg bg-surface border border-gray-200 text-xs text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          ביטול
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Inline override form for an empty slot's expected (planned) date.
  */
 function OverrideForm({ window, clientId, onClose }) {
   const queryClient = useQueryClient();
@@ -29,7 +92,7 @@ function OverrideForm({ window, clientId, onClose }) {
   const mutation = useMutation({
     mutationFn: () => updateWindow(window.id, { expected_date: date, override_note: note }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['client', String(clientId)] });
+      invalidateSessionViews(queryClient, clientId);
       onClose();
     },
     onError: (err) => setError(err.message || 'שגיאה בעדכון'),
@@ -37,7 +100,7 @@ function OverrideForm({ window, clientId, onClose }) {
 
   return (
     <div className="mt-2 space-y-2 p-3 bg-orange-50 rounded-lg border border-orange-200">
-      <p className="text-xs font-medium text-orange-700">שנה תאריך חלון</p>
+      <p className="text-xs font-medium text-orange-700">שינוי התאריך הצפוי</p>
       <input
         type="date"
         value={date}
@@ -83,6 +146,7 @@ function TimelineSlot({ window, session, clientId, clientName, clientPhone }) {
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
 
   const hasSession = !!session;
+  const statusMeta = SESSION_STATUS_META[session?.status] ?? SESSION_STATUS_META.held;
 
   return (
     <>
@@ -111,7 +175,7 @@ function TimelineSlot({ window, session, clientId, clientName, clientPhone }) {
         {/* Session status */}
         {hasSession ? (
           <div>
-            <p className="text-xs text-gray-400">התקיימה</p>
+            <p className="text-xs text-gray-400">{statusMeta.label}</p>
             <p className="text-sm text-gray-700">{formatDateHebrew(session.session_date)}</p>
             {session.weight && (
               <p className="text-xs text-gray-500">{session.weight} ק״ג</p>
@@ -141,22 +205,28 @@ function TimelineSlot({ window, session, clientId, clientName, clientPhone }) {
           </div>
         )}
 
-        {/* Override button */}
+        {/* Date edit: an existing session edits its real date; an empty slot its planned date */}
         <button
           type="button"
           onClick={() => setOverrideOpen((v) => !v)}
           className="text-xs text-gray-400 hover:text-orange-600 transition-colors self-start"
         >
-          שנה תאריך חלון
+          {hasSession ? 'שינוי תאריך הפגישה' : 'שינוי התאריך הצפוי'}
         </button>
 
-        {overrideOpen && (
+        {overrideOpen && (hasSession ? (
+          <SessionDateForm
+            session={session}
+            clientId={clientId}
+            onClose={() => setOverrideOpen(false)}
+          />
+        ) : (
           <OverrideForm
             window={window}
             clientId={clientId}
             onClose={() => setOverrideOpen(false)}
           />
-        )}
+        ))}
       </div>
 
       {sessionModalOpen && (
@@ -194,8 +264,13 @@ export default function SessionTimeline({ client, sessions }) {
   }
 
   // Map sessions by session_number for fast lookup
+  // (an active session wins over a canceled / no-show one with the same number)
   const sessionByNumber = {};
-  for (const s of sessions) sessionByNumber[s.session_number] = s;
+  for (const s of sessions) {
+    const prev = sessionByNumber[s.session_number];
+    const inactive = (x) => x.status === 'canceled' || x.status === 'no_show';
+    if (!prev || inactive(prev) || !inactive(s)) sessionByNumber[s.session_number] = s;
+  }
 
   // Merge alert state from client.alerts.windowAlerts into each window
   const alertByNumber = {};
