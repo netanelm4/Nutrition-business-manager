@@ -229,7 +229,8 @@ export async function fetchRecordingAudioUrl(audioUrl) {
 
 // ── Session clinical analysis (Phase 10) ──────────────────────────────────────
 export const fetchSessionAnalysis   = (sessionId) => request('GET', `/sessions/${sessionId}/analysis`);
-export const runSessionAnalysis     = (sessionId, { force = false } = {}) => request('POST', `/sessions/${sessionId}/analysis`, { force });
+export const runSessionAnalysis     = (sessionId, { force = false, mode } = {}) =>
+  request('POST', `/sessions/${sessionId}/analysis`, { force, ...(mode ? { mode } : {}) });
 export const saveSessionAnalysis    = (sessionId, analysis) => request('PUT', `/sessions/${sessionId}/analysis`, { analysis });
 export const importSessionAnalysis  = (sessionId, targets, { force = false } = {}) =>
   request('POST', `/sessions/${sessionId}/analysis/import`, { targets, force });

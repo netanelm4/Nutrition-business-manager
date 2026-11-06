@@ -2256,6 +2256,10 @@ db.exec(`
   );
 `);
 
+// Phase 10b: analysis mode (intake | follow_up) and the menu a follow-up analysis refers to
+try { db.exec("ALTER TABLE session_ai_analyses ADD COLUMN mode TEXT NOT NULL DEFAULT 'intake'"); } catch { /* exists */ }
+try { db.exec('ALTER TABLE session_ai_analyses ADD COLUMN base_menu_id INTEGER REFERENCES menus(id) ON DELETE SET NULL'); } catch { /* exists */ }
+
 // Automatic completion (6 sessions + 14-day grace) marks how a process ended
 try { db.exec('ALTER TABLE clients ADD COLUMN completed_automatically INTEGER NOT NULL DEFAULT 0'); } catch { /* exists */ }
 

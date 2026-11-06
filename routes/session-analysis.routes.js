@@ -5,6 +5,9 @@ const {
   transcriptWarnings,
 } = require('../services/ai/session-analysis.service');
 const { importAnalysis } = require('../services/session-analysis-import.service');
+const {
+  FollowUpSchema, analyzeFollowUp, applyFollowUpGuards, suggestedMode, activeMenu, menuById,
+} = require('../services/ai/session-followup.service');
 const { publish } = require('../services/event-bus.service');
 const { nowUtcISO } = require('../utils/dates');
 
@@ -31,6 +34,8 @@ function serialize(row) {
     id: row.id,
     session_id: row.session_id,
     status: row.status,
+    mode: row.mode || 'intake',
+    base_menu_id: row.base_menu_id ?? null,
     analysis: parse(row.analysis, null),
     warnings: parse(row.warnings, []),
     recording_ids: parse(row.recording_ids, []),
@@ -46,13 +51,19 @@ function serialize(row) {
 // GET /api/sessions/:id/analysis
 router.get('/sessions/:id/analysis', (req, res) => {
   try {
-    const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(req.params.id);
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
     if (!session) return fail(res, 404, 'Session not found.');
     const transcript = buildTranscript(db, session.id);
+    const menu = activeMenu(db, session.client_id);
+    const row = expireStale(db, getRow(session.id));
+    const base = row?.base_menu_id ? db.prepare('SELECT id, title, status FROM menus WHERE id = ?').get(row.base_menu_id) : null;
     return ok(res, {
-      analysis: serialize(expireStale(db, getRow(session.id))),
+      analysis: serialize(row),
+      base_menu: base || null, // the menu a follow-up analysis was built on (not necessarily the newest)
       can_analyze: !!transcript.text,
       transcribed_recordings: transcript.recordingIds.length,
+      suggested_mode: suggestedMode(db, session),
+      active_menu: menu ? { id: menu.menu.id, title: menu.menu.title, status: menu.menu.status } : null,
     });
   } catch (err) {
     console.error('[GET /sessions/:id/analysis]', err);
@@ -60,11 +71,15 @@ router.get('/sessions/:id/analysis', (req, res) => {
   }
 });
 
-// POST /api/sessions/:id/analysis — { force? } (force: replace a draft that was already imported)
+// POST /api/sessions/:id/analysis — { mode?: 'intake'|'follow_up', force? }
+// mode defaults to the suggestion (follow-up for session 2+ or when a menu exists);
+// force replaces a draft that was already imported.
 router.post('/sessions/:id/analysis', (req, res) => {
   try {
-    const session = db.prepare('SELECT id, client_id FROM sessions WHERE id = ?').get(req.params.id);
+    const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(req.params.id);
     if (!session) return fail(res, 404, 'Session not found.');
+    const mode = req.body?.mode ?? suggestedMode(db, session);
+    if (!['intake', 'follow_up'].includes(mode)) return fail(res, 400, "mode must be 'intake' or 'follow_up'.");
     if (!process.env.ANTHROPIC_API_KEY && process.env.AI_MOCK !== '1') return fail(res, 503, 'ה-AI לא מוגדר (חסר ANTHROPIC_API_KEY).');
     if (!buildTranscript(db, session.id).text) return fail(res, 409, 'אין עדיין תמלול לפגישה. יש להקליט או להעלות הקלטה ולחכות לתמלול.');
     const existing = expireStale(db, getRow(session.id));
@@ -75,17 +90,17 @@ router.post('/sessions/:id/analysis', (req, res) => {
     const now = nowUtcISO();
     if (existing) {
       db.prepare(`
-        UPDATE session_ai_analyses SET status = 'running', error = NULL, analysis = NULL, original = NULL, warnings = NULL,
-          menu_id = NULL, imported_notes_at = NULL, imported_intake_at = NULL, imported_menu_at = NULL, updated_at = ?
+        UPDATE session_ai_analyses SET status = 'running', mode = ?, error = NULL, analysis = NULL, original = NULL, warnings = NULL,
+          menu_id = NULL, base_menu_id = NULL, imported_notes_at = NULL, imported_intake_at = NULL, imported_menu_at = NULL, updated_at = ?
         WHERE id = ?
-      `).run(now, existing.id);
+      `).run(mode, now, existing.id);
     } else {
       db.prepare(`
-        INSERT INTO session_ai_analyses (session_id, client_id, status, created_at, updated_at) VALUES (?, ?, 'running', ?, ?)
-      `).run(session.id, session.client_id, now, now);
+        INSERT INTO session_ai_analyses (session_id, client_id, status, mode, created_at, updated_at) VALUES (?, ?, 'running', ?, ?, ?)
+      `).run(session.id, session.client_id, mode, now, now);
     }
     running.add(session.id);
-    analyzeSession(db, session.id)
+    (mode === 'follow_up' ? analyzeFollowUp : analyzeSession)(db, session.id)
       .then((r) => publish(db, 'session.analysis_ready', { entityType: 'session', entityId: session.id, payload: { ok: r.ok } }))
       .finally(() => running.delete(session.id));
     return res.status(202).json({ success: true, data: serialize(getRow(session.id)) });
@@ -100,17 +115,21 @@ router.put('/sessions/:id/analysis', (req, res) => {
   try {
     const row = getRow(req.params.id);
     if (!row || row.status !== 'draft') return fail(res, 404, 'אין טיוטה לעריכה.');
-    const parsed = SessionAnalysisSchema.safeParse(req.body?.analysis);
+    const followUp = row.mode === 'follow_up';
+    const parsed = (followUp ? FollowUpSchema : SessionAnalysisSchema).safeParse(req.body?.analysis);
     if (!parsed.success) return fail(res, 400, `מבנה הטיוטה אינו תקין: ${parsed.error.issues.slice(0, 3).map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
     const session = db.prepare('SELECT * FROM sessions WHERE id = ?').get(row.session_id);
     const ctx = clientContext(db, session);
     const transcript = buildTranscript(db, row.session_id);
-    const { analysis, warnings } = applyGuards(parsed.data, {
-      clientText: transcript.clientText,
-      kbIndex: kbFoodIndex(db),
-      fallbackCalories: ctx.tdee ? ctx.tdee - 400 : null,
-    });
-    const allWarnings = [...transcriptWarnings(transcript.text), ...warnings];
+    const { analysis, warnings } = followUp
+      // changes are resolved against the menu the analysis was based on
+      ? applyFollowUpGuards(parsed.data, { clientText: transcript.clientText, menu: menuById(db, row.base_menu_id) })
+      : applyGuards(parsed.data, {
+        clientText: transcript.clientText,
+        kbIndex: kbFoodIndex(db),
+        fallbackCalories: ctx.tdee ? ctx.tdee - 400 : null,
+      });
+    const allWarnings = [...transcriptWarnings(transcript.rawText), ...warnings];
     db.prepare('UPDATE session_ai_analyses SET analysis = ?, warnings = ?, updated_at = ? WHERE id = ?')
       .run(JSON.stringify(analysis), JSON.stringify(allWarnings), nowUtcISO(), row.id);
     return ok(res, serialize(getRow(row.session_id)));

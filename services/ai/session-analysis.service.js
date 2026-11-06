@@ -170,7 +170,9 @@ function buildTranscript(db, sessionId) {
   const parts = [];
   const clientLines = [];
   let labeled = 0;
+  const raw = [];
   for (const [i, r] of recs.entries()) {
+    raw.push(r.transcript);
     const { dietitian } = speakerMap(r);
     if (recs.length > 1) parts.push(`--- הקלטה ${i + 1} ---`);
     for (const para of r.transcript.split(/\n\s*\n/)) {
@@ -184,6 +186,7 @@ function buildTranscript(db, sessionId) {
   }
   return {
     text: parts.join('\n\n'),
+    rawText: raw.join('\n\n'), // as transcribed / edited, without our DIETITIAN / CLIENT labels
     recordingIds: recs.map((r) => r.id),
     clientText: clientLines.join(' '),
     diarized: labeled > 0,
@@ -445,7 +448,7 @@ async function analyzeSession(db, sessionId) {
       clientText: transcript.clientText, kbIndex: kbFoodIndex(db), fallbackCalories: ctx.tdee ? ctx.tdee - 400 : null,
     });
     warnings.push(...applyWeekendDefaults(db, analysis));
-    warnings.unshift(...transcriptWarnings(transcript.text));
+    warnings.unshift(...transcriptWarnings(transcript.rawText));
     if (!kbCtx.loaded) warnings.unshift('מאגר הידע לא נטען: המנות לא הותאמו לשיטה.');
     if (!transcript.diarized) warnings.unshift('התמלול ללא הפרדת דוברים: העובדות הוסקו מהתוכן.');
     set({
@@ -476,6 +479,6 @@ function expireStale(db, row) {
 
 module.exports = {
   SessionAnalysisSchema, ModelAnalysisSchema, toInternal, MEALS, SLOTS, BARRIER_TYPES, DEFAULT_DIETITIAN,
-  speakerMap, buildTranscript, transcriptWarnings, applyWeekendDefaults, buildKbContext, applyGuards, quoteStatus, kbFoodIndex,
+  speakerMap, buildTranscript, transcriptWarnings, applyWeekendDefaults, norm, FREE_MEAL_RE, METHOD_PROMPT, buildKbContext, applyGuards, quoteStatus, kbFoodIndex,
   analyzeSession, expireStale, clientContext,
 };

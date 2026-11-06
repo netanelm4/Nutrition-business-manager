@@ -6,215 +6,12 @@ import {
   discardSessionAnalysis, fetchSessionRecordings, setRecordingSpeakers,
 } from '../../lib/api';
 import {
-  ANALYSIS_TITLE, MEAL_LABEL, SLOT_LABEL, BARRIER_LABEL, ANAMNESIS_LABEL, QUOTE_STATUS, IMPORT_TARGETS, INTAKE_FIELD_LABEL,
+  ANALYSIS_TITLE, IMPORT_TARGETS, FOLLOWUP_IMPORT_TARGETS, INTAKE_FIELD_LABEL, MODE_LABEL,
 } from '../../constants/session-analysis';
-
-// ─── Small building blocks (dark theme tokens, RTL) ───────────────────────────
-
-const box = { border: '1px solid var(--line)', borderRadius: 'var(--r-md)', background: 'var(--surface-1)', padding: 12 };
-const input = {
-  width: '100%', borderRadius: 'var(--r-sm)', border: '1px solid var(--line)', background: 'var(--surface-2)',
-  color: 'var(--ink-1)', padding: '6px 8px', fontSize: 13, fontFamily: 'inherit',
-};
-const btn = (variant) => ({
-  display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 'var(--r-md)', fontSize: 13,
-  cursor: 'pointer', border: '1px solid var(--line)', background: 'var(--surface-2)', color: 'var(--ink-1)',
-  ...(variant === 'primary' ? { background: 'var(--blue)', color: 'var(--on-accent)', borderColor: 'var(--blue)' } : {}),
-  ...(variant === 'ghost' ? { background: 'none', borderColor: 'transparent', color: 'var(--ink-3)', padding: '4px 6px' } : {}),
-});
-const muted = { fontSize: 12, color: 'var(--ink-3)', margin: 0 };
-
-function Section({ title, children, defaultOpen = true, count }) {
-  return (
-    <details open={defaultOpen} style={box}>
-      <summary style={{ cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: 'var(--ink-1)' }}>
-        {title}{count !== undefined && <span style={{ ...muted, display: 'inline', marginInlineStart: 6 }}>({count})</span>}
-      </summary>
-      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>{children}</div>
-    </details>
-  );
-}
-
-/** One item per line ↔ string[] */
-function LinesField({ value, onChange, rows = 3, placeholder }) {
-  return (
-    <textarea dir="rtl" rows={rows} style={{ ...input, resize: 'vertical', lineHeight: 1.6 }} placeholder={placeholder}
-      value={(value || []).join('\n')} onChange={(e) => onChange(e.target.value.split('\n').map((l) => l.trimStart()).filter((l, i, a) => l || i < a.length - 1))} />
-  );
-}
-const cleanLines = (arr) => (arr || []).map((l) => l.trim()).filter(Boolean);
-
-/** Drop empty lines left while typing before the draft goes to the server. */
-function cleanDraft(d) {
-  const p = d.meal_plan;
-  return {
-    ...d,
-    meal_plan: {
-      ...p,
-      meals: p.meals.map((m) => ({ ...m, slots: m.slots.map((s) => ({ ...s, options: s.options.filter((o) => `${o.amount} ${o.food}`.trim()) })) })),
-      daily_basket: { ...p.daily_basket, suggested_items: cleanLines(p.daily_basket.suggested_items) },
-      friday: { guidelines: cleanLines(p.friday.guidelines) },
-      saturday: { guidelines: cleanLines(p.saturday.guidelines) },
-      general_notes: cleanLines(p.general_notes),
-    },
-    habits: d.habits.filter((h) => h.habit.trim()),
-    barriers: d.barriers.filter((b) => b.description.trim()),
-    open_questions: cleanLines(d.open_questions),
-  };
-}
-
-function QuoteBadge({ status, quote }) {
-  const meta = QUOTE_STATUS[status];
-  if (!quote && !meta) return null;
-  return (
-    <p style={{ ...muted, fontSize: 11.5 }}>
-      {quote && <span>"{quote}"</span>}
-      {meta && <span style={{ color: meta.tone, marginInlineStart: 6 }}>· {meta.label}</span>}
-    </p>
-  );
-}
-
-// ─── Editors ──────────────────────────────────────────────────────────────────
-
-function AnamnesisEditor({ value, onChange }) {
-  const setList = (key, list) => onChange({ ...value, [key]: list });
-  return (
-    <>
-      <textarea dir="rtl" rows={4} style={{ ...input, lineHeight: 1.6 }} value={value.summary}
-        onChange={(e) => onChange({ ...value, summary: e.target.value })} />
-      {Object.entries(ANAMNESIS_LABEL).map(([key, label]) => (value[key]?.length ? (
-        <div key={key}>
-          <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)', margin: '4px 0' }}>{label}</p>
-          {value[key].map((f, i) => (
-            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start', marginBottom: 6 }}>
-              <div style={{ flex: 1 }}>
-                <input dir="rtl" style={input} value={f.fact}
-                  onChange={(e) => setList(key, value[key].map((x, j) => (j === i ? { ...x, fact: e.target.value } : x)))} />
-                <QuoteBadge status={f.quote_status} quote={f.quote} />
-              </div>
-              <button type="button" style={btn('ghost')} aria-label="הסרה" onClick={() => setList(key, value[key].filter((_, j) => j !== i))}>✕</button>
-            </div>
-          ))}
-        </div>
-      ) : null))}
-    </>
-  );
-}
-
-function BarriersEditor({ value, onChange }) {
-  return (
-    <>
-      {value.map((b, i) => (
-        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-          <select style={{ ...input, width: 150, flexShrink: 0 }} value={b.type}
-            onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}>
-            {Object.entries(BARRIER_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
-          </select>
-          <div style={{ flex: 1 }}>
-            <input dir="rtl" style={input} value={b.description}
-              onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))} />
-            <QuoteBadge status={b.quote_status} quote={b.quote} />
-          </div>
-          <button type="button" style={btn('ghost')} aria-label="הסרה" onClick={() => onChange(value.filter((_, j) => j !== i))}>✕</button>
-        </div>
-      ))}
-      <button type="button" style={{ ...btn('ghost'), alignSelf: 'flex-start', color: 'var(--blue)' }}
-        onClick={() => onChange([...value, { type: 'other', description: '', quote: '' }])}>+ הוספת חסם</button>
-    </>
-  );
-}
-
-const optionLine = (o) => [o.amount, o.food].filter(Boolean).join(' ').trim();
-
-function MealPlanEditor({ value, onChange }) {
-  const set = (patch) => onChange({ ...value, ...patch });
-  const setMeal = (i, patch) => set({ meals: value.meals.map((m, j) => (j === i ? { ...m, ...patch } : m)) });
-  const setSlot = (mi, si, patch) => setMeal(mi, { slots: value.meals[mi].slots.map((s, j) => (j === si ? { ...s, ...patch } : s)) });
-  const b = value.daily_basket;
-  return (
-    <>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-        <label style={muted}>יעד קלורי משוער</label>
-        <input type="number" dir="ltr" style={{ ...input, width: 90 }} value={value.calorie_target_estimate}
-          onChange={(e) => set({ calorie_target_estimate: Number(e.target.value) })} />
-        <span style={{ ...muted, flex: 1 }}>{value.calorie_rationale}</span>
-      </div>
-
-      {value.meals.map((meal, mi) => (
-        <div key={mi} style={{ ...box, background: 'var(--surface-2)', padding: 10 }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-            <strong style={{ fontSize: 13, color: 'var(--ink-1)' }}>{MEAL_LABEL[meal.meal] || meal.meal}</strong>
-            <input dir="rtl" placeholder="שעה" style={{ ...input, width: 110 }} value={meal.time_hint}
-              onChange={(e) => setMeal(mi, { time_hint: e.target.value })} />
-          </div>
-          {meal.slots.map((slot, si) => {
-            const outside = slot.options.filter((o) => o.in_kb === false).map((o) => o.food);
-            return (
-              <div key={si} style={{ display: 'grid', gridTemplateColumns: '80px 64px 1fr', gap: 6, alignItems: 'start', marginBottom: 6 }}>
-                <span style={{ fontSize: 12.5, color: 'var(--ink-2)', paddingTop: 6 }}>{SLOT_LABEL[slot.slot] || slot.slot}</span>
-                <input type="number" step="0.5" dir="ltr" aria-label="מנות" style={input} value={slot.portions}
-                  onChange={(e) => setSlot(mi, si, { portions: Number(e.target.value) })} />
-                <div>
-                  <LinesField rows={Math.max(2, slot.options.length)} value={slot.options.map(optionLine)}
-                    onChange={(lines) => setSlot(mi, si, { options: lines.map((l) => ({ amount: '', food: l })) })} />
-                  {outside.length > 0 && <p style={{ ...muted, color: 'var(--amber-ink)', fontSize: 11.5 }}>מחוץ למאגר: {outside.join(', ')}</p>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ))}
-
-      <div style={{ ...box, background: 'var(--surface-2)', padding: 10 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-          <strong style={{ fontSize: 13, color: 'var(--ink-1)' }}>סל יומי</strong>
-          <select style={{ ...input, width: 90 }} value={b.options_per_day}
-            onChange={(e) => set({ daily_basket: { ...b, options_per_day: Number(e.target.value) } })}>
-            <option value={2}>2 אופציות</option>
-            <option value={3}>3 אופציות</option>
-          </select>
-          <input type="number" dir="ltr" style={{ ...input, width: 70 }} value={b.kcal_per_option}
-            onChange={(e) => set({ daily_basket: { ...b, kcal_per_option: Number(e.target.value) } })} />
-          <span style={muted}>קק"ל לאופציה (100-120)</span>
-        </div>
-        <LinesField rows={3} value={b.suggested_items} onChange={(items) => set({ daily_basket: { ...b, suggested_items: items } })} />
-      </div>
-
-      {[['friday', 'יום שישי'], ['saturday', 'יום שבת']].map(([key, label]) => (
-        <div key={key}>
-          <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)', margin: '2px 0 4px' }}>{label}</p>
-          <LinesField rows={3} value={value[key].guidelines} onChange={(g) => set({ [key]: { guidelines: g } })} />
-        </div>
-      ))}
-      <div>
-        <p style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink-2)', margin: '2px 0 4px' }}>דגשים כלליים</p>
-        <LinesField rows={2} value={value.general_notes} onChange={(n) => set({ general_notes: n })} />
-      </div>
-    </>
-  );
-}
-
-function HabitsEditor({ value, onChange }) {
-  return (
-    <>
-      {value.map((h, i) => (
-        <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            <input dir="rtl" placeholder="הרגל" style={input} value={h.habit}
-              onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, habit: e.target.value } : x)))} />
-            <input dir="rtl" placeholder="יעד מדיד" style={input} value={h.target}
-              onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, target: e.target.value } : x)))} />
-          </div>
-          <button type="button" style={btn('ghost')} aria-label="הסרה" onClick={() => onChange(value.filter((_, j) => j !== i))}>✕</button>
-        </div>
-      ))}
-      {value.length < 4 && (
-        <button type="button" style={{ ...btn('ghost'), alignSelf: 'flex-start', color: 'var(--blue)' }}
-          onClick={() => onChange([...value, { habit: '', target: '', quote: '' }])}>+ הוספת הרגל</button>
-      )}
-    </>
-  );
-}
+import FollowUpReview, { cleanFollowUpDraft } from './FollowUpReview';
+import {
+  box, btn, muted, Section, LinesField, cleanDraft, AnamnesisEditor, BarriersEditor, MealPlanEditor, HabitsEditor,
+} from './analysis-ui';
 
 // ─── Speaker roles per transcribed recording ──────────────────────────────────
 
@@ -257,25 +54,27 @@ export default function SessionAIDraftCard({ sessionId, clientId }) {
   const [error, setError] = useState('');
   const [importInfo, setImportInfo] = useState(null);
   const [confirmRerun, setConfirmRerun] = useState(false);
+  const [modeChoice, setModeChoice] = useState(null); // null → the server's suggestion
 
   // take the server copy whenever it changes (new run / saved)
   const serverJson = row?.analysis ? JSON.stringify(row.analysis) : null;
   useEffect(() => { setDraft(row?.analysis ? JSON.parse(serverJson) : null); }, [serverJson]); // eslint-disable-line react-hooks/exhaustive-deps
   const dirty = !!draft && JSON.stringify(draft) !== serverJson;
+  const clean = (d) => (row?.mode === 'follow_up' ? cleanFollowUpDraft(d) : cleanDraft(d));
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: key });
   const onErr = (err) => setError(err.message || 'שגיאה');
 
   const run = useMutation({
-    mutationFn: (force) => runSessionAnalysis(sessionId, { force }),
+    mutationFn: (force) => runSessionAnalysis(sessionId, { force, mode: modeChoice || data?.suggested_mode }),
     onSuccess: () => { setError(''); setConfirmRerun(false); setImportInfo(null); refresh(); },
     onError: onErr,
   });
-  const save = useMutation({ mutationFn: () => saveSessionAnalysis(sessionId, cleanDraft(draft)), onSuccess: () => { setError(''); refresh(); }, onError: onErr });
+  const save = useMutation({ mutationFn: () => saveSessionAnalysis(sessionId, clean(draft)), onSuccess: () => { setError(''); refresh(); }, onError: onErr });
   const discard = useMutation({ mutationFn: () => discardSessionAnalysis(sessionId), onSuccess: refresh, onError: onErr });
   const doImport = useMutation({
     mutationFn: async (targets) => {
-      if (dirty) await saveSessionAnalysis(sessionId, cleanDraft(draft)); // import exactly what is on screen
+      if (dirty) await saveSessionAnalysis(sessionId, clean(draft)); // import exactly what is on screen
       return importSessionAnalysis(sessionId, targets);
     },
     onSuccess: (res) => {
@@ -290,12 +89,28 @@ export default function SessionAIDraftCard({ sessionId, clientId }) {
   const status = row?.status;
   const imported = row?.imported || {};
   const anyImported = !!(imported.notes || imported.intake || imported.menu);
+  const followUp = row?.mode === 'follow_up';
+  const targets = followUp ? FOLLOWUP_IMPORT_TARGETS : IMPORT_TARGETS;
 
   return (
     <section dir="rtl" style={{ ...box, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--ink-1)' }}>{ANALYSIS_TITLE}</h3>
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--ink-1)' }}>
+          {ANALYSIS_TITLE}
+          {row?.mode && (
+            <span style={{ marginInlineStart: 8, fontSize: 11.5, fontWeight: 500, padding: '2px 8px', borderRadius: 'var(--r-pill)', background: 'var(--blue-soft)', color: 'var(--blue-ink)' }}>
+              {MODE_LABEL[row.mode]}
+            </span>
+          )}
+        </h3>
         <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          {status !== 'running' && data?.can_analyze && !confirmRerun && (
+            <select aria-label="סוג הניתוח" style={{ ...btn(), padding: '5px 8px' }}
+              value={modeChoice || row?.mode || data?.suggested_mode || 'intake'} onChange={(e) => setModeChoice(e.target.value)}>
+              <option value="intake">{MODE_LABEL.intake}</option>
+              <option value="follow_up">{MODE_LABEL.follow_up}</option>
+            </select>
+          )}
           {status !== 'running' && data?.can_analyze && !confirmRerun && (
             <button type="button" style={btn(row ? undefined : 'primary')} disabled={run.isPending}
               onClick={() => (anyImported ? setConfirmRerun(true) : run.mutate(false))}>
@@ -337,6 +152,9 @@ export default function SessionAIDraftCard({ sessionId, clientId }) {
             </ul>
           )}
 
+          {followUp ? (
+            <FollowUpReview draft={draft} setDraft={setDraft} menuTitle={data?.base_menu?.title || data?.active_menu?.title} />
+          ) : (<>
           <Section title="אנמנזה וסיכום">
             <AnamnesisEditor value={draft.anamnesis} onChange={(anamnesis) => setDraft({ ...draft, anamnesis })} />
           </Section>
@@ -352,6 +170,7 @@ export default function SessionAIDraftCard({ sessionId, clientId }) {
           <Section title="לבירור בפגישה הבאה" defaultOpen={false} count={draft.open_questions.length}>
             <LinesField rows={3} value={draft.open_questions} onChange={(open_questions) => setDraft({ ...draft, open_questions })} />
           </Section>
+          </>)}
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', borderTop: '1px solid var(--hairline)', paddingTop: 12 }}>
             {dirty && (
@@ -360,7 +179,7 @@ export default function SessionAIDraftCard({ sessionId, clientId }) {
                 {save.isPending ? 'שומר...' : 'שמירת שינויים'}
               </button>
             )}
-            {IMPORT_TARGETS.map((t) => (imported[t.key] ? (
+            {targets.map((t) => (imported[t.key] ? (
               <span key={t.key} style={{ fontSize: 12.5, color: 'var(--green-ink)' }}>
                 ✓ {t.done}
                 {t.key === 'menu' && row.menu_id && (
@@ -371,7 +190,7 @@ export default function SessionAIDraftCard({ sessionId, clientId }) {
               <button key={t.key} type="button" style={btn()} disabled={doImport.isPending} onClick={() => doImport.mutate([t.key])}>{t.label}</button>
             )))}
             {!anyImported && (
-              <button type="button" style={btn('primary')} disabled={doImport.isPending} onClick={() => doImport.mutate(['notes', 'intake', 'menu'])}>
+              <button type="button" style={btn('primary')} disabled={doImport.isPending} onClick={() => doImport.mutate(targets.map((t) => t.key))}>
                 ייבוא הכל
               </button>
             )}
