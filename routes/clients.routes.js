@@ -9,6 +9,7 @@ const { parseJsonArray } = require('../utils/parseJson');
 
 const { ensureActiveEngagement, closeActiveEngagements, generateWeightToken } = require('../services/client-lifecycle.service');
 const { generateProcessSummary } = require('../services/ai/generators');
+const { endClientProcess, closeClientOpenWork, runAutoCompletion, evaluateCompletion } = require('../services/client-completion.service');
 
 // Fire-and-forget: generate the process summary when a process ends
 function triggerProcessSummary(clientId) {
@@ -206,6 +207,17 @@ router.post('/', (req, res) => {
   }
 });
 
+// ─── GET /api/clients/auto-complete/preview — dry run, changes nothing ───────
+router.get('/auto-complete/preview', (req, res) => {
+  try {
+    const rows = db.prepare("SELECT * FROM clients WHERE status IN ('active', 'ending_soon') ORDER BY full_name").all();
+    return ok(res, rows.map((c) => ({ id: c.id, full_name: c.full_name, ...evaluateCompletion(db, c) })));
+  } catch (err) {
+    console.error('[GET /clients/auto-complete/preview]', err);
+    return fail(res, 500, 'Failed to preview auto-completion.');
+  }
+});
+
 // ─── GET /api/clients/:id ─────────────────────────────────────────────────────
 
 function attachProtocol(client) {
@@ -307,6 +319,7 @@ router.put('/:id', (req, res) => {
     // If status just changed to 'ended', fire-and-forget process summary generation
     if (updates.status === CLIENT_STATUS.ENDED && client.status !== CLIENT_STATUS.ENDED) {
       closeActiveEngagements(db, Number(req.params.id));
+      closeClientOpenWork(db, Number(req.params.id));
       if (!updated.process_summary) {
         triggerProcessSummary(req.params.id);
       }
@@ -598,6 +611,29 @@ router.get('/:id/whatsapp-log', (req, res) => {
   }
 });
 
+// ─── POST /api/clients/auto-complete/run — apply the completion rule now ─────
+// (normally the daily client_auto_complete job)
+router.post('/auto-complete/run', (req, res) => {
+  try {
+    return ok(res, runAutoCompletion(db));
+  } catch (err) {
+    console.error('[POST /clients/auto-complete/run]', err);
+    return fail(res, 500, 'Failed to run auto-completion.');
+  }
+});
+
+// ─── GET /api/clients/:id/completion — where the client stands on the rule ───
+router.get('/:id/completion', (req, res) => {
+  try {
+    const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id);
+    if (!client) return fail(res, 404, 'Client not found.');
+    return ok(res, evaluateCompletion(db, client));
+  } catch (err) {
+    console.error('[GET /clients/:id/completion]', err);
+    return fail(res, 500, 'Failed to evaluate completion.');
+  }
+});
+
 // ─── POST /api/clients/:id/stop ───────────────────────────────────────────────
 
 router.post('/:id/stop', (req, res) => {
@@ -610,17 +646,8 @@ router.post('/:id/stop', (req, res) => {
     const client = db.prepare('SELECT id, status, process_summary FROM clients WHERE id = ?').get(req.params.id);
     if (!client) return fail(res, 404, 'Client not found.');
 
-    db.prepare(`
-      UPDATE clients
-      SET status = 'ended',
-          stop_reason = ?,
-          stop_reason_text = ?,
-          stop_date = date('now'),
-          stopped_at = datetime('now')
-      WHERE id = ?
-    `).run(reason, reason_text || null, req.params.id);
-
-    closeActiveEngagements(db, Number(req.params.id));
+    // Status, engagement and open scheduling work (inbox, placeholders, jobs)
+    endClientProcess(db, Number(req.params.id), { reason, reasonText: reason_text || null });
 
     // Same side effect as PUT status=ended: generate the process summary once
     if (client.status !== CLIENT_STATUS.ENDED && !client.process_summary) {

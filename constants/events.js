@@ -24,6 +24,11 @@ const SESSION_TOLERANCE_DAYS = 3;
 // (Replaces alerts based on the theoretical session_windows schedule.)
 const SESSION_SLA_DAYS = 14;
 
+// Automatic completion: once the 6th session of the process was held, the
+// client stays active until the later of (6th held session + this many days)
+// and the process end date, then moves to "ended".
+const COMPLETION_GRACE_DAYS = 14;
+
 // Total duration of a standard client process in days (3 months)
 const PROCESS_DURATION_DAYS = 90;
 
@@ -42,6 +47,7 @@ module.exports = {
   SESSION_INTERVAL_DAYS,
   SESSION_TOLERANCE_DAYS,
   SESSION_SLA_DAYS,
+  COMPLETION_GRACE_DAYS,
   PROCESS_DURATION_DAYS,
   MENU_ALERT_THRESHOLD_DAYS,
   ENDING_SOON_THRESHOLD_DAYS,

@@ -454,6 +454,40 @@ async function run() {
     assert('Booking links served from env', cfg.data?.followupLink === FOLLOWUP_LINK, JSON.stringify(cfg));
   }
 
+  // ── Client completion: API (rule details: scripts/test-auto-complete.js) ──
+  console.log('\n── Client completion ──');
+  {
+    const ilDay = (offset) => new Date(Date.now() + offset * 864e5).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });
+    const cid = (await req('POST', '/clients', { full_name: 'סיום אוטומטי', phone: '0521330001', start_date: ilDay(-100) })).data.id;
+    for (let n = 1; n <= 6; n++) {
+      await req('POST', `/clients/${cid}/sessions`, { session_date: ilDay(-100 + n * 12), status: 'held', weight: 70 });
+    }
+    // 6th held 28 days ago; push the end date before it → completeAt = 6th + 14 (passed)
+    await req('PUT', `/clients/${cid}`, { process_end_date: ilDay(-40) });
+    const preview = await req('GET', '/clients/auto-complete/preview');
+    assert('Preview lists the client as due without changing it', preview.data?.some((p) => p.id === cid && p.eligible)
+      && (await req('GET', `/clients/${cid}`)).data.status === 'active');
+    const ev = await req('GET', `/clients/${cid}/completion`);
+    assert('Completion status: 6 held, due', ev.data?.heldCount === 6 && ev.data?.eligible === true && ev.data?.completeAt === ilDay(-14), JSON.stringify(ev.data));
+    await req('POST', '/inbox/refresh');
+    const run = await req('POST', '/clients/auto-complete/run');
+    assert('Auto-complete run completes the client', run.success && run.data.completed.some((c) => c.clientId === cid), JSON.stringify(run.data));
+    const c = (await req('GET', `/clients/${cid}`)).data;
+    assert('Client moved to ended (out of the active tab)', c.status === 'ended' && c.completed_automatically === 1, c.status);
+    const active = (await req('GET', '/clients')).data.filter((x) => x.status === 'active');
+    assert('Not listed among active clients', !active.some((x) => x.id === cid));
+    const open = (await req('GET', '/inbox')).data.items.filter((i) => i.client_id === cid && ['session_due', 'process_ended', 'process_ending'].includes(i.kind));
+    assert('No open scheduling items for the client', open.length === 0, JSON.stringify(open));
+
+    // Manual stop goes through the same cleanup
+    const m = (await req('POST', '/clients', { full_name: 'עצירה ידנית', phone: '0521330002', start_date: ilDay(-60) })).data.id;
+    await req('POST', '/inbox/refresh');
+    const before = (await req('GET', '/inbox')).data.items.some((i) => i.client_id === m && i.kind === 'session_due');
+    const stop = await req('POST', `/clients/${m}/stop`, { reason: 'cant_continue' });
+    const after = (await req('GET', '/inbox')).data.items.some((i) => i.client_id === m && i.kind === 'session_due');
+    assert('Stop → ended and its session_due item closed immediately', before && stop.success && stop.data.status === 'ended' && !after, JSON.stringify({ before, after, stop: stop.data?.status }));
+  }
+
   // ── Session date editing + rolling 14-day SLA ─────────────────────────────
   console.log('\n── Session dates and rolling SLA ──');
   {

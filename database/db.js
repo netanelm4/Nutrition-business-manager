@@ -2184,4 +2184,7 @@ try {
 // Agent proposals carry the action to execute on approval
 try { db.exec('ALTER TABLE action_queue ADD COLUMN payload TEXT'); } catch { /* exists */ }
 
+// Automatic completion (6 sessions + 14-day grace) marks how a process ended
+try { db.exec('ALTER TABLE clients ADD COLUMN completed_automatically INTEGER NOT NULL DEFAULT 0'); } catch { /* exists */ }
+
 module.exports = db;

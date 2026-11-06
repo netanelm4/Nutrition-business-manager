@@ -2,6 +2,7 @@ const {
   nowUtcISO, addHoursUtcISO, israelLocalToUtcISO, israelDateOf, todayISO,
 } = require('../utils/dates');
 const { runMorningBrief, morningBriefDueAt } = require('./agent/morning-brief.service');
+const { runAutoCompletion } = require('./client-completion.service');
 const { upsertAction } = require('./action-queue.service');
 const { sendMeetingReminder } = require('./reminders.service');
 const { publish } = require('./event-bus.service');
@@ -182,6 +183,17 @@ function reconcileMorningBrief(database) {
   return { scheduled: result === 'created' ? 1 : 0 };
 }
 
+// ── Client auto-completion: once per Israel day at 03:00 (late start → now) ──
+function reconcileAutoCompletion(database) {
+  const date = todayISO();
+  const due = israelLocalToUtcISO(date, '03:00');
+  const now = nowUtcISO();
+  const result = scheduleJob(database, {
+    type: 'client_auto_complete', runAt: due < now ? now : due, payload: { date }, dedupeKey: `client_auto_complete:${date}`,
+  });
+  return { scheduled: result === 'created' ? 1 : 0 };
+}
+
 /** Derive the jobs that should exist from current data. Idempotent. */
 function reconcileJobs(database) {
   const stats = {
@@ -190,9 +202,10 @@ function reconcileJobs(database) {
     freezeEnds: reconcileFreezeEnds(database),
     aiBackfill: reconcileAIBackfill(database),
     morningBrief: reconcileMorningBrief(database),
+    autoCompletion: reconcileAutoCompletion(database),
   };
   const created = stats.reminders.scheduled + stats.menuSla.scheduled + stats.freezeEnds.scheduled
-    + stats.aiBackfill.scheduled + stats.morningBrief.scheduled;
+    + stats.aiBackfill.scheduled + stats.morningBrief.scheduled + stats.autoCompletion.scheduled;
   if (created) console.log(`[jobs] Scheduled ${created} job(s)`, JSON.stringify(stats));
   return stats;
 }
@@ -201,6 +214,13 @@ function reconcileJobs(database) {
 
 const HANDLERS = {
   meeting_reminder_24h: async (database, { meetingId }) => sendMeetingReminder(database, meetingId),
+
+  client_auto_complete: async (database, { date }) => {
+    // A missed day is evaluated on the next run (the rule uses "after", not "on")
+    if (date !== todayISO()) return { skipped: 'stale_date' };
+    const r = runAutoCompletion(database);
+    return { checked: r.checked, completed: r.completed.map((c) => c.clientId) };
+  },
 
   morning_brief: async (database, { date }) => {
     if (date !== todayISO()) return { skipped: 'stale_date' }; // a missed day is not briefed late
