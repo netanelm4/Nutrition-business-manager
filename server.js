@@ -25,6 +25,7 @@ const adminRouter    = require('./routes/admin.routes');
 const aiSummaryRouter  = require('./routes/ai-summary.routes');
 const googleRouter     = require('./routes/google.routes');
 const agentRouter           = require('./routes/agent.routes');
+const recordingsRouter      = require('./routes/recordings.routes');
 const engagementsRouter     = require('./routes/engagements.routes');
 const foodBankRouter        = require('./routes/food-bank.routes');
 const foodBankPdfRouter     = require('./routes/food-bank-pdf.routes');
@@ -81,6 +82,7 @@ app.use('/api', broadcastMutations(() => scheduleReconcile(db)));
 
 app.use('/api/dashboard',        dashboardRouter);
 app.use('/api/clients',          clientsRouter);
+app.use('/api',                  recordingsRouter); // /sessions/:id/recording, /recordings/:id/audio
 app.use('/api/sessions',         sessionsRouter);
 app.use('/api/session-windows',  sessionWindowsRouter);
 app.use('/api/leads',            leadsRouter);

@@ -8,6 +8,7 @@ const { isValidSessionStatus, autoMarkHeldSessions } = require('../services/sess
 const { publish } = require('../services/event-bus.service');
 
 
+const { filesForSessions, removeFiles } = require('../services/recordings.service');
 const router = express.Router();
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -243,7 +244,9 @@ router.delete('/:id', (req, res) => {
   try {
     const session = db.prepare('SELECT id FROM sessions WHERE id = ?').get(req.params.id);
     if (!session) return fail(res, 404, 'Session not found.');
+    const recordingFiles = filesForSessions(db, [session.id]); // rows cascade with the session
     db.prepare('DELETE FROM sessions WHERE id = ?').run(req.params.id);
+    removeFiles(recordingFiles);
     return ok(res, { deleted: true });
   } catch (err) {
     console.error('[DELETE /sessions/:id]', err);

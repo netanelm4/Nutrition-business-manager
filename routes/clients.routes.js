@@ -9,6 +9,7 @@ const { parseJsonArray } = require('../utils/parseJson');
 
 const { ensureActiveEngagement, closeActiveEngagements, generateWeightToken } = require('../services/client-lifecycle.service');
 const { generateProcessSummary } = require('../services/ai/generators');
+const { filesForClient, removeFiles } = require('../services/recordings.service');
 const { endClientProcess, closeClientOpenWork, runAutoCompletion, evaluateCompletion } = require('../services/client-completion.service');
 
 // Fire-and-forget: generate the process summary when a process ends
@@ -351,7 +352,9 @@ router.delete('/:id', (req, res) => {
       }
       db.prepare('DELETE FROM clients WHERE id = ?').run(id);
     });
+    const recordingFiles = filesForClient(db, Number(req.params.id)); // rows cascade with the client
     deleteClient(Number(req.params.id));
+    removeFiles(recordingFiles);
 
     return ok(res, { id: Number(req.params.id) });
   } catch (err) {

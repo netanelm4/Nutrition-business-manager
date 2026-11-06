@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import SessionRecordingCard from './SessionRecordingCard';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createSession, updateSession, generateInsights, fetchProtocols, personalizeProtocol, generateCheckinMessage } from '../../lib/api';
 import { EditableTaskList } from './TaskList';
@@ -258,6 +259,9 @@ export default function SessionModal({ clientId, session, sessionNumber, onSucce
           />
         </div>
       </div>
+
+      {/* Recording — only for a saved session (needs its id) */}
+      {isEdit && <SessionRecordingCard sessionId={session.id} />}
 
       {/* Highlights */}
       <div className="flex flex-col gap-1">

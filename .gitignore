@@ -9,3 +9,4 @@ data/
 .playwright-mcp/
 *.png
 !client/public/*.png
+uploads/

@@ -186,6 +186,43 @@ export const closeEngagement   = (id)              => request('POST', `/engageme
 // ── Admin ─────────────────────────────────────────────────────────────────────
 export const repairAIAssessments = () => request('POST', '/admin/repair-ai-assessments');
 
+// ── Session recordings ───────────────────────────────────────────────────────
+export const fetchSessionRecordings = (sessionId) => request('GET', `/sessions/${sessionId}/recording`);
+export const deleteSessionRecording = (sessionId, recordingId) =>
+  request('DELETE', `/sessions/${sessionId}/recording/${recordingId}`);
+
+/**
+ * Upload audio (a recorded Blob or a chosen File). XHR for upload progress.
+ * @param {function} [onProgress] receives 0..1
+ */
+export function uploadSessionRecording(sessionId, file, { fileName, durationSeconds = 0, onProgress } = {}) {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append('duration_seconds', String(Math.round(durationSeconds || 0)));
+    form.append('audio', file, fileName || file.name || 'recording');
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE}/sessions/${sessionId}/recording`);
+    xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`);
+    if (onProgress) xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      if (xhr.status === 401) { localStorage.removeItem('auth_token'); window.location.href = '/'; return; }
+      let json = {};
+      try { json = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (json.success) resolve(json.data);
+      else reject(Object.assign(new Error(json.error || `HTTP ${xhr.status}`), { status: xhr.status }));
+    };
+    xhr.onerror = () => reject(new Error('שגיאת רשת בהעלאה'));
+    xhr.send(form);
+  });
+}
+
+/** Audio needs the auth header, so it is fetched into an object URL (revoke when done). */
+export async function fetchRecordingAudioUrl(audioUrl) {
+  const res = await fetch(audioUrl, { headers: { Authorization: `Bearer ${getToken()}` } });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
 // ── AI agent ──────────────────────────────────────────────────────────────────
 export const fetchAgentConversations = ()   => request('GET',    '/agent/conversations');
 export const fetchAgentConversation  = (id) => request('GET',    `/agent/conversations/${id}`);

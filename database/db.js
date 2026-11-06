@@ -2184,6 +2184,30 @@ try {
 // Agent proposals carry the action to execute on approval
 try { db.exec('ALTER TABLE action_queue ADD COLUMN payload TEXT'); } catch { /* exists */ }
 
+// Phase 8: session recordings (audio files on disk, metadata here).
+// session_id / client_id are INTEGER to match sessions.id / clients.id.
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_recordings (
+      id               TEXT    PRIMARY KEY,
+      session_id       INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      client_id        INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+      file_path        TEXT    NOT NULL,
+      file_name        TEXT    NOT NULL,
+      mime_type        TEXT    NOT NULL,
+      duration_seconds INTEGER DEFAULT 0,
+      file_size_bytes  INTEGER DEFAULT 0,
+      transcript       TEXT,
+      summary_insights TEXT,
+      created_at       TEXT    NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_session_recordings_session ON session_recordings(session_id);
+    CREATE INDEX IF NOT EXISTS idx_session_recordings_client  ON session_recordings(client_id);
+  `);
+} catch (err) {
+  console.error('[migration] session_recordings failed:', err.message);
+}
+
 // Automatic completion (6 sessions + 14-day grace) marks how a process ended
 try { db.exec('ALTER TABLE clients ADD COLUMN completed_automatically INTEGER NOT NULL DEFAULT 0'); } catch { /* exists */ }
 
