@@ -136,6 +136,46 @@ function weekendPattern(db) {
   return { friday: pick('friday'), saturday: pick('saturday') };
 }
 
+const WEEKEND_DEFAULT_MARK = 'ברירת מחדל מהשיטה, לא נדון בפגישה';
+
+/** Clean a recurring weekend line: drop the day header, fix "בוקר : x" → "בוקר: x". */
+function cleanWeekendLine(text) {
+  return String(text)
+    .replace(/^יום (שבת|שישי)\s*[-–(]*\s*/, '')
+    .replace(/[)(]\s*$/, '')
+    .replace(/\s+:\s*/g, ': ')
+    .replace(/\s*\.\s*$/, '')
+    .replace(/\s+,/g, ',')
+    .replace(/\s+[-–]\s+/g, ', ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * The method's default for a weekend day, built from the most common clean line
+ * per part of the day across Netanel's menus: basket rule, morning, lunch, evening.
+ * Lines with displaced numbers ("ערב*2 : …", "2 : …") are skipped.
+ */
+function weekendDefault(db, day) {
+  const sec = getKnowledgeBase(db)?.recurring_sections?.[day];
+  if (!sec) return [];
+  const buckets = { basket: new Map(), morning: new Map(), noon: new Map(), evening: new Map() };
+  for (const { text, clients } of sec.recurring_lines || []) {
+    if (/\*|\d\s*:|:\s*\d+\s*$|[(]\s*$/.test(text)) continue;
+    const line = cleanWeekendLine(text);
+    if (line.length < 4 || CHEAT_MEAL_RE.test(line)) continue;
+    const bucket = /סל יומי|הסל היומי/.test(line) ? 'basket'
+      : /^בוקר/.test(line) ? 'morning'
+        : /^צהריים/.test(line) ? 'noon'
+          : /^ערב/.test(line) ? 'evening' : null;
+    if (!bucket) continue;
+    const key = bucket === 'basket' ? line.replace(/^בלי/, 'אין').replace(/בלי סל היומי/, 'אין סל יומי') : line;
+    buckets[bucket].set(key, (buckets[bucket].get(key) || 0) + clients);
+  }
+  const top = (m) => [...m.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  return ['basket', 'morning', 'noon', 'evening'].map((b) => top(buckets[b])).filter(Boolean);
+}
+
 function mealStructures(db) {
   return getKnowledgeBase(db)?.meal_structures || null;
 }
@@ -166,6 +206,6 @@ function summary(db) {
 }
 
 module.exports = {
-  KB_ID, validate, sanitize, importKnowledgeBase, importFromFileIfNewer, getKnowledgeBase, summary,
-  foodsForSlot, dailyBasket, weekendPattern, mealStructures, portionDefinitions, guidelines,
+  KB_ID, CHEAT_MEAL_RE, validate, sanitize, importKnowledgeBase, importFromFileIfNewer, getKnowledgeBase, summary,
+  foodsForSlot, dailyBasket, weekendPattern, weekendDefault, WEEKEND_DEFAULT_MARK, mealStructures, portionDefinitions, guidelines,
 };

@@ -113,12 +113,31 @@ async function generateText({ task, system, prompt, messages, maxTokens }) {
  * Structured output validated against a zod schema. Returns the parsed object.
  * @throws AIRefusalError | AIOutputError
  */
+// Above this budget the SDK refuses a non-streaming request ("may take longer
+// than 10 minutes"), so long tasks (e.g. session_analysis) are streamed.
+const STREAM_ABOVE_TOKENS = 16000;
+
 async function generateStructured({ task, system, prompt, messages, schema, maxTokens }) {
-  const response = await getClient().beta.messages.parse({
-    ...requestParams(task, { maxTokens, format: betaZodOutputFormat(schema) }),
+  const format = betaZodOutputFormat(schema);
+  const params = {
+    ...requestParams(task, { maxTokens, format }),
     ...(system ? { system } : {}),
     messages: toMessages({ prompt, messages }),
-  });
+  };
+
+  if (params.max_tokens > STREAM_ABOVE_TOKENS && process.env.AI_MOCK !== '1') {
+    const response = await getClient().beta.messages.stream(params).finalMessage();
+    logUsage(task, response);
+    assertUsable(task, response);
+    const text = response.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
+    try {
+      return format.parse(text); // same zod validation as messages.parse()
+    } catch (err) {
+      throw new AIOutputError(`AI output for ${task} did not match its schema: ${err.message}`);
+    }
+  }
+
+  const response = await getClient().beta.messages.parse(params);
   logUsage(task, response);
   assertUsable(task, response);
   if (response.parsed_output == null) {

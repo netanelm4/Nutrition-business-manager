@@ -2232,6 +2232,30 @@ db.exec(`
   );
 `);
 
+// Phase 10: speaker roles per recording ({"dietitian": "דובר 1"}) and the clinical analysis draft
+try { db.exec('ALTER TABLE session_recordings ADD COLUMN speaker_map TEXT'); } catch { /* exists */ }
+db.exec(`
+  CREATE TABLE IF NOT EXISTS session_ai_analyses (
+    id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id         INTEGER NOT NULL UNIQUE REFERENCES sessions(id) ON DELETE CASCADE,
+    client_id          INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    status             TEXT    NOT NULL DEFAULT 'running'
+                       CHECK (status IN ('running', 'draft', 'failed', 'discarded')),
+    analysis           TEXT,             -- current (edited) draft, JSON
+    original           TEXT,             -- model output after guardrails, JSON
+    warnings           TEXT,             -- JSON array of Hebrew strings
+    recording_ids      TEXT,             -- JSON array
+    error              TEXT,
+    menu_id            INTEGER REFERENCES menus(id) ON DELETE SET NULL,
+    imported_notes_at  TEXT,
+    imported_intake_at TEXT,
+    imported_menu_at   TEXT,
+    analyzed_at        TEXT,
+    created_at         TEXT    NOT NULL,
+    updated_at         TEXT    NOT NULL
+  );
+`);
+
 // Automatic completion (6 sessions + 14-day grace) marks how a process ended
 try { db.exec('ALTER TABLE clients ADD COLUMN completed_automatically INTEGER NOT NULL DEFAULT 0'); } catch { /* exists */ }
 

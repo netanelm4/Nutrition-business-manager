@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import SessionRecordingCard from './SessionRecordingCard';
+import SessionAIDraftCard from './SessionAIDraftCard';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { formatDateHebrew } from '../../lib/dates';
 import { ALERT_STATE, SESSION_STATUS, SESSION_STATUS_META } from '../../constants/statuses';
@@ -233,6 +234,9 @@ function SessionItem({ session, client, windowAlerts, onSessionSaved, onSessionD
 
             {/* Recording */}
             <SessionRecordingCard sessionId={session.id} />
+
+            {/* Clinical analysis of the transcript → review + import */}
+            <SessionAIDraftCard sessionId={session.id} clientId={client.id} />
 
             {/* Check-in message */}
             <CheckinMessagePanel session={session} clientPhone={client.phone} />

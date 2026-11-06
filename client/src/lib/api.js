@@ -227,6 +227,16 @@ export async function fetchRecordingAudioUrl(audioUrl) {
   return URL.createObjectURL(await res.blob());
 }
 
+// ── Session clinical analysis (Phase 10) ──────────────────────────────────────
+export const fetchSessionAnalysis   = (sessionId) => request('GET', `/sessions/${sessionId}/analysis`);
+export const runSessionAnalysis     = (sessionId, { force = false } = {}) => request('POST', `/sessions/${sessionId}/analysis`, { force });
+export const saveSessionAnalysis    = (sessionId, analysis) => request('PUT', `/sessions/${sessionId}/analysis`, { analysis });
+export const importSessionAnalysis  = (sessionId, targets, { force = false } = {}) =>
+  request('POST', `/sessions/${sessionId}/analysis/import`, { targets, force });
+export const discardSessionAnalysis = (sessionId) => request('DELETE', `/sessions/${sessionId}/analysis`);
+export const setRecordingSpeakers   = (sessionId, recordingId, dietitian) =>
+  request('PUT', `/sessions/${sessionId}/recording/${recordingId}/speakers`, { dietitian });
+
 // ── AI agent ──────────────────────────────────────────────────────────────────
 export const fetchAgentConversations = ()   => request('GET',    '/agent/conversations');
 export const fetchAgentConversation  = (id) => request('GET',    `/agent/conversations/${id}`);

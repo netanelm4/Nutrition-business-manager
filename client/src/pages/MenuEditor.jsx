@@ -18,6 +18,7 @@ const ITEM_TYPE_CONFIG = {
   vegetable:    { label: 'ירק',     color: 'bg-lime-100 text-lime-700' },
   fruit:        { label: 'פרי',     color: 'bg-orange-100 text-orange-700' },
   daily_basket: { label: 'סל יומי', color: 'bg-purple-100 text-purple-700' },
+  custom:       { label: 'הנחיה',   color: 'bg-gray-100 text-gray-600' },   // e.g. Friday / Saturday guidelines
 };
 
 const ITEM_TYPE_OPTIONS = Object.entries(ITEM_TYPE_CONFIG).map(([value, { label }]) => ({ value, label }));

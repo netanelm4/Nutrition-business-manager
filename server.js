@@ -27,6 +27,7 @@ const googleRouter     = require('./routes/google.routes');
 const agentRouter           = require('./routes/agent.routes');
 const recordingsRouter      = require('./routes/recordings.routes');
 const knowledgeBaseRouter   = require('./routes/knowledge-base.routes');
+const sessionAnalysisRouter = require('./routes/session-analysis.routes');
 const { importFromFileIfNewer } = require('./services/knowledge-base.service');
 const engagementsRouter     = require('./routes/engagements.routes');
 const foodBankRouter        = require('./routes/food-bank.routes');
@@ -88,6 +89,7 @@ app.use('/api/dashboard',        dashboardRouter);
 app.use('/api/clients',          clientsRouter);
 app.use('/api',                  recordingsRouter); // /sessions/:id/recording, /recordings/:id/audio
 app.use('/api/knowledge-base',   knowledgeBaseRouter);
+app.use('/api',                  sessionAnalysisRouter); // /sessions/:id/analysis
 app.use('/api/sessions',         sessionsRouter);
 app.use('/api/session-windows',  sessionWindowsRouter);
 app.use('/api/leads',            leadsRouter);

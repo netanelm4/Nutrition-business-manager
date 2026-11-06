@@ -70,6 +70,7 @@ function serialize(row) {
     ...row,
     transcript_segments: segments,
     transcript_edited: row.transcript_edited === 1,
+    dietitian_speaker: (() => { try { return JSON.parse(row.speaker_map || '{}').dietitian || 'דובר 1'; } catch { return 'דובר 1'; } })(),
     transcription_enabled: transcriptionConfigured(),
     audio_url: `/api/recordings/${row.id}/audio`,
   };

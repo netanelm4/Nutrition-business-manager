@@ -9,6 +9,7 @@ import Modal from '../components/ui/Modal';
 import ClientForm from '../components/clients/ClientForm';
 import SessionTimeline from '../components/sessions/SessionTimeline';
 import SessionHistory from '../components/sessions/SessionHistory';
+import MenuInlinePreview from '../components/menus/MenuInlinePreview';
 import WhatsAppDropdown from '../components/whatsapp/WhatsAppDropdown';
 
 // ─── Process Summary section (shown when status = 'ended') ───────────────────
@@ -1021,6 +1022,7 @@ function MenusTab({ clientId }) {
   const [newTitle, setNewTitle] = useState('');
   const [newCalories, setNewCalories] = useState('');
   const [creating, setCreating] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['menus', String(clientId)],
@@ -1059,21 +1061,45 @@ function MenusTab({ clientId }) {
         </p>
       )}
 
-      {menus.map((m) => (
-        <div
-          key={m.id}
-          onClick={() => navigate(`/clients/${clientId}/menus/${m.id}`)}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--surface-2)', borderRadius: 10, border: '1px solid var(--border)', cursor: 'pointer' }}
-        >
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-1)' }}>{m.title}</div>
-            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{m.calorie_target} קק&quot;ל</div>
+      {/* The newest menu opens inline; others expand on click. Editing is in the menu editor. */}
+      {menus.map((m, i) => {
+        const open = openMenuId === null ? i === 0 : openMenuId === m.id;
+        return (
+          <div key={m.id} style={{ background: 'var(--surface-2)', borderRadius: 10, border: '1px solid var(--border)' }}>
+            <div
+              role="button"
+              tabIndex={0}
+              aria-expanded={open}
+              onClick={() => setOpenMenuId(open ? -1 : m.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenMenuId(open ? -1 : m.id); } }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '12px 16px', cursor: 'pointer' }}
+            >
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-1)' }}>{m.title}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{m.calorie_target} קק&quot;ל</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[m.status] ?? STATUS_COLOR.draft}`}>
+                  {STATUS_LABEL[m.status] ?? m.status}
+                </span>
+                <button
+                  type="button"
+                  className="crm-btn"
+                  onClick={(e) => { e.stopPropagation(); navigate(`/clients/${clientId}/menus/${m.id}`); }}
+                >
+                  עריכה
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{open ? '▲' : '▼'}</span>
+              </div>
+            </div>
+            {open && (
+              <div style={{ padding: '0 16px 14px' }}>
+                <MenuInlinePreview menuId={m.id} />
+              </div>
+            )}
           </div>
-          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[m.status] ?? STATUS_COLOR.draft}`}>
-            {STATUS_LABEL[m.status] ?? m.status}
-          </span>
-        </div>
-      ))}
+        );
+      })}
 
       {showNew ? (
         <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 16px', background: 'var(--surface-2)', borderRadius: 10, border: '1px solid var(--border)' }}>

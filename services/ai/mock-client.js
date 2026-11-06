@@ -99,6 +99,9 @@ function createMockClient() {
       content: [{ type: 'text', text: 'טקסט לדוגמה' }],
     }),
     parse: async (params) => {
+      // optional simulated latency for tests of in-flight states (AI_MOCK only)
+      const delay = Number(process.env.AI_MOCK_DELAY_MS) || 0;
+      if (delay) await new Promise((r) => setTimeout(r, delay));
       const format = params.output_config?.format;
       const sample = sampleFromSchema(format?.schema);
       const text = JSON.stringify(sample);

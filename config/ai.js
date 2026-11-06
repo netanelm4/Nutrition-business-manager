@@ -22,6 +22,8 @@ const TASKS = Object.freeze({
   process_summary:    { tier: 'interactive', effort: 'medium', maxTokens: 8000 },
   protocol_personalize:{ tier: 'interactive', effort: 'medium', maxTokens: 8000 },
   menu_generate:      { tier: 'interactive', effort: 'medium', maxTokens: 16000 },
+  // Phase 10: clinical analysis of a session transcript → anamnesis, barriers, draft menu, habits
+  session_analysis:   { tier: 'interactive', effort: 'high', maxTokens: 32000 },
   daily_tasks_scan:   { tier: 'interactive', effort: 'low',    maxTokens: 8000 },
   // background
   client_analysis:    { tier: 'background',  effort: 'low',    maxTokens: 4000 },
