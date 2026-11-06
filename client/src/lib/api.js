@@ -188,6 +188,10 @@ export const repairAIAssessments = () => request('POST', '/admin/repair-ai-asses
 
 // ── Session recordings ───────────────────────────────────────────────────────
 export const fetchSessionRecordings = (sessionId) => request('GET', `/sessions/${sessionId}/recording`);
+export const transcribeSessionRecording = (sessionId, recordingId, { force = false } = {}) =>
+  request('POST', `/sessions/${sessionId}/recording/${recordingId}/transcribe`, { force });
+export const updateRecordingTranscript = (sessionId, recordingId, transcript) =>
+  request('PUT', `/sessions/${sessionId}/recording/${recordingId}/transcript`, { transcript });
 export const deleteSessionRecording = (sessionId, recordingId) =>
   request('DELETE', `/sessions/${sessionId}/recording/${recordingId}`);
 

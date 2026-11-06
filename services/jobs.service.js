@@ -3,6 +3,8 @@ const {
 } = require('../utils/dates');
 const { runMorningBrief, morningBriefDueAt } = require('./agent/morning-brief.service');
 const { runAutoCompletion } = require('./client-completion.service');
+const transcription = require('./ai/transcription.service');
+const { absolutePath } = require('./recordings.service');
 const { upsertAction } = require('./action-queue.service');
 const { sendMeetingReminder } = require('./reminders.service');
 const { publish } = require('./event-bus.service');
@@ -194,6 +196,33 @@ function reconcileAutoCompletion(database) {
   return { scheduled: result === 'created' ? 1 : 0 };
 }
 
+// ── Transcription: queue a recording (upload, retry button, or reconcile) ────
+function queueTranscription(database, recordingId) {
+  if (!transcription.isConfigured()) return false;
+  const row = database.prepare('SELECT transcript_attempt FROM session_recordings WHERE id = ?').get(recordingId);
+  if (!row) return false;
+  const attempt = row.transcript_attempt + 1;
+  database.prepare("UPDATE session_recordings SET transcript_status = 'queued', transcript_error = NULL, transcript_attempt = ? WHERE id = ?")
+    .run(attempt, recordingId);
+  scheduleJob(database, {
+    type: 'transcribe_recording', runAt: nowUtcISO(), payload: { recordingId }, dedupeKey: `transcribe:${recordingId}:${attempt}`,
+  });
+  // run now instead of waiting for the next minute tick
+  setImmediate(() => runDueJobs(database).catch((err) => console.error('[jobs] run error:', err.message)));
+  return true;
+}
+
+// Recordings never queued (made before a key existed, or before Phase 9). Retroactive,
+// a few per run so a large backlog does not burst the provider.
+function reconcileTranscriptions(database) {
+  if (!transcription.isConfigured()) return { scheduled: 0 };
+  const rows = database.prepare(
+    'SELECT id FROM session_recordings WHERE transcript_status IS NULL ORDER BY created_at LIMIT 10'
+  ).all();
+  for (const r of rows) queueTranscription(database, r.id);
+  return { scheduled: rows.length };
+}
+
 /** Derive the jobs that should exist from current data. Idempotent. */
 function reconcileJobs(database) {
   const stats = {
@@ -203,9 +232,10 @@ function reconcileJobs(database) {
     aiBackfill: reconcileAIBackfill(database),
     morningBrief: reconcileMorningBrief(database),
     autoCompletion: reconcileAutoCompletion(database),
+    transcriptions: reconcileTranscriptions(database),
   };
   const created = stats.reminders.scheduled + stats.menuSla.scheduled + stats.freezeEnds.scheduled
-    + stats.aiBackfill.scheduled + stats.morningBrief.scheduled + stats.autoCompletion.scheduled;
+    + stats.aiBackfill.scheduled + stats.morningBrief.scheduled + stats.autoCompletion.scheduled + stats.transcriptions.scheduled;
   if (created) console.log(`[jobs] Scheduled ${created} job(s)`, JSON.stringify(stats));
   return stats;
 }
@@ -214,6 +244,9 @@ function reconcileJobs(database) {
 
 const HANDLERS = {
   meeting_reminder_24h: async (database, { meetingId }) => sendMeetingReminder(database, meetingId),
+
+  transcribe_recording: async (database, { recordingId }) =>
+    transcription.transcribeRecording(database, recordingId, { absolutePath, publish }),
 
   client_auto_complete: async (database, { date }) => {
     // A missed day is evaluated on the next run (the rule uses "after", not "on")
@@ -337,4 +370,4 @@ async function runDueJobs(database, { limit = 50 } = {}) {
   return stats;
 }
 
-module.exports = { scheduleJob, reconcileJobs, runDueJobs, HANDLERS };
+module.exports = { scheduleJob, reconcileJobs, runDueJobs, queueTranscription, HANDLERS };

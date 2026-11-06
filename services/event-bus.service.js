@@ -17,7 +17,7 @@ bus.setMaxListeners(50);
 const INVALIDATE = {
   lead:    ['leads', 'lead', 'dashboard', 'inbox'],
   client:  ['clients', 'client', 'dashboard', 'inbox'],
-  session: ['sessions', 'client', 'clients', 'dashboard', 'inbox'],
+  session: ['sessions', 'recordings', 'client', 'clients', 'dashboard', 'inbox'],
   meeting: ['upcomingMeetings', 'client-meetings', 'lead-meeting', 'dashboard', 'sessions', 'client', 'inbox'],
   menu:    ['menus', 'client', 'dashboard', 'inbox'],
   inbox:   ['inbox', 'dashboard'],

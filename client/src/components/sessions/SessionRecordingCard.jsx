@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchSessionRecordings, uploadSessionRecording, deleteSessionRecording, fetchRecordingAudioUrl,
+  transcribeSessionRecording, updateRecordingTranscript,
 } from '../../lib/api';
 import {
   RECORDING_MAX_BYTES, RECORDING_ACCEPT, RECORDING_MIME_CANDIDATES, RECORDING_LABELS as L,
@@ -98,6 +99,138 @@ function LevelMeter({ stream, active }) {
   );
 }
 
+// ─── Transcript (status, expandable editable text, copy, re-run) ─────────────
+
+const smallBtn = {
+  display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 'var(--r-md)', border: '1px solid var(--line)',
+  cursor: 'pointer', padding: '5px 10px', fontSize: 12, background: 'var(--surface-2)', color: 'var(--ink-1)',
+};
+
+function TranscriptPanel({ recording, sessionId }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState(recording.transcript || '');
+  const [flash, setFlash] = useState('');
+  const [error, setError] = useState('');
+  const [confirmRedo, setConfirmRedo] = useState(false);
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['recordings', String(sessionId)] });
+
+  // server text changed (transcription finished / saved elsewhere) → follow it unless mid-edit
+  const serverText = recording.transcript || '';
+  const dirty = text !== serverText;
+  const lastServer = useRef(serverText);
+  useEffect(() => {
+    if (lastServer.current !== serverText) {
+      if (!dirty || text === lastServer.current) setText(serverText);
+      lastServer.current = serverText;
+    }
+  }, [serverText]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const run = useMutation({
+    mutationFn: (force) => transcribeSessionRecording(sessionId, recording.id, { force }),
+    onSuccess: () => { setConfirmRedo(false); setError(''); refresh(); },
+    onError: (err) => setError(err.message),
+  });
+  const save = useMutation({
+    mutationFn: () => updateRecordingTranscript(sessionId, recording.id, text),
+    onSuccess: () => { setFlash(L.transcriptSaved); setTimeout(() => setFlash(''), 1800); refresh(); },
+    onError: (err) => setError(err.message),
+  });
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setFlash(L.transcriptCopied);
+      setTimeout(() => setFlash(''), 1800);
+    } catch { setError('ההעתקה נכשלה'); }
+  }
+
+  const status = recording.transcript_status;
+  const line = { margin: 0, fontSize: 12, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' };
+
+  if (status === 'queued' || status === 'processing') {
+    return (
+      <p style={line}>
+        <span className="animate-pulse motion-reduce:animate-none" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--blue)' }} />
+        {status === 'queued' ? L.transcriptQueued : L.transcriptProcessing}
+      </p>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <p style={{ ...line, color: 'var(--red-ink)' }}>
+          {L.transcriptFailed}
+          <button type="button" style={smallBtn} disabled={run.isPending} onClick={() => run.mutate(false)}>{L.transcriptRetry}</button>
+        </p>
+        {recording.transcript_error && <p style={{ margin: 0, fontSize: 11, color: 'var(--ink-4)', overflowWrap: 'anywhere' }}>{recording.transcript_error}</p>}
+        {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--red-ink)' }}>{error}</p>}
+      </div>
+    );
+  }
+  if (status !== 'done') {
+    // not queued: no provider key, or never started
+    return (
+      <p style={line}>
+        {recording.transcription_enabled ? L.transcriptNotStarted : L.transcriptNotConfigured}
+        {recording.transcription_enabled && (
+          <button type="button" style={smallBtn} disabled={run.isPending} onClick={() => run.mutate(false)}>{L.transcriptStart}</button>
+        )}
+        {error && <span style={{ color: 'var(--red-ink)' }}>{error}</span>}
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--blue)', fontSize: 13 }}>
+          {open ? `${L.transcriptHide} ▲` : `${L.transcriptShow} ▼`}
+        </button>
+        {recording.transcript_edited && <span style={{ fontSize: 11, color: 'var(--ink-4)' }}>{L.transcriptEdited}</span>}
+        {flash && <span style={{ fontSize: 12, color: 'var(--green-ink)' }}>{flash}</span>}
+      </div>
+      {open && (
+        <>
+          <textarea
+            dir="rtl"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={Math.min(14, Math.max(5, Math.ceil(text.length / 90)))}
+            placeholder={L.transcriptEmpty}
+            style={{
+              width: '100%', resize: 'vertical', borderRadius: 'var(--r-md)', border: '1px solid var(--line)',
+              background: 'var(--surface-2)', color: 'var(--ink-1)', padding: '10px 12px', fontSize: 13,
+              lineHeight: 1.7, fontFamily: 'inherit', whiteSpace: 'pre-wrap',
+            }}
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <button type="button" style={smallBtn} onClick={copy} disabled={!text}>{L.transcriptCopy}</button>
+            <button type="button" style={{ ...smallBtn, ...(dirty ? { background: 'var(--blue)', color: 'var(--on-accent)', borderColor: 'var(--blue)' } : {}) }}
+              disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+              {save.isPending ? L.transcriptSaving : L.transcriptSave}
+            </button>
+            {!confirmRedo ? (
+              <button type="button" style={{ ...smallBtn, color: 'var(--ink-3)' }} disabled={run.isPending}
+                onClick={() => (recording.transcript_edited ? setConfirmRedo(true) : run.mutate(false))}>
+                {L.transcriptRedo}
+              </button>
+            ) : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--red-ink)' }}>
+                {L.transcriptRedoConfirm}
+                <button type="button" style={{ ...smallBtn, background: 'var(--red-soft)', color: 'var(--red-ink)', borderColor: 'var(--red)' }} onClick={() => run.mutate(true)}>{L.transcriptRedoYes}</button>
+                <button type="button" style={smallBtn} onClick={() => setConfirmRedo(false)}>{L.cancel}</button>
+              </span>
+            )}
+          </div>
+          {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--red-ink)' }}>{error}</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── One saved recording ──────────────────────────────────────────────────────
 
 function RecordingItem({ recording, sessionId }) {
@@ -177,6 +310,9 @@ function RecordingItem({ recording, sessionId }) {
         )}
       </div>
       {error && <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--red-ink)' }}>{error}</p>}
+      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--hairline)' }}>
+        <TranscriptPanel recording={recording} sessionId={sessionId} />
+      </div>
     </li>
   );
 }
@@ -194,6 +330,8 @@ export default function SessionRecordingCard({ sessionId }) {
     queryKey: ['recordings', String(sessionId)],
     queryFn: () => fetchSessionRecordings(sessionId),
     enabled: !!sessionId,
+    // poll while a transcription is running (live events also refresh it)
+    refetchInterval: (query) => (query.state.data || []).some((r) => ['queued', 'processing'].includes(r.transcript_status)) ? 4000 : false,
   });
 
   const [state, setState] = useState('idle'); // idle | connecting | recording | paused | saving

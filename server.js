@@ -26,6 +26,8 @@ const aiSummaryRouter  = require('./routes/ai-summary.routes');
 const googleRouter     = require('./routes/google.routes');
 const agentRouter           = require('./routes/agent.routes');
 const recordingsRouter      = require('./routes/recordings.routes');
+const knowledgeBaseRouter   = require('./routes/knowledge-base.routes');
+const { importFromFileIfNewer } = require('./services/knowledge-base.service');
 const engagementsRouter     = require('./routes/engagements.routes');
 const foodBankRouter        = require('./routes/food-bank.routes');
 const foodBankPdfRouter     = require('./routes/food-bank-pdf.routes');
@@ -58,9 +60,11 @@ app.set('trust proxy', 1);
 
 app.use(cors());
 // Keep the raw bytes: webhook signature verification must HMAC the exact payload
-app.use(express.json({
+const jsonBody = express.json({
   verify: (req, res, buf) => { req.rawBody = buf; },
-}));
+});
+// The knowledge-base upload is larger than the default 100KB → its router has its own parser
+app.use((req, res, next) => (req.path === '/api/knowledge-base' ? next() : jsonBody(req, res, next)));
 
 // ─── Public API routes (no auth) ─────────────────────────────────────────────
 app.get('/api/health', (req, res) => res.json({ ok: true }));
@@ -83,6 +87,7 @@ app.use('/api', broadcastMutations(() => scheduleReconcile(db)));
 app.use('/api/dashboard',        dashboardRouter);
 app.use('/api/clients',          clientsRouter);
 app.use('/api',                  recordingsRouter); // /sessions/:id/recording, /recordings/:id/audio
+app.use('/api/knowledge-base',   knowledgeBaseRouter);
 app.use('/api/sessions',         sessionsRouter);
 app.use('/api/session-windows',  sessionWindowsRouter);
 app.use('/api/leads',            leadsRouter);
@@ -130,6 +135,15 @@ app.listen(PORT, async () => {
     console.log(`[debug] Recent clients (${recentClients.length}):`, recentClients.length === 0 ? 'none' : recentClients);
   } catch (err) {
     console.error('[debug] Failed to query recent clients:', err.message);
+  }
+
+  // ── Knowledge base: import data/dietitian-knowledge-base.json when newer (local);
+  //    production receives it through PUT /api/knowledge-base.
+  try {
+    const kbResult = importFromFileIfNewer(db);
+    if (kbResult.imported) console.log('[knowledge-base] Imported from data/dietitian-knowledge-base.json');
+  } catch (err) {
+    console.error('[knowledge-base] import failed:', err.message);
   }
 
   // ── Scheduled jobs: derive jobs from data (24h reminders, menu SLA, freeze

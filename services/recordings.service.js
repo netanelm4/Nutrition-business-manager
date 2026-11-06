@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { nowUtcISO } = require('../utils/dates');
+const { isConfigured: transcriptionConfigured } = require('./ai/transcription.service');
 
 // ─── Session recordings: storage + metadata ──────────────────────────────────
 // Files live next to the database by default (path.dirname(DB_PATH)/recordings)
@@ -63,8 +64,13 @@ function removeFile(relPath) {
 }
 
 function serialize(row) {
+  let segments = null;
+  try { segments = row.transcript_segments ? JSON.parse(row.transcript_segments) : null; } catch { /* corrupt → none */ }
   return {
     ...row,
+    transcript_segments: segments,
+    transcript_edited: row.transcript_edited === 1,
+    transcription_enabled: transcriptionConfigured(),
     audio_url: `/api/recordings/${row.id}/audio`,
   };
 }
@@ -132,7 +138,19 @@ function removeFiles(relPaths) {
   for (const p of relPaths) removeFile(p);
 }
 
+/** Manual correction of a transcript (segments kept for reference). */
+function updateTranscript(db, row, text) {
+  db.prepare(`
+    UPDATE session_recordings
+    SET transcript = ?, transcript_edited = 1, transcript_status = 'done', transcript_error = NULL,
+        transcribed_at = COALESCE(transcribed_at, ?)
+    WHERE id = ?
+  `).run(text, nowUtcISO(), row.id);
+  return serialize(db.prepare('SELECT * FROM session_recordings WHERE id = ?').get(row.id));
+}
+
 module.exports = {
+  updateTranscript,
   RECORDINGS_DIR, TMP_DIR, MAX_RECORDING_BYTES, MIME_BY_EXT,
   ensureDirs, extensionFor, absolutePath, saveRecording, listForSession, getRecording, deleteRecording,
   filesForSessions, filesForClient, removeFiles,

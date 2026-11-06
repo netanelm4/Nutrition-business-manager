@@ -2208,6 +2208,30 @@ try {
   console.error('[migration] session_recordings failed:', err.message);
 }
 
+// Phase 9: transcription state on recordings (ElevenLabs Scribe)
+for (const col of [
+  'transcript_status TEXT',            // NULL (not queued) | queued | processing | done | failed
+  'transcript_error TEXT',
+  'transcript_segments TEXT',          // JSON speaker turns [{ speaker, start, end, text }]
+  'transcript_language TEXT',
+  'transcript_edited INTEGER NOT NULL DEFAULT 0',
+  'transcript_attempt INTEGER NOT NULL DEFAULT 0',
+  'transcribed_at TEXT',
+]) {
+  try { db.exec(`ALTER TABLE session_recordings ADD COLUMN ${col}`); } catch { /* exists */ }
+}
+
+// Phase 9: dietitian knowledge base (one JSON document; see services/knowledge-base.service.js)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS knowledge_base (
+    id           TEXT PRIMARY KEY,
+    content      TEXT NOT NULL,
+    generated_at TEXT,
+    imported_at  TEXT NOT NULL,
+    source       TEXT
+  );
+`);
+
 // Automatic completion (6 sessions + 14-day grace) marks how a process ended
 try { db.exec('ALTER TABLE clients ADD COLUMN completed_automatically INTEGER NOT NULL DEFAULT 0'); } catch { /* exists */ }
 

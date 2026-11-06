@@ -111,6 +111,39 @@ async function run() {
   const anon = await fetch(streamUrl);
   assert('Audio without login → 401', anon.status === 401);
 
+  // ── Transcription (AI_MOCK → deterministic Scribe-shaped result) ──
+  console.log('── transcription ──');
+  {
+    const waitFor = async (id, statuses, ms = 15000) => {
+      const end = Date.now() + ms;
+      for (;;) {
+        const r = (await req('GET', `/sessions/${session.id}/recording`)).data.find((x) => x.id === id);
+        if (statuses.includes(r?.transcript_status) || Date.now() > end) return r;
+        await new Promise((res) => setTimeout(res, 300));
+      }
+    };
+    assert('Upload response reports transcription enabled + queued', rec.transcription_enabled === true && ['queued', 'processing', 'done'].includes(rec.transcript_status), JSON.stringify({ s: rec.transcript_status, e: rec.transcription_enabled }));
+    let t = await waitFor(rec.id, ['done', 'failed']);
+    assert('Transcribed automatically after upload', t?.transcript_status === 'done', JSON.stringify(t));
+    assert('Speaker turns: "דובר 1:" / "דובר 2:" paragraphs', /^דובר 1: /.test(t?.transcript || '') && t.transcript.includes('\n\nדובר 2: '), t?.transcript);
+    assert('Segments stored with timestamps', Array.isArray(t?.transcript_segments) && t.transcript_segments.length === 3 && t.transcript_segments[0].start === 0);
+    assert('Language + transcribed_at recorded', t?.transcript_language === 'heb' && !!t?.transcribed_at && t?.transcript_edited === false);
+
+    const edited = `${t.transcript}\n\nהערה: נבדק ידנית.`;
+    const put = await req('PUT', `/sessions/${session.id}/recording/${rec.id}/transcript`, { transcript: edited });
+    assert('Edit transcript → saved, marked edited', put.success && put.data.transcript === edited && put.data.transcript_edited === true, JSON.stringify(put).slice(0, 200));
+    assert('Edit validation: missing text → 400', (await req('PUT', `/sessions/${session.id}/recording/${rec.id}/transcript`, {})).status === 400);
+    assert('Edit via another session → 404', (await req('PUT', `/sessions/999999/recording/${rec.id}/transcript`, { transcript: 'x' })).status === 404);
+
+    const blocked = await req('POST', `/sessions/${session.id}/recording/${rec.id}/transcribe`, {});
+    assert('Re-transcribe an edited transcript without force → 409', blocked.status === 409, JSON.stringify(blocked));
+    const forced = await req('POST', `/sessions/${session.id}/recording/${rec.id}/transcribe`, { force: true });
+    assert('Re-transcribe with force → 202 queued', forced.status === 202, JSON.stringify(forced));
+    t = await waitFor(rec.id, ['done', 'failed']);
+    assert('Re-run replaces the manual edit', t?.transcript_status === 'done' && t.transcript_edited === false && !t.transcript.includes('נבדק ידנית'));
+    assert('Transcription attempts counted', t?.transcript_attempt === 2, String(t?.transcript_attempt));
+  }
+
   // ── Delete ──
   console.log('── delete ──');
   const wrong = await req('DELETE', `/sessions/999999/recording/${rec.id}`);

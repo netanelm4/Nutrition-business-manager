@@ -4,8 +4,12 @@ const multer = require('multer');
 const db = require('../database/db');
 const {
   TMP_DIR, MAX_RECORDING_BYTES, ensureDirs, extensionFor, absolutePath,
-  saveRecording, listForSession, getRecording, deleteRecording,
+  saveRecording, listForSession, getRecording, deleteRecording, updateTranscript,
 } = require('../services/recordings.service');
+const { queueTranscription } = require('../services/jobs.service');
+const { isConfigured: transcriptionConfigured } = require('../services/ai/transcription.service');
+
+const MAX_TRANSCRIPT_CHARS = 200_000;
 const { publish } = require('../services/event-bus.service');
 
 // ─── Session recordings ─── mounted at /api, after requireAuth ───────────────
@@ -13,6 +17,8 @@ const { publish } = require('../services/event-bus.service');
 //   GET    /api/sessions/:id/recording                 recordings of the session, newest first
 //   DELETE /api/sessions/:id/recording/:recordingId    row + file
 //   GET    /api/recordings/:recordingId/audio          the audio (Range supported, auth required)
+//   POST   /api/sessions/:id/recording/:recordingId/transcribe   (re)queue transcription
+//   PUT    /api/sessions/:id/recording/:recordingId/transcript   save an edited transcript
 
 const router = express.Router();
 ensureDirs();
@@ -54,8 +60,11 @@ router.post('/sessions/:id/recording', (req, res, next) => {
     if (!req.file.size) { cleanupTmp(); return fail(res, 400, 'הקובץ ריק.'); }
     const session = findSession(req.params.id);
     if (!session) { cleanupTmp(); return fail(res, 404, 'Session not found.'); }
-    const recording = saveRecording(db, { session, file: req.file, durationSeconds: req.body?.duration_seconds });
-    publish(db, 'session.recording_added', { entityType: 'session', entityId: session.id, payload: { recordingId: recording.id } });
+    const saved = saveRecording(db, { session, file: req.file, durationSeconds: req.body?.duration_seconds });
+    publish(db, 'session.recording_added', { entityType: 'session', entityId: session.id, payload: { recordingId: saved.id } });
+    // Automatic transcription in the background (no-op when no provider key is configured)
+    queueTranscription(db, saved.id);
+    const recording = listForSession(db, session.id).find((r) => r.id === saved.id) || saved;
     return res.status(201).json({ success: true, data: recording });
   } catch (err) {
     cleanupTmp();
@@ -86,6 +95,49 @@ router.delete('/sessions/:id/recording/:recordingId', (req, res) => {
   } catch (err) {
     console.error('[DELETE /sessions/:id/recording/:recordingId]', err);
     return fail(res, 500, 'Failed to delete recording.');
+  }
+});
+
+const findOwnRecording = (req) => {
+  const row = getRecording(db, req.params.recordingId);
+  return row && String(row.session_id) === String(req.params.id) ? row : null;
+};
+
+// POST /api/sessions/:id/recording/:recordingId/transcribe — retry / transcribe again
+router.post('/sessions/:id/recording/:recordingId/transcribe', (req, res) => {
+  try {
+    const row = findOwnRecording(req);
+    if (!row) return fail(res, 404, 'Recording not found.');
+    if (!transcriptionConfigured()) return fail(res, 503, 'התמלול לא מוגדר (חסר ELEVENLABS_API_KEY).');
+    if (['queued', 'processing'].includes(row.transcript_status)) return fail(res, 409, 'התמלול כבר בתהליך.');
+    if (row.transcript_status === 'done' && row.transcript_edited === 1 && req.body?.force !== true) {
+      return fail(res, 409, 'התמלול נערך ידנית. יש לאשר דריסה.');
+    }
+    if (row.transcript_status === 'done') {
+      db.prepare("UPDATE session_recordings SET transcript_status = NULL WHERE id = ?").run(row.id); // allow re-run
+    }
+    queueTranscription(db, row.id);
+    return res.status(202).json({ success: true, data: listForSession(db, row.session_id).find((r) => r.id === row.id) });
+  } catch (err) {
+    console.error('[POST /sessions/:id/recording/:recordingId/transcribe]', err);
+    return fail(res, 500, 'Failed to queue transcription.');
+  }
+});
+
+// PUT /api/sessions/:id/recording/:recordingId/transcript — { transcript }
+router.put('/sessions/:id/recording/:recordingId/transcript', (req, res) => {
+  try {
+    const row = findOwnRecording(req);
+    if (!row) return fail(res, 404, 'Recording not found.');
+    const text = req.body?.transcript;
+    if (typeof text !== 'string') return fail(res, 400, 'transcript (string) is required.');
+    if (text.length > MAX_TRANSCRIPT_CHARS) return fail(res, 400, 'התמלול ארוך מדי.');
+    const updated = updateTranscript(db, row, text.trim());
+    publish(db, 'session.recording_transcript_edited', { entityType: 'session', entityId: row.session_id, payload: { recordingId: row.id } });
+    return ok(res, updated);
+  } catch (err) {
+    console.error('[PUT /sessions/:id/recording/:recordingId/transcript]', err);
+    return fail(res, 500, 'Failed to save transcript.');
   }
 });
 
