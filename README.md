@@ -38,7 +38,6 @@ cp .env.example .env
 PORT=3001
 AUTH_PASSWORD=הסיסמה-שלך
 ANTHROPIC_API_KEY=sk-ant-...
-WHATSAPP_MODE=deeplink
 ```
 
 ### הסבר על משתני הסביבה
@@ -48,7 +47,7 @@ WHATSAPP_MODE=deeplink
 | `PORT` | הפורט שהשרת יאזין עליו (ברירת מחדל: 3001) |
 | `AUTH_PASSWORD` | הסיסמה הפרטית להתחברות לאפליקציה |
 | `ANTHROPIC_API_KEY` | מפתח API של Anthropic לתובנות AI על פגישות |
-| `WHATSAPP_MODE` | `deeplink` לפתיחת WhatsApp ידנית, `api` לשליחה אוטומטית (דורש הגדרה נוספת) |
+| `KAPSO_API_KEY`, `KAPSO_PHONE_NUMBER_ID`, `KAPSO_WEBHOOK_SECRET`, `ADMIN_WHATSAPP_PHONE` | ערוץ הוואטסאפ הניהולי (Kapso). הודעות למטופלים נשלחות ידנית בקישורי wa.me |
 
 ---
 
@@ -101,7 +100,6 @@ NODE_ENV=production npm start
    NODE_ENV=production
    AUTH_PASSWORD=[סיסמה חזקה]
    ANTHROPIC_API_KEY=[המפתח שלך]
-   WHATSAPP_MODE=deeplink
    ```
 5. עבור ל-Settings → Add Volume:
    - Mount path: `/app/data`

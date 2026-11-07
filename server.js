@@ -36,7 +36,6 @@ const foodBankPdfRouter     = require('./routes/food-bank-pdf.routes');
 const menusRouter           = require('./routes/menus.routes');
 const aiRecommendationsRouter = require('./routes/ai-recommendations.routes');
 const weightRouter             = require('./routes/weight.routes');
-const whatsappBotRouter        = require('./routes/whatsapp-bot.routes');
 const statsRouter              = require('./routes/stats.routes');
 const settingsRouter           = require('./routes/settings.routes');
 const { logActivity }          = require('./middleware/activity-log');
@@ -73,7 +72,6 @@ app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/auth', authRouter);
 app.use('/api', publicRouter);
 app.use('/api/google',    googleRouter);      // callback must be public (no auth)
-app.use('/api/whatsapp',  whatsappBotRouter); // webhook is public; /test applies auth internally
 
 // ─── Landing page static files ────────────────────────────────────────────────
 app.use('/landing', express.static(path.join(__dirname, 'landing')));

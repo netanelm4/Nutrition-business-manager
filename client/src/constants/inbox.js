@@ -1,5 +1,5 @@
 // Inbox (action queue) display metadata — mirrors the kinds produced on the
-// server (services/inbox-rules, jobs, ai-intelligence, whatsapp-bot, agent).
+// server (services/inbox-rules, jobs, ai-intelligence, agent).
 
 export const INBOX_KIND_META = Object.freeze({
   session_due:      { label: 'פגישה לקבוע',        tone: 'blue'  },

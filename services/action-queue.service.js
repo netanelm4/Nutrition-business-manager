@@ -1,6 +1,5 @@
 const { nowUtcISO } = require('../utils/dates');
-const { generateLink, normalisePhone } = require('./whatsapp.service');
-const { sendWhatsAppMessage, canAutoSend } = require('./whatsapp-send.service');
+const { generateLink } = require('./whatsapp.service');
 const { publish } = require('./event-bus.service');
 
 // ─── Action queue (the Inbox) ────────────────────────────────────────────────
@@ -211,22 +210,6 @@ async function approveAction(database, id, by = 'user') {
   }
 
   const link = generateLink(item.phone, item.message);
-  if (canAutoSend()) {
-    try {
-      await sendWhatsAppMessage(normalisePhone(item.phone), item.message);
-      logOutgoing(database, item, 'sent');
-      markResolved(database, item, 'sent', by);
-      return { id, status: 'sent', delivered: 'api' };
-    } catch (err) {
-      // Typically outside the 24h window — leave it to a manual wa.me send
-      database.prepare('UPDATE action_queue SET send_error = ?, updated_at = ? WHERE id = ?')
-        .run(err.message, nowUtcISO(), id);
-      console.warn(`[inbox] API send failed for item ${id}: ${err.message} — manual link returned`);
-      logOutgoing(database, item, 'manual');
-      markResolved(database, item, 'sent', by);
-      return { id, status: 'sent', delivered: 'manual', whatsapp_link: link, error: err.message };
-    }
-  }
   logOutgoing(database, item, 'manual');
   markResolved(database, item, 'sent', by);
   return { id, status: 'sent', delivered: 'manual', whatsapp_link: link };

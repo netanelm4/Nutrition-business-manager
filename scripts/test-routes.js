@@ -4,18 +4,16 @@
  * ALWAYS run against a throwaway DB copy, never the real one:
  *   cp data/nutrition.db /tmp/test.db
  *   DB_PATH=/tmp/test.db PORT=3099 \
- *   WHATSAPP_APP_SECRET=test-meta-secret BOOKING_LINK_FOLLOWUP=https://calendar.app.google/test-followup \
+ *   BOOKING_LINK_FOLLOWUP=https://calendar.app.google/test-followup \
  *   node server.js
  * The DB needs a user matching TEST_USER / TEST_PASSWORD (defaults below).
  * Then run: node scripts/test-routes.js
  */
 
-const crypto = require('crypto');
 
 const BASE          = process.env.TEST_BASE     || 'http://localhost:3099/api';
 const TEST_USER     = process.env.TEST_USER     || 'test-runner';
 const TEST_PASSWORD = process.env.TEST_PASSWORD || 'test';
-const META_SECRET     = process.env.WHATSAPP_APP_SECRET          || 'test-meta-secret';
 const FOLLOWUP_LINK = process.env.BOOKING_LINK_FOLLOWUP || 'https://calendar.app.google/test-followup';
 
 let AUTH = '';
@@ -82,18 +80,15 @@ async function run() {
   assert('GET /admin/repair-now without auth → 401',     (await raw('GET', '/admin/repair-now')) === 401);
   assert('GET /public/debug/weight-schema without auth → 401', (await raw('GET', '/public/debug/weight-schema')) === 401);
 
-  // ── Phase 0: webhook signatures ─────────────────────────────────────────────
-  console.log('\n── Phase 0: webhook signatures ──');
+  // ── Legacy Meta WhatsApp bot decommissioned (Kapso admin channel only) ─────
+  console.log('\n── Legacy WhatsApp webhook removed ──');
   {
-    const body = JSON.stringify({ entry: [] });
-    const good = 'sha256=' + crypto.createHmac('sha256', META_SECRET).update(body).digest('hex');
-    const json = { 'Content-Type': 'application/json' };
-    assert('WhatsApp webhook without signature → 401',
-      (await raw('POST', '/whatsapp/webhook', { body, headers: json })) === 401);
-    assert('WhatsApp webhook with wrong signature → 401',
-      (await raw('POST', '/whatsapp/webhook', { body, headers: { ...json, 'X-Hub-Signature-256': 'sha256=' + '0'.repeat(64) } })) === 401);
-    assert('WhatsApp webhook with valid signature → 200',
-      (await raw('POST', '/whatsapp/webhook', { body, headers: { ...json, 'X-Hub-Signature-256': good } })) === 200);
+    const verify = await fetch(`${BASE}/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=x&hub.challenge=echo123`);
+    assert('Meta verification endpoint gone (no challenge echo)', verify.status === 401 && !(await verify.text()).includes('echo123'));
+    assert('Meta webhook POST → 401 (behind auth, no public handler)',
+      (await raw('POST', '/whatsapp/webhook', { body: JSON.stringify({ entry: [] }), headers: { 'Content-Type': 'application/json' } })) === 401);
+    const test = await req('POST', '/whatsapp/test', { phone: '0521234567', message: 'hi' });
+    assert('Bot simulator /whatsapp/test gone', test.status === 404, JSON.stringify(test));
   }
   assert('Calendly webhook removed (no public endpoint)',
     (await raw('POST', '/calendly/webhook', { body: '{}', headers: { 'Content-Type': 'application/json' } })) === 401);

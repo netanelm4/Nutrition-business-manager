@@ -58,39 +58,14 @@ function generateLink(phone, message) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API mode stub (future — Twilio or 360dialog)
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * Send a WhatsApp message programmatically via the configured API provider.
- * NOT IMPLEMENTED — stub for future Phase 2 integration.
- *
- * @param {string} phone   - Client phone number
- * @param {string} message - Message text to send
- * @returns {Promise<{ success: boolean, messageId: string }>}
- */
-async function sendMessage(phone, message) { // eslint-disable-line no-unused-vars
-  throw new Error(
-    'WhatsApp API mode is not implemented yet. Set WHATSAPP_MODE=deeplink or implement this method with Twilio / 360dialog.'
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Unified public interface
-// ─────────────────────────────────────────────────────────────────────────────
-
-const mode = process.env.WHATSAPP_MODE || 'deeplink';
-
-/**
- * The active WhatsApp mode ('deeplink' or 'api').
- * Read by the UI to display the correct send instructions.
- */
-const activeMode = mode;
+// Client messages are sent manually through wa.me links (approved in the
+// Inbox). The only automated WhatsApp channel is the Kapso admin channel
+// (services/kapso.service.js), which talks to Netanel alone.
+const activeMode = 'deeplink';
 
 module.exports = {
   renderTemplate,
   normalisePhone,
   generateLink,
-  sendMessage,
   activeMode,
 };

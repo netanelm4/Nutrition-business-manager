@@ -6,7 +6,6 @@ const {
 const { reconcileInbox } = require('../services/inbox-rules.service');
 const { reconcileJobs, runDueJobs } = require('../services/jobs.service');
 const { addHoursUtcISO, toUtcISO } = require('../utils/dates');
-const { canAutoSend } = require('../services/whatsapp-send.service');
 
 // ─── Inbox (action_queue) ─── mounted at /api/inbox, after requireAuth ──────
 
@@ -21,7 +20,7 @@ router.get('/', (req, res) => {
   try {
     // auto_send: the server sends WhatsApp itself; otherwise the browser opens
     // wa.me synchronously on click (popup blockers reject async window.open)
-    return ok(res, { items: listActions(db), open: countOpen(db), auto_send: canAutoSend() });
+    return ok(res, { items: listActions(db), open: countOpen(db) });
   } catch (err) {
     console.error('[GET /inbox]', err);
     return fail(res, 500, 'Failed to load inbox.');

@@ -126,7 +126,6 @@ export default function InboxCard() {
     refetchInterval: 5 * 60_000, // fallback only — SSE keeps it live
   });
   const items = data?.items ?? [];
-  const autoSend = !!data?.auto_send;
 
   const visible = useMemo(
     () => (filter === 'all' ? items : items.filter((i) => i.category === filter)),
@@ -143,10 +142,6 @@ export default function InboxCard() {
   const approveMut = useMutation({
     mutationFn: (item) => approveInboxItem(item.id),
     onSuccess: (res, item) => {
-      if (res?.delivered === 'manual' && autoSend && res.whatsapp_link) {
-        setManual([{ ...res, title: item.title }]); // API failed → manual fallback
-      }
-      if (res?.delivered === 'api') flash('נשלח בוואטסאפ');
       done();
     },
     onError: (err) => flash(err.message || 'שגיאה באישור'),
@@ -159,8 +154,6 @@ export default function InboxCard() {
       if (action === 'approve') {
         const titles = Object.fromEntries(items.map((i) => [i.id, i.title]));
         setManual(results.filter((r) => r.whatsapp_link).map((r) => ({ ...r, title: titles[r.id] })));
-        const viaApi = results.filter((r) => r.delivered === 'api').length;
-        if (viaApi) flash(`${viaApi} הודעות נשלחו בוואטסאפ`);
       }
       setSelected(new Set());
       done();
@@ -180,8 +173,8 @@ export default function InboxCard() {
   });
 
   function approve(item) {
-    // Manual mode: open wa.me synchronously inside the click (popup blockers)
-    if (!autoSend && item.whatsapp_link) window.open(item.whatsapp_link, '_blank', 'noopener');
+    // Open wa.me synchronously inside the click (popup blockers)
+    if (item.whatsapp_link) window.open(item.whatsapp_link, '_blank', 'noopener');
     approveMut.mutate(item);
   }
 

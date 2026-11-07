@@ -14,7 +14,6 @@ const MODELS = Object.freeze({
 // maxTokens counts thinking as well as the visible output.
 const TASKS = Object.freeze({
   agent:              { tier: 'interactive', effort: 'medium', maxTokens: 16000 },
-  whatsapp_bot:       { tier: 'interactive', effort: 'low',    maxTokens: 4000 },
   intake_assessment:  { tier: 'interactive', effort: 'medium', maxTokens: 8000 },
   session_insights:   { tier: 'interactive', effort: 'medium', maxTokens: 8000 },
   checkin_message:    { tier: 'interactive', effort: 'low',    maxTokens: 4000 },

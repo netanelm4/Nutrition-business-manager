@@ -98,14 +98,14 @@ Local dev server runs on: http://localhost:3001
 - Auth: single password via Authorization: Bearer header
 - DB: SQLite at DB_PATH env variable (default: data/nutrition.db)
 - AI: claude-sonnet-5-5 for the interactive agent and tool use, claude-haiku-5-5 for background jobs (config/ai.js, per-task effort). Hebrew responses only; client-facing text follows prompts/voice.md
-- WhatsApp: WHATSAPP_MODE=deeplink (wa.me links, manual send)
+- WhatsApp: client messages are manual wa.me links only (services/whatsapp.service.js). The only automated channel is the Kapso admin channel to Netanel: webhook /api/integrations/whatsapp/webhook (HMAC, mounted before auth), services/kapso.service.js + admin-whatsapp.service.js. The legacy Meta bot (/api/whatsapp/webhook) was removed.
 - Calendly: webhook at /api/calendly/webhook (mounted before auth)
 
 ## Key Files
 - server.js — entry point, route mounting order matters
 - database/db.js — DB singleton + all migrations on startup
 - database/seed.js — idempotent seeds (check before insert)
-- services/whatsapp.service.js — ALL WhatsApp logic here
+- services/whatsapp.service.js — template rendering + wa.me links for client messages
 - services/ai/ai.service.js — ALL Claude API calls here (generateStructured / generateText); generators in services/ai/generators.js; agent in services/agent/
 - services/reminders.service.js — Calendly reminder checks (runs every 30min)
 - routes/public.routes.js — public endpoints (no auth)
@@ -113,7 +113,8 @@ Local dev server runs on: http://localhost:3001
 
 ## Environment Variables
 PORT, NODE_ENV, AUTH_PASSWORD, ANTHROPIC_API_KEY,
-WHATSAPP_MODE, DB_PATH, CALENDLY_TOKEN,
+DB_PATH, CALENDLY_TOKEN,
+KAPSO_API_KEY, KAPSO_PHONE_NUMBER_ID, KAPSO_WEBHOOK_SECRET, ADMIN_WHATSAPP_PHONE,
 CALENDLY_FOLLOWUP_LINK, CALENDLY_FIRST_LINK
 
 ## Brand (for landing page and UI)

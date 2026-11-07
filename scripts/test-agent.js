@@ -3,7 +3,7 @@
  * approvals, history, morning brief). Runs against a live server started with
  * AI_MOCK=1 (deterministic local model, no API calls, no cost):
  *
- *   DB_PATH=/tmp/copy.db AI_MOCK=1 PORT=3099 WHATSAPP_MODE=deeplink node server.js
+ *   DB_PATH=/tmp/copy.db AI_MOCK=1 PORT=3099 node server.js
  *   node scripts/test-agent.js
  */
 
