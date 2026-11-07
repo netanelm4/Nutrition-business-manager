@@ -232,8 +232,8 @@ function WeekTable({ weeks }) {
             {visible.map((w) => (
               <tr key={w.week_start}>
                 <td style={S.td}>{formatDate(w.week_start)}</td>
-                <td style={S.td}>{w.monday_weight ?? <span style={{ color: '#ccc' }}>—</span>}</td>
-                <td style={S.td}>{w.thursday_weight ?? <span style={{ color: '#ccc' }}>—</span>}</td>
+                <td style={S.td}>{w.monday_weight ?? <span style={{ color: '#ccc' }}>—</span>}{w.monday_off_day && w.monday_date && <span style={{ fontSize: 11, color: '#999', marginInlineStart: 4 }}>({w.monday_date.slice(8, 10)}.{w.monday_date.slice(5, 7)})</span>}</td>
+                <td style={S.td}>{w.thursday_weight ?? <span style={{ color: '#ccc' }}>—</span>}{w.thursday_off_day && w.thursday_date && <span style={{ fontSize: 11, color: '#999', marginInlineStart: 4 }}>({w.thursday_date.slice(8, 10)}.{w.thursday_date.slice(5, 7)})</span>}</td>
                 <td style={{ ...S.td, fontWeight: 600 }}>
                   {w.average !== null
                     ? <>{w.average}{w.average_approximate && <span style={{ fontSize: 10, color: '#aaa', marginRight: 2 }}>*</span>}</>

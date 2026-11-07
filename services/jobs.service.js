@@ -4,6 +4,8 @@ const {
 const { runMorningBrief, morningBriefDueAt } = require('./agent/morning-brief.service');
 const { runAutoCompletion } = require('./client-completion.service');
 const transcription = require('./ai/transcription.service');
+const kapso = require('./kapso.service');
+const { sendBrief } = require('./admin-briefs.service');
 const { absolutePath } = require('./recordings.service');
 const { upsertAction } = require('./action-queue.service');
 const { sendMeetingReminder } = require('./reminders.service');
@@ -212,6 +214,26 @@ function queueTranscription(database, recordingId) {
   return true;
 }
 
+// ── Admin WhatsApp briefs: daily 08:00; weigh-in report Mon & Thu 10:00 (Israel) ──
+// A late start the same day still sends (runAt = now); a missed day is not sent late.
+function reconcileAdminBriefs(database) {
+  if (!kapso.isConfigured()) return { scheduled: 0 };
+  const date = todayISO();
+  const now = nowUtcISO();
+  let scheduled = 0;
+  const plan = [['daily', '08:00']];
+  const dow = new Date(`${date}T12:00:00Z`).getUTCDay();
+  if (dow === 1 || dow === 4) plan.push(['weigh_in', '10:00']);
+  for (const [kind, time] of plan) {
+    const due = israelLocalToUtcISO(date, time);
+    const r = scheduleJob(database, {
+      type: 'admin_brief', runAt: due < now ? now : due, payload: { kind, date }, dedupeKey: `admin_brief:${kind}:${date}`,
+    });
+    if (r === 'created') scheduled++;
+  }
+  return { scheduled };
+}
+
 // Recordings never queued (made before a key existed, or before Phase 9). Retroactive,
 // a few per run so a large backlog does not burst the provider.
 function reconcileTranscriptions(database) {
@@ -233,9 +255,10 @@ function reconcileJobs(database) {
     morningBrief: reconcileMorningBrief(database),
     autoCompletion: reconcileAutoCompletion(database),
     transcriptions: reconcileTranscriptions(database),
+    adminBriefs: reconcileAdminBriefs(database),
   };
   const created = stats.reminders.scheduled + stats.menuSla.scheduled + stats.freezeEnds.scheduled
-    + stats.aiBackfill.scheduled + stats.morningBrief.scheduled + stats.autoCompletion.scheduled + stats.transcriptions.scheduled;
+    + stats.aiBackfill.scheduled + stats.morningBrief.scheduled + stats.autoCompletion.scheduled + stats.transcriptions.scheduled + stats.adminBriefs.scheduled;
   if (created) console.log(`[jobs] Scheduled ${created} job(s)`, JSON.stringify(stats));
   return stats;
 }
@@ -244,6 +267,11 @@ function reconcileJobs(database) {
 
 const HANDLERS = {
   meeting_reminder_24h: async (database, { meetingId }) => sendMeetingReminder(database, meetingId),
+
+  admin_brief: async (database, { kind, date }) => {
+    if (date !== todayISO()) return { skipped: 'stale_date' };
+    return sendBrief(database, kind, { today: date });
+  },
 
   transcribe_recording: async (database, { recordingId }) =>
     transcription.transcribeRecording(database, recordingId, { absolutePath, publish }),

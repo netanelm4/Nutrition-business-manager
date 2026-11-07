@@ -28,6 +28,7 @@ const agentRouter           = require('./routes/agent.routes');
 const recordingsRouter      = require('./routes/recordings.routes');
 const knowledgeBaseRouter   = require('./routes/knowledge-base.routes');
 const sessionAnalysisRouter = require('./routes/session-analysis.routes');
+const adminWhatsApp         = require('./routes/admin-whatsapp.routes');
 const { importFromFileIfNewer } = require('./services/knowledge-base.service');
 const engagementsRouter     = require('./routes/engagements.routes');
 const foodBankRouter        = require('./routes/food-bank.routes');
@@ -78,6 +79,8 @@ app.use('/api/whatsapp',  whatsappBotRouter); // webhook is public; /test applie
 app.use('/landing', express.static(path.join(__dirname, 'landing')));
 
 // ─── Protected API routes ─────────────────────────────────────────────────────
+// Admin WhatsApp (Kapso) webhook: public, HMAC-verified (must precede requireAuth)
+app.use('/api/integrations/whatsapp', adminWhatsApp.publicRouter);
 app.use('/api', requireAuth);
 app.use('/api', logActivity);
 
@@ -90,6 +93,7 @@ app.use('/api/clients',          clientsRouter);
 app.use('/api',                  recordingsRouter); // /sessions/:id/recording, /recordings/:id/audio
 app.use('/api/knowledge-base',   knowledgeBaseRouter);
 app.use('/api',                  sessionAnalysisRouter); // /sessions/:id/analysis
+app.use('/api/integrations/whatsapp', adminWhatsApp.router);
 app.use('/api/sessions',         sessionsRouter);
 app.use('/api/session-windows',  sessionWindowsRouter);
 app.use('/api/leads',            leadsRouter);

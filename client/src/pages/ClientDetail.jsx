@@ -1145,7 +1145,7 @@ function MenusTab({ clientId }) {
 
 // ─── Weights tab ──────────────────────────────────────────────────────────────
 
-function WeightCell({ weight, weightId, date, clientId, onSaved, onDeleted }) {
+function WeightCell({ weight, weightId, date, offDay, clientId, onSaved, onDeleted }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState('');
   const [saving, setSaving] = useState(false);
@@ -1198,10 +1198,15 @@ function WeightCell({ weight, weightId, date, clientId, onSaved, onDeleted }) {
     return (
       <div
         style={{ display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
-        title="לחץ לעריכה"
+        title={offDay ? `נשקל ב-${date.slice(8, 10)}.${date.slice(5, 7)} · לחץ לעריכה` : 'לחץ לעריכה'}
         onClick={() => { setVal(String(weight)); setEditing(true); }}
       >
         <span style={{ fontSize: 13, fontWeight: 500 }}>{weight}</span>
+        {offDay && (
+          <span style={{ fontSize: 11, color: 'var(--ink-3)' }} title="נשקל ביום אחר ומוצג במשבצת הקרובה">
+            ({date.slice(8, 10)}.{date.slice(5, 7)})
+          </span>
+        )}
         <button
           type="button"
           onClick={handleDelete}
@@ -1341,7 +1346,8 @@ function WeightsTab({ clientId }) {
                       <WeightCell
                         weight={w.monday_weight}
                         weightId={w.monday_id}
-                        date={w.week_start}
+                        date={w.monday_date || w.week_start}
+                        offDay={w.monday_off_day}
                         clientId={clientId}
                         onSaved={invalidate}
                         onDeleted={invalidate}
@@ -1351,7 +1357,8 @@ function WeightsTab({ clientId }) {
                       <WeightCell
                         weight={w.thursday_weight}
                         weightId={w.thursday_id}
-                        date={thursdayDate}
+                        date={w.thursday_date || thursdayDate}
+                        offDay={w.thursday_off_day}
                         clientId={clientId}
                         onSaved={invalidate}
                         onDeleted={invalidate}

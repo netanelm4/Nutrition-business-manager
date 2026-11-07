@@ -34,22 +34,27 @@ Dates and times are Israel time; tool dates use YYYY-MM-DD and times HH:MM.
 Any text you draft for a client (draft_whatsapp_message) must follow these rules:
 ${VOICE}`;
 
-function nowContext(db) {
+const CHANNEL_HINT = {
+  whatsapp: 'ערוץ: WhatsApp. תשובה קצרה בטקסט פשוט, בלי markdown, בלי טבלאות. בפעולת כתיבה: אשר בשורה אחת מה נרשם (מטופל, תאריך, ערך).',
+};
+
+function nowContext(db, channel = 'web') {
   const p = israelDateTimeParts(nowUtcISO());
   const weekday = new Date().toLocaleDateString('he-IL', { weekday: 'long', timeZone: 'Asia/Jerusalem' });
   let open = '?';
   try { open = countOpen(db); } catch { /* table missing in edge setups */ }
-  return `[הקשר: ${weekday} ${p.date} ${p.time} · ${open} פריטים פתוחים בתיבת הפעולות]`;
+  const hint = CHANNEL_HINT[channel] ? ` · ${CHANNEL_HINT[channel]}` : '';
+  return `[הקשר: ${weekday} ${p.date} ${p.time} · ${open} פריטים פתוחים בתיבת הפעולות${hint}]`;
 }
 
-function ensureConversation(db, { conversationId, userId, text }) {
+function ensureConversation(db, { conversationId, userId, text, channel = 'web' }) {
   if (conversationId) {
     const conv = db.prepare('SELECT * FROM agent_conversations WHERE id = ?').get(conversationId);
     if (conv) return conv;
   }
   const now = nowUtcISO();
-  const res = db.prepare('INSERT INTO agent_conversations (user_id, title, created_at, updated_at) VALUES (?, ?, ?, ?)')
-    .run(userId || null, text.slice(0, 60), now, now);
+  const res = db.prepare('INSERT INTO agent_conversations (user_id, title, created_at, updated_at, channel) VALUES (?, ?, ?, ?, ?)')
+    .run(userId || null, text.slice(0, 60), now, now, channel);
   return db.prepare('SELECT * FROM agent_conversations WHERE id = ?').get(res.lastInsertRowid);
 }
 
@@ -78,8 +83,13 @@ function summarizeResult(name, kind, output, isError) {
  * Run one user turn. Events: conversation, text, tool_start, tool_result, error, done.
  * @param {object} opts { conversationId?, userId?, userName?, text, onEvent(type, data), signal? }
  */
-async function runAgentTurn(db, { conversationId, userId, userName, text, onEvent, signal }) {
-  const conv = ensureConversation(db, { conversationId, userId, text });
+/**
+ * @param {object} opts
+ * @param {'web'|'whatsapp'} [opts.channel]  shapes the reply style (via the turn context)
+ * @param {string} [opts.actionGroup]        groups autonomous writes for "בטל" (undo)
+ */
+async function runAgentTurn(db, { conversationId, userId, userName, text, onEvent, signal, channel = 'web', actionGroup = null }) {
+  const conv = ensureConversation(db, { conversationId, userId, text, channel });
   onEvent('conversation', { id: conv.id, title: conv.title });
 
   const history = loadHistory(db, conv.id);
@@ -89,13 +99,13 @@ async function runAgentTurn(db, { conversationId, userId, userName, text, onEven
     return;
   }
 
-  const userMessage = { role: 'user', content: [{ type: 'text', text: `${nowContext(db)}\n${text}` }] };
+  const userMessage = { role: 'user', content: [{ type: 'text', text: `${nowContext(db, channel)}\n${text}` }] };
   history.push(userMessage);
   appendMessage(db, conv.id, userMessage);
 
   const tools = toolDefinitions();
   const system = [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }];
-  const ctxBase = { conversationId: conv.id, userName };
+  const ctxBase = { conversationId: conv.id, userName, channel, actionGroup };
   const proposals = [];
 
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {

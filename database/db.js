@@ -2260,6 +2260,36 @@ db.exec(`
 try { db.exec("ALTER TABLE session_ai_analyses ADD COLUMN mode TEXT NOT NULL DEFAULT 'intake'"); } catch { /* exists */ }
 try { db.exec('ALTER TABLE session_ai_analyses ADD COLUMN base_menu_id INTEGER REFERENCES menus(id) ON DELETE SET NULL'); } catch { /* exists */ }
 
+// Admin WhatsApp channel (Kapso): message log (idempotency, audit, 24h window),
+// undoable actions, agent conversation channel, weigh-in source.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS admin_whatsapp_messages (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    direction    TEXT NOT NULL CHECK (direction IN ('in', 'out')),
+    provider_id  TEXT UNIQUE,            -- Kapso / WhatsApp message id (inbound dedupe)
+    kind         TEXT NOT NULL DEFAULT 'text',   -- text | template | brief_detail | ignored
+    body         TEXT,
+    status       TEXT,                   -- out: sent | failed | mock
+    error        TEXT,
+    meta         TEXT,                   -- JSON (brief kind, template params, …)
+    created_at   TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_admin_wa_dir_time ON admin_whatsapp_messages(direction, created_at);
+
+  CREATE TABLE IF NOT EXISTS admin_actions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    channel     TEXT NOT NULL,           -- whatsapp | web
+    group_key   TEXT,                    -- the inbound message that caused it (undo reverts the group)
+    kind        TEXT NOT NULL,           -- weight_logged | task_completed
+    summary     TEXT NOT NULL,           -- Hebrew, for the undo confirmation
+    undo        TEXT NOT NULL,           -- JSON: how to revert
+    created_at  TEXT NOT NULL,
+    undone_at   TEXT
+  );
+`);
+try { db.exec("ALTER TABLE agent_conversations ADD COLUMN channel TEXT NOT NULL DEFAULT 'web'"); } catch { /* exists */ }
+try { db.exec('ALTER TABLE weight_logs ADD COLUMN source TEXT'); } catch { /* exists */ }
+
 // Automatic completion (6 sessions + 14-day grace) marks how a process ended
 try { db.exec('ALTER TABLE clients ADD COLUMN completed_automatically INTEGER NOT NULL DEFAULT 0'); } catch { /* exists */ }
 

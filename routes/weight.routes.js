@@ -13,54 +13,7 @@ function getDayOfWeek(dateStr) {
   return null;
 }
 
-function getMondayOfWeek(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  const day = d.getUTCDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + diffToMonday);
-  return d.toISOString().slice(0, 10);
-}
-
-function addDays(dateStr, n) {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-function groupByWeek(rows) {
-  const weekMap = {};
-
-  for (const row of rows) {
-    const weekStart = getMondayOfWeek(row.weigh_date);
-    if (!weekMap[weekStart]) {
-      weekMap[weekStart] = {
-        week_start: weekStart,
-        monday_weight: null, monday_id: null,
-        thursday_weight: null, thursday_id: null,
-      };
-    }
-    if (row.day_of_week === 'monday') {
-      weekMap[weekStart].monday_weight = row.weight;
-      weekMap[weekStart].monday_id = row.id;
-    } else if (row.day_of_week === 'thursday') {
-      weekMap[weekStart].thursday_weight = row.weight;
-      weekMap[weekStart].thursday_id = row.id;
-    }
-  }
-
-  return Object.values(weekMap)
-    .sort((a, b) => (a.week_start < b.week_start ? 1 : -1))
-    .map((w) => {
-      const both = w.monday_weight !== null && w.thursday_weight !== null;
-      const one  = w.monday_weight !== null || w.thursday_weight !== null;
-      const avg  = both
-        ? Math.round(((w.monday_weight + w.thursday_weight) / 2) * 10) / 10
-        : one
-          ? (w.monday_weight ?? w.thursday_weight)
-          : null;
-      return { ...w, average: avg, average_approximate: !both && one };
-    });
-}
+const { groupByWeek } = require('../utils/weight-grid');
 
 // ─── GET /api/weight/:clientId ────────────────────────────────────────────────
 
@@ -79,7 +32,8 @@ router.get('/:clientId', (req, res) => {
       ? Math.round((latestWeight - firstWeight) * 10) / 10
       : null;
 
-    res.json({ success: true, data: { weeks, first_weight: firstWeight, latest_weight: latestWeight, total_change: totalChange } });
+    // logs: every weigh-in (the weekly grid only has Monday / Thursday slots)
+    res.json({ success: true, data: { weeks, logs: rows, first_weight: firstWeight, latest_weight: latestWeight, total_change: totalChange } });
   } catch (err) {
     console.error('[weight] GET error:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -102,7 +56,9 @@ router.post('/:clientId', (req, res) => {
     }
 
     const dayOfWeek = getDayOfWeek(date);
-    if (!dayOfWeek) {
+    // off-day weigh-ins (logged from WhatsApp) can be edited in place; new ones only on Mon / Thu
+    const existing = db.prepare('SELECT id FROM weight_logs WHERE client_id = ? AND weigh_date = ?').get(req.params.clientId, date);
+    if (!dayOfWeek && !existing) {
       return res.status(400).json({ success: false, error: 'ניתן להוסיף שקילה רק בימי שני וחמישי' });
     }
 

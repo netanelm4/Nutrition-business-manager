@@ -5,13 +5,15 @@ const { publish } = require('../event-bus.service');
 const { LEAD_STATUS } = require('../../constants/statuses');
 const {
   todayISO, nowUtcISO, israelDateOf, israelDateTimeParts, israelLocalToUtcISO, addDays, parseDate, toISODate,
+  resolveHebrewDate, hebrewWeekday, formatDateHebrewShort,
 } = require('../../utils/dates');
 
 // ─── Agent tool registry ─────────────────────────────────────────────────────
 //   read     — runs immediately, returns data
 //   propose  — never writes the CRM: creates an Inbox item (kind agent_<tool>)
 //              that Netanel approves with one click (services/agent/proposals.js)
-//   auto     — the one autonomous write (update_weight), audit-logged
+//   auto     — autonomous writes (weigh-ins, task completion), audit-logged and
+//              recorded in admin_actions so "בטל" can revert them
 // Every input is validated with zod before running; errors go back to the
 // model as is_error tool results so it can correct itself.
 
@@ -58,6 +60,15 @@ function propose(db, ctx, tool, { title, body, clientId = null, leadId = null, p
 // ── Read tools ───────────────────────────────────────────────────────────────
 
 const READ = {
+  list_open_tasks: {
+    description: 'Open session tasks / habits of a client (pending or in progress), newest first, with task_id.',
+    schema: z.object({ client_id: id() }),
+    run: (db, { client_id }) => {
+      const client = requireRow(db, 'clients', client_id, 'Client');
+      return { client: client.full_name, open_tasks: openTasks(db, client_id).map(({ task_id, text, session_number }) => ({ task_id, text, session_number })) };
+    },
+  },
+
   search_entities: {
     description: 'Find clients and leads by name or phone. Use this first to get ids.',
     schema: z.object({
@@ -384,7 +395,107 @@ const PROPOSE = {
 
 // ── Autonomous write (decision #3: weight logging) ───────────────────────────
 
+// ── Undoable autonomous writes ──
+function recordAction(db, ctx, kind, summary, undo) {
+  db.prepare(`
+    INSERT INTO admin_actions (channel, group_key, kind, summary, undo, created_at) VALUES (?, ?, ?, ?, ?, ?)
+  `).run(ctx.channel || 'web', ctx.actionGroup || null, kind, summary, JSON.stringify(undo), nowUtcISO());
+}
+
+/** Open (pending / in-progress) tasks of a client across sessions, newest first, deduped by text. */
+function openTasks(db, clientId) {
+  const sessions = db.prepare('SELECT id, session_number, tasks FROM sessions WHERE client_id = ? ORDER BY session_number DESC').all(clientId);
+  const byText = new Map();
+  for (const s of sessions) {
+    let tasks = [];
+    try { tasks = JSON.parse(s.tasks || '[]'); } catch { tasks = []; }
+    for (const t of tasks) {
+      if (!t?.text || !['pending', 'in_progress'].includes(t.status)) continue;
+      const key = t.text.trim();
+      if (!byText.has(key)) byText.set(key, { task_id: t.id, text: key, session_number: s.session_number, instances: [] });
+      byText.get(key).instances.push({ session_id: s.id, task_id: t.id });
+    }
+  }
+  return [...byText.values()];
+}
+
+const STOP_WORDS = new Set(['משימה', 'משימת', 'משימות', 'את', 'של', 'ל', 'סמן', 'כבוצע', 'בוצע', 'הושלם', 'ה']);
+const words = (t) => String(t).replace(/[^\u05d0-\u05eaA-Za-z0-9 ]+/g, ' ').split(/\s+/)
+  .map((w) => w.replace(/^[והלבמשכ](?=[\u05d0-\u05ea]{3,})/, '')).filter((w) => w.length > 1 && !STOP_WORDS.has(w));
+
 const AUTO = {
+  log_weight: {
+    description: 'Record a client weigh-in Netanel reports (e.g. WhatsApp "דני כהן 84.2 אתמול"). Pass the date EXACTLY as written in date_text ("אתמול", "ביום חמישי", "04/11"; empty = today); the server resolves it in Israel time and rejects future dates. Replaces an existing weigh-in on the same date. Confirm back: client, resolved date label, weight.',
+    schema: z.object({ client_id: id(), weight: z.number().positive(), date_text: z.string().default('') }),
+    run: (db, { client_id, weight, date_text }, ctx) => {
+      const client = requireRow(db, 'clients', client_id, 'Client');
+      if (weight < 25 || weight > 350) throw new Error(`Weight ${weight} kg is outside the plausible range; ask Netanel to confirm.`);
+      const resolved = resolveHebrewDate(date_text);
+      if (resolved.error) throw new Error(resolved.error);
+      const date = resolved.date;
+      const existing = db.prepare('SELECT weight, source, day_of_week FROM weight_logs WHERE client_id = ? AND weigh_date = ?').get(client_id, date);
+      const before = db.prepare('SELECT weigh_date, weight FROM weight_logs WHERE client_id = ? AND weigh_date < ? ORDER BY weigh_date DESC LIMIT 1').get(client_id, date);
+      const day = new Date(`${date}T12:00:00Z`).getUTCDay();
+      const source = ctx.channel === 'whatsapp' ? 'whatsapp_admin' : 'agent';
+      db.prepare(`
+        INSERT INTO weight_logs (client_id, weigh_date, weight, day_of_week, source) VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(client_id, weigh_date) DO UPDATE SET weight = excluded.weight, source = excluded.source
+      `).run(client_id, date, weight, day === 1 ? 'monday' : day === 4 ? 'thursday' : null, source);
+      recordAction(db, ctx, 'weight_logged', `שקילה של ${client.full_name}: ${weight} ק"ג, ${resolved.label}`,
+        { type: 'weight', client_id, date, previous: existing || null });
+      publish(db, 'weight.logged', { entityType: 'client', entityId: client_id, payload: { weight, date, by: source, user: ctx.userName } });
+      return {
+        saved: true, client: client.full_name, weight, date, date_label: resolved.label,
+        replaced_previous_value: existing ? existing.weight : null,
+        previous_weigh_in: before ? { date: before.weigh_date, weight: before.weight, change: Math.round((weight - before.weight) * 10) / 10 } : null,
+      };
+    },
+  },
+
+  complete_task: {
+    description: 'Mark a client\'s open session task / habit as done, found by keywords (e.g. "סמן משימת בישול לשירה" → task_query "בישול"). If several tasks match, the error lists them: ask Netanel which one and call again with task_id.',
+    schema: z.object({ client_id: id(), task_query: z.string().default(''), task_id: z.string().optional() }),
+    run: (db, { client_id, task_query, task_id }, ctx) => {
+      const client = requireRow(db, 'clients', client_id, 'Client');
+      const open = openTasks(db, client_id);
+      if (!open.length) throw new Error(`אין ל${client.full_name} משימות פתוחות.`);
+      let matches;
+      if (task_id) {
+        matches = open.filter((t) => t.task_id === task_id || t.instances.some((i) => i.task_id === task_id));
+      } else {
+        const q = words(task_query);
+        const scored = open.map((t) => {
+          const tw = words(t.text).join(' ');
+          return { t, score: q.filter((w) => tw.includes(w)).length };
+        }).filter((x) => x.score > 0);
+        const best = Math.max(0, ...scored.map((x) => x.score));
+        matches = scored.filter((x) => x.score === best).map((x) => x.t);
+      }
+      if (matches.length !== 1) {
+        const list = (matches.length ? matches : open).map((t, i) => `${i + 1}. ${t.text} (task_id ${t.task_id})`).join('\n');
+        throw new Error(matches.length ? `כמה משימות מתאימות:\n${list}` : `לא נמצאה משימה מתאימה. המשימות הפתוחות:\n${list}`);
+      }
+      const task = matches[0];
+      const now = nowUtcISO();
+      const undo = [];
+      for (const inst of task.instances) {
+        const row = db.prepare('SELECT tasks FROM sessions WHERE id = ?').get(inst.session_id);
+        const tasks = JSON.parse(row.tasks || '[]');
+        for (const t of tasks) {
+          if (t.id === inst.task_id && ['pending', 'in_progress'].includes(t.status)) {
+            undo.push({ session_id: inst.session_id, task_id: t.id, previous_status: t.status });
+            t.status = 'done';
+            t.completed_at = now;
+          }
+        }
+        db.prepare('UPDATE sessions SET tasks = ? WHERE id = ?').run(JSON.stringify(tasks), inst.session_id);
+      }
+      recordAction(db, ctx, 'task_completed', `משימה של ${client.full_name}: "${task.text}" סומנה כבוצעה`, { type: 'tasks', items: undo });
+      publish(db, 'session.task_completed', { entityType: 'client', entityId: client_id, payload: { text: task.text } });
+      return { done: true, client: client.full_name, task: task.text, instances_updated: undo.length };
+    },
+  },
+
   update_weight: {
     description: 'Record a client weigh-in directly (autonomous, audit-logged). Use the date the client weighed in.',
     schema: z.object({ client_id: id(), weight: z.number().positive(), date: isoDate() }),
@@ -447,4 +558,5 @@ function executeTool(db, name, rawInput, ctx) {
   return result;
 }
 
-module.exports = { REGISTRY, toolDefinitions, executeTool };
+module.exports = {
+  openTasks, REGISTRY, toolDefinitions, executeTool };

@@ -52,32 +52,7 @@ function getDayOfWeekPublic(dateStr) {
   return null;
 }
 
-function getMondayOfWeekPublic(dateStr) {
-  const d = new Date(dateStr + 'T12:00:00Z');
-  const day = d.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + diff);
-  return d.toISOString().slice(0, 10);
-}
-
-function groupWeightRows(rows) {
-  const weekMap = {};
-  for (const row of rows) {
-    const ws = getMondayOfWeekPublic(row.weigh_date);
-    if (!weekMap[ws]) weekMap[ws] = { week_start: ws, monday_weight: null, monday_id: null, thursday_weight: null, thursday_id: null };
-    if (row.day_of_week === 'monday')   { weekMap[ws].monday_weight = row.weight;   weekMap[ws].monday_id = row.id; }
-    if (row.day_of_week === 'thursday') { weekMap[ws].thursday_weight = row.weight; weekMap[ws].thursday_id = row.id; }
-  }
-  return Object.values(weekMap)
-    .sort((a, b) => (a.week_start < b.week_start ? 1 : -1))
-    .map((w) => {
-      const both = w.monday_weight !== null && w.thursday_weight !== null;
-      const one  = w.monday_weight !== null || w.thursday_weight !== null;
-      const avg  = both ? Math.round(((w.monday_weight + w.thursday_weight) / 2) * 10) / 10
-                        : one ? (w.monday_weight ?? w.thursday_weight) : null;
-      return { ...w, average: avg, average_approximate: !both && one };
-    });
-}
+const { groupByWeek: groupWeightRows } = require('../utils/weight-grid');
 
 function buildWeightStats(clientId) {
   const rows = db.prepare(

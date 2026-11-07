@@ -259,7 +259,76 @@ function isoWeekKey(value = new Date()) {
   return `${d.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
+// ─── Hebrew natural-language dates (WhatsApp commands) ──────────────────────
+// Resolves what Netanel writes ("אתמול", "ביום חמישי", "ב-04/11", "לפני 3 ימים")
+// to an Israel calendar date. Weekday names mean the MOST RECENT such day
+// (today included); a date without a year is this year unless that would be in
+// the future. Future dates are rejected: weigh-ins and completions are past events.
+
+const HEBREW_WEEKDAYS = [
+  ['ראשון', "א'", 'א׳'], ['שני', "ב'", 'ב׳'], ['שלישי', "ג'", 'ג׳'], ['רביעי', "ד'", 'ד׳'],
+  ['חמישי', "ה'", 'ה׳'], ['שישי', "ו'", 'ו׳'], ['שבת', "ש'", 'ש׳'],
+];
+const HEBREW_WEEKDAY_NAMES = HEBREW_WEEKDAYS.map((w) => w[0]);
+
+/**
+ * @param {string} text  the date as written ('' → today)
+ * @param {string} [today] Israel date "YYYY-MM-DD" (defaults to now)
+ * @returns {{ date: string, label: string } | { error: string }}
+ */
+function resolveHebrewDate(text, today = todayISO()) {
+  const t = String(text || '').trim().replace(/^ב-?|^ביום\s+|^יום\s+/u, '').replace(/[.,;!?]+$/, '').trim();
+  const base = parseDate(`${today}T12:00:00Z`);
+  const shift = (days) => toISODate(addDays(base, days));
+  const done = (date) => {
+    if (date > today) return { error: `התאריך ${formatDateHebrewShort(date)} עוד לא הגיע.` };
+    return { date, label: `${hebrewWeekday(date)} ${formatDateHebrewShort(date)}` };
+  };
+  if (!t || /^(היום|עכשיו|הבוקר)$/u.test(t)) return done(today);
+  if (/^אתמול$/u.test(t)) return done(shift(-1));
+  if (/^(מחר|מחרתיים)$/u.test(t)) return { error: `"${t}" עוד לא הגיע. אפשר לרשום רק תאריך שעבר.` };
+  if (/^(שלשום|לפני יומיים)$/u.test(t)) return done(shift(-2));
+  const ago = /^לפני\s+(\d{1,2})\s+ימים$/u.exec(t);
+  if (ago) return done(shift(-Number(ago[1])));
+
+  // weekday name → most recent (today included)
+  const wd = HEBREW_WEEKDAYS.findIndex((names) => names.some((n) => t === n || t === `יום ${n}`));
+  if (wd !== -1) {
+    const todayDow = base.getUTCDay();
+    return done(shift(-((todayDow - wd + 7) % 7)));
+  }
+
+  // ISO
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  if (m) return validDate(+m[1], +m[2], +m[3]) ? done(t) : { error: `התאריך "${text}" לא תקין.` };
+
+  // DD/MM[/YY|YYYY] with / . or -
+  m = /^(\d{1,2})[/.-](\d{1,2})(?:[/.-](\d{2}|\d{4}))?$/.exec(t);
+  if (m) {
+    const day = +m[1];
+    const month = +m[2];
+    let year = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : +today.slice(0, 4);
+    // no year and in the future: far ahead ("15/12" written in January) → last year;
+    // a few weeks ahead is more likely a mistake → rejected below as "not yet"
+    if (!m[3] && isoOf(year, month, day) > today && diffDays(isoOf(year, month, day), today) > 60) year -= 1;
+    if (!validDate(year, month, day)) return { error: `התאריך "${text}" לא תקין.` };
+    return done(isoOf(year, month, day));
+  }
+  return { error: `לא הצלחתי להבין את התאריך "${text}".` };
+}
+
+function isoOf(y, m, d) { return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+function validDate(y, m, d) {
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+function hebrewWeekday(iso) { return `יום ${HEBREW_WEEKDAY_NAMES[new Date(`${iso}T12:00:00Z`).getUTCDay()]}`; }
+function formatDateHebrewShort(iso) { const [y, m, d] = iso.split('-'); return `${d}.${m}.${y}`; }
+
 module.exports = {
+  resolveHebrewDate,
+  hebrewWeekday,
+  formatDateHebrewShort,
   isoWeekKey,
   BUSINESS_TZ,
   toUtcISO,
