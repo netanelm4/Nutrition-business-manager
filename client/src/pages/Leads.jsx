@@ -177,23 +177,20 @@ export default function Leads() {
           </div>
         )}
 
-        {/* ── List (mobile / list mode) ── */}
-        {!isLoading && !isError && filtered.length > 0 && (viewMode === 'list' || true) && (
-          <div className={viewMode === 'list' ? 'block' : 'md:hidden'} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {viewMode === 'list' && filtered.map((lead) => (
-              <LeadCard
-                key={lead.id}
-                lead={lead}
-                onEdit={(lead) => setEditLead(lead)}
-                onStatusAdvance={handleStatusChange}
-              />
-            ))}
+        {/* ── Kanban (phone): stages stacked as collapsible groups ── */}
+        {!isLoading && !isError && filtered.length > 0 && viewMode === 'kanban' && (
+          <div className="md:hidden">
+            <MobileKanban
+              leads={filtered}
+              onEdit={(lead) => setEditLead(lead)}
+              onStatusAdvance={handleStatusChange}
+            />
           </div>
         )}
 
-        {/* ── Mobile fallback ── */}
-        {!isLoading && !isError && viewMode === 'kanban' && (
-          <div className="md:hidden" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* ── List: one flat list, every lead ── */}
+        {!isLoading && !isError && filtered.length > 0 && viewMode === 'list' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {filtered.map((lead) => (
               <LeadCard
                 key={lead.id}
@@ -248,5 +245,53 @@ export default function Leads() {
         />
       )}
     </>
+  );
+}
+
+// ─── Kanban on a phone ────────────────────────────────────────────────────────
+// The desktop board's columns, stacked: one collapsible group per stage.
+// Converted leads start collapsed; closed leads (backed out / not relevant /
+// meeting held) are grouped at the bottom, like the board hides them.
+
+const MOBILE_STAGES = [
+  { key: 'new',               statuses: ['new'],                                      dot: 'var(--ink-4)' },
+  { key: 'contacted',         statuses: ['contacted'],                                dot: 'var(--blue)' },
+  { key: 'meeting_scheduled', statuses: ['meeting_scheduled'],                        dot: 'var(--amber-ink)' },
+  { key: 'became_client',     statuses: ['became_client'],                            dot: 'var(--green)', collapsed: true },
+  { key: 'closed',            statuses: ['meeting_held', 'backed_out', 'not_relevant'], dot: 'var(--red-ink)', collapsed: true, label: 'נסגרו ללא המרה' },
+];
+
+function MobileKanban({ leads, onEdit, onStatusAdvance }) {
+  const [open, setOpen] = useState(() => Object.fromEntries(MOBILE_STAGES.map((s) => [s.key, !s.collapsed])));
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {MOBILE_STAGES.map((stage) => {
+        const items = leads.filter((l) => stage.statuses.includes(l.status));
+        const isOpen = open[stage.key];
+        return (
+          <section key={stage.key} className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <button
+              type="button"
+              onClick={() => setOpen((o) => ({ ...o, [stage.key]: !o[stage.key] }))}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--ink-1)' }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: 99, background: stage.dot, flexShrink: 0 }} />
+              <span style={{ fontSize: 14, fontWeight: 600 }}>{stage.label || LEAD_STATUS_LABEL[stage.key]}</span>
+              <span style={{ fontSize: 12, color: 'var(--ink-3)', background: 'var(--surface-2)', borderRadius: 99, padding: '1px 8px' }}>{items.length}</span>
+              <span style={{ marginInlineStart: 'auto', fontSize: 11, color: 'var(--ink-3)' }}>{isOpen ? '▲' : '▼'}</span>
+            </button>
+            {isOpen && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 10px 10px' }}>
+                {items.length === 0
+                  ? <p style={{ fontSize: 12.5, color: 'var(--ink-4)', textAlign: 'center', padding: '6px 0 4px' }}>אין לידים בשלב הזה</p>
+                  : items.map((lead) => (
+                    <LeadCard key={lead.id} lead={lead} onEdit={onEdit} onStatusAdvance={onStatusAdvance} />
+                  ))}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
   );
 }
