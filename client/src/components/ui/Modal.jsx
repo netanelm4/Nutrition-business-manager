@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 const SIZE = {
   sm: 'max-w-sm',
@@ -8,7 +9,8 @@ const SIZE = {
 };
 
 /**
- * Base modal: backdrop + sliding card (bottom sheet on mobile, centered on desktop).
+ * Base modal: backdrop + centered card. Rendered into <body> (portal) so a parent
+ * card's transform / stacking context can never trap it behind the mobile nav.
  * Children are rendered inside a scrollable content area.
  * @param {string}   title    - Modal heading
  * @param {function} onClose  - Called when backdrop or ✕ is clicked, or Escape pressed
@@ -23,8 +25,8 @@ export default function Modal({ title, onClose, children, size = 'md' }) {
     return () => document.removeEventListener('keydown', handleKey);
   }, [onClose]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4" dir="rtl">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
@@ -32,7 +34,7 @@ export default function Modal({ title, onClose, children, size = 'md' }) {
       />
       {/* Card */}
       <div
-        className={`relative bg-surface w-full ${SIZE[size] ?? SIZE.md} rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] flex flex-col`}
+        className={`relative bg-surface w-full ${SIZE[size] ?? SIZE.md} rounded-2xl shadow-2xl max-h-[85dvh] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -52,6 +54,7 @@ export default function Modal({ title, onClose, children, size = 'md' }) {
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

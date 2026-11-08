@@ -1477,7 +1477,7 @@ function StopProcessButton({ client, onSuccess }) {
                     display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
                     borderRadius: 8, cursor: 'pointer',
                     border: `1.5px solid ${reason === opt.value ? 'var(--blue)' : 'var(--hairline)'}`,
-                    background: reason === opt.value ? 'var(--blue-soft)' : 'white',
+                    background: reason === opt.value ? 'var(--blue-soft)' : 'var(--surface-2)', color: 'var(--ink-1)',
                   }}
                 >
                   <input
