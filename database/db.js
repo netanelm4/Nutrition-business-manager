@@ -1849,11 +1849,12 @@ try { db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_meeting_id ON sessions(me
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_meetings_google_event_id ON meetings(google_event_id)'); } catch {}
 try { db.exec('CREATE INDEX IF NOT EXISTS idx_meetings_start_time ON meetings(start_time)'); } catch {}
 
-// leads.status CHECK: add meeting_held (used by the UI, rejected by the old constraint).
+// leads.status CHECK: add meeting_held and backed_out (lead changed their mind,
+// never booked / canceled the meeting).
 // SQLite cannot alter a CHECK → recreate, copying every existing column.
 try {
   const leadsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='leads'").get()?.sql || '';
-  if (leadsSql && !leadsSql.includes("'meeting_held'")) {
+  if (leadsSql && !leadsSql.includes("'backed_out'")) {
     const cols = db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name);
     const known = ['id', 'full_name', 'phone', 'email', 'source', 'status', 'notes',
                    'follow_up_date', 'created_at', 'status_updated_at'];
@@ -1870,7 +1871,7 @@ try {
           email             TEXT,
           source            TEXT     CHECK (source IN ('landing_page', 'referral', 'other', 'google_calendar')),
           status            TEXT     NOT NULL DEFAULT 'new'
-                                     CHECK (status IN ('new', 'contacted', 'meeting_scheduled', 'meeting_held', 'became_client', 'not_relevant')),
+                                     CHECK (status IN ('new', 'contacted', 'meeting_scheduled', 'meeting_held', 'backed_out', 'became_client', 'not_relevant')),
           notes             TEXT,
           follow_up_date    TEXT,
           created_at        TEXT     NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
@@ -1882,7 +1883,7 @@ try {
       db.exec('ALTER TABLE leads_v3 RENAME TO leads');
     })();
     db.pragma('foreign_keys = ON');
-    console.log('[migration] leads.status CHECK now allows meeting_held');
+    console.log('[migration] leads.status CHECK now allows meeting_held, backed_out');
   }
 } catch (err) {
   try { db.pragma('foreign_keys = ON'); } catch {}

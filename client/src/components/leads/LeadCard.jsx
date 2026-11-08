@@ -11,6 +11,7 @@ const STATUS_BADGE = {
   meeting_scheduled: 'bg-yellow-100 text-yellow-700',
   became_client:     'bg-green-100 text-green-700',
   not_relevant:      'bg-red-100 text-red-600',
+  backed_out:        'bg-gray-100 text-gray-500',
 };
 
 function getNextStatus(currentStatus) {

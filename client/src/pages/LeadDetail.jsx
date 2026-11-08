@@ -178,6 +178,7 @@ export default function LeadDetail() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [meetingModalOpen, setMeetingModalOpen] = useState(false);
   const [confirmMeetingHeld, setConfirmMeetingHeld] = useState(false);
+  const [confirmBackOut, setConfirmBackOut] = useState(false);
 
   // ── Data fetching ────────────────────────────────────────────────────────────
 
@@ -286,6 +287,7 @@ export default function LeadDetail() {
   const isTerminal = lead.status === 'became_client';
   const isNotRelevant = lead.status === 'not_relevant';
   const isMeetingHeld = lead.status === LEAD_STATUS.MEETING_HELD;
+  const isBackedOut = lead.status === LEAD_STATUS.BACKED_OUT;
   const showMeetingSection = lead.status === LEAD_STATUS.MEETING_SCHEDULED || isMeetingHeld;
 
   const createdAt = formatDateHebrew(lead.created_at);
@@ -339,6 +341,29 @@ export default function LeadDetail() {
         {isNotRelevant ? (
           <div style={{ fontSize: 13, color: 'var(--ink-3)', background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
             סומן כלא רלוונטי
+          </div>
+        ) : isBackedOut ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ fontSize: 13, color: 'var(--ink-2)', background: 'var(--surface-2)', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+              הליד התחרט ולא קבע פגישה
+              {lead.status_updated_at && (
+                <span style={{ color: 'var(--ink-3)' }}> · {formatDateHebrew(lead.status_updated_at)}</span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await save({ status: LEAD_STATUS.CONTACTED });
+                  queryClient.invalidateQueries({ queryKey: ['lead', id] });
+                  queryClient.invalidateQueries({ queryKey: ['leads'] });
+                } catch {}
+              }}
+              className="crm-btn"
+              style={{ width: '100%', justifyContent: 'center' }}
+            >
+              הליד חזר — החזר לליד פעיל
+            </button>
           </div>
         ) : isMeetingHeld ? (
           <>
@@ -562,6 +587,49 @@ export default function LeadDetail() {
             </button>
             {convertError && (
               <p style={{ fontSize: 13, color: 'var(--red-ink)' }}>{convertError}</p>
+            )}
+            {!isBackedOut && !isNotRelevant && !isMeetingHeld && (
+              !confirmBackOut ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmBackOut(true)}
+                  className="crm-btn"
+                  style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}
+                >
+                  הליד התחרט — לא קובע פגישה
+                </button>
+              ) : (
+                <div style={{ background: 'var(--surface-2)', borderRadius: 8, padding: '12px 14px', marginTop: 4 }}>
+                  <p style={{ fontSize: 13, color: 'var(--ink-2)', textAlign: 'center', marginBottom: 10 }}>
+                    לסמן ש{lead.full_name} התחרט/ה? הליד יוסר מהלוח ומהתזכורות. אפשר להחזיר אותו בכל עת.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await save({ status: LEAD_STATUS.BACKED_OUT });
+                          setConfirmBackOut(false);
+                          queryClient.invalidateQueries({ queryKey: ['lead', id] });
+                          queryClient.invalidateQueries({ queryKey: ['leads'] });
+                        } catch {}
+                      }}
+                      className="crm-btn"
+                      style={{ flex: 1, justifyContent: 'center', background: 'var(--ink-1)', color: 'var(--canvas)', border: 'none' }}
+                    >
+                      אישור
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmBackOut(false)}
+                      className="crm-btn"
+                      style={{ flex: 1, justifyContent: 'center' }}
+                    >
+                      ביטול
+                    </button>
+                  </div>
+                </div>
+              )
             )}
           </div>
         )}

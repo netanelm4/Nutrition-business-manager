@@ -51,7 +51,7 @@ function gather(db, date) {
 
   const before = new Date(Date.now() - STALE_LEAD_DAYS * 864e5).toISOString();
   const staleLeads = db.prepare('SELECT * FROM leads').all().filter((l) => {
-    if (['became_client', 'not_relevant', 'meeting_held'].includes(l.status)) return false;
+    if (['became_client', 'not_relevant', 'meeting_held', 'backed_out'].includes(l.status)) return false;
     const last = l.status_updated_at || l.created_at;
     const iso = String(last).includes('T') ? String(last) : `${String(last).replace(' ', 'T')}Z`;
     return iso < before;

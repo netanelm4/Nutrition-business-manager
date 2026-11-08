@@ -437,6 +437,11 @@ async function run() {
   {
     const r = await req('PUT', `/leads/${tzLeadId}`, { status: 'meeting_held' });
     assert('Lead status meeting_held accepted by DB', r.success && r.data.status === 'meeting_held', JSON.stringify(r));
+    const b = await req('PUT', `/leads/${tzLeadId}`, { status: 'backed_out' });
+    assert('Lead status backed_out ("הליד התחרט") accepted by DB', b.success && b.data.status === 'backed_out', JSON.stringify(b));
+    const back = await req('PUT', `/leads/${tzLeadId}`, { status: 'contacted' });
+    assert('Backed-out lead can be reopened', back.success && back.data.status === 'contacted');
+    await req('PUT', `/leads/${tzLeadId}`, { status: 'meeting_held' });
   }
 
   // ── Booking-link template (Calendly removed) ───────────────────────────────

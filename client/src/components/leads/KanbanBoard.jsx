@@ -26,7 +26,7 @@ export default function KanbanBoard({ leads, onStatusChange, onEdit, onStatusAdv
   const [draggingId, setDraggingId] = useState(null);
   const [overColumn, setOverColumn] = useState(null);
 
-  const visibleLeads = leads.filter((l) => l.status !== 'not_relevant');
+  const visibleLeads = leads.filter((l) => l.status !== 'not_relevant' && l.status !== 'backed_out');
   const leadsByStatus = (status) => visibleLeads.filter((l) => l.status === status);
 
   function handleDragStart(leadId) { setDraggingId(leadId); }

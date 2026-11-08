@@ -140,6 +140,7 @@ export default function LeadForm({ lead, onSuccess }) {
             <option value={LEAD_STATUS.CONTACTED}>{LEAD_STATUS_LABEL[LEAD_STATUS.CONTACTED]}</option>
             <option value={LEAD_STATUS.MEETING_SCHEDULED}>{LEAD_STATUS_LABEL[LEAD_STATUS.MEETING_SCHEDULED]}</option>
             <option value={LEAD_STATUS.BECAME_CLIENT}>{LEAD_STATUS_LABEL[LEAD_STATUS.BECAME_CLIENT]}</option>
+            <option value={LEAD_STATUS.BACKED_OUT}>{LEAD_STATUS_LABEL[LEAD_STATUS.BACKED_OUT]}</option>
             <option value={LEAD_STATUS.NOT_RELEVANT}>{LEAD_STATUS_LABEL[LEAD_STATUS.NOT_RELEVANT]}</option>
           </select>
         </Field>

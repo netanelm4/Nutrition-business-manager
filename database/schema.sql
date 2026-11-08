@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS leads (
   phone            TEXT,
   source           TEXT    CHECK (source IN ('landing_page', 'referral', 'other')),
   status           TEXT    NOT NULL DEFAULT 'new'
-                           CHECK (status IN ('new', 'contacted', 'meeting_scheduled', 'became_client', 'not_relevant')),
+                           CHECK (status IN ('new', 'contacted', 'meeting_scheduled', 'meeting_held', 'backed_out', 'became_client', 'not_relevant')),
   notes            TEXT,
   follow_up_date   TEXT,
   created_at       TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))

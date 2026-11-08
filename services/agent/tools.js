@@ -164,7 +164,7 @@ const READ = {
     schema: z.object({ days: z.number().int().positive().optional() }),
     run: (db, { days = 5 }) => {
       const before = new Date(Date.now() - days * 864e5).toISOString();
-      const terminal = new Set([LEAD_STATUS.BECAME_CLIENT, LEAD_STATUS.NOT_RELEVANT]);
+      const terminal = new Set([LEAD_STATUS.BECAME_CLIENT, LEAD_STATUS.NOT_RELEVANT, LEAD_STATUS.BACKED_OUT]);
       const leads = db.prepare('SELECT * FROM leads').all().filter((l) => {
         if (terminal.has(l.status)) return false;
         const last = l.status_updated_at || l.created_at;
@@ -284,7 +284,7 @@ const PROPOSE = {
     description: 'Propose changing a lead status. Requires approval.',
     schema: z.object({
       lead_id: id(),
-      status: z.enum(['new', 'contacted', 'meeting_scheduled', 'meeting_held', 'became_client', 'not_relevant']),
+      status: z.enum(['new', 'contacted', 'meeting_scheduled', 'meeting_held', 'backed_out', 'became_client', 'not_relevant']),
       note: z.string().optional(),
       reason: reason(),
     }),

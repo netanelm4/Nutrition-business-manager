@@ -110,7 +110,7 @@ export default function Leads() {
   }, [leads, search]);
 
   const activeLeads = leads.filter((l) =>
-    l.status !== LEAD_STATUS.NOT_RELEVANT && l.status !== LEAD_STATUS.BECAME_CLIENT
+    l.status !== LEAD_STATUS.NOT_RELEVANT && l.status !== LEAD_STATUS.BECAME_CLIENT && l.status !== LEAD_STATUS.BACKED_OUT
   );
 
   return (

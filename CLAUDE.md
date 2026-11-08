@@ -37,7 +37,7 @@ PART 2 — Repair function (existing data):
 ### The repair function must cover ALL entities:
 - All clients (every status: active, ended, paused)
 - All leads (every status: new, contacted, meeting_scheduled,
-  became_client, not_relevant, meeting_held)
+  became_client, not_relevant, meeting_held, backed_out)
 - All sessions (all 6 session numbers)
 - All calendly_events
 - All intakes (lead_intakes and session_intakes)

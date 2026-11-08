@@ -17,7 +17,7 @@ const {
 const RETENTION_DAYS = 14;
 const STALE_LEAD_DAYS = 5;
 const ACTIVE = ['active', 'ending_soon'];
-const TERMINAL_LEAD = new Set(['became_client', 'not_relevant', 'meeting_held']);
+const TERMINAL_LEAD = new Set(['became_client', 'not_relevant', 'meeting_held', 'backed_out']);
 
 function templateBody(database, trigger) {
   return database.prepare(

@@ -11,6 +11,7 @@ const LEAD_STATUS = Object.freeze({
   CONTACTED: 'contacted',
   MEETING_SCHEDULED: 'meeting_scheduled',
   MEETING_HELD: 'meeting_held',
+  BACKED_OUT: 'backed_out', // changed their mind: never booked / canceled
   BECAME_CLIENT: 'became_client',
   NOT_RELEVANT: 'not_relevant',
 });

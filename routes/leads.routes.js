@@ -6,7 +6,7 @@ const { convertLeadToClient } = require('../services/client-lifecycle.service');
 
 const router = express.Router();
 
-const TERMINAL_STATUSES = new Set([LEAD_STATUS.BECAME_CLIENT, LEAD_STATUS.NOT_RELEVANT, LEAD_STATUS.MEETING_HELD]);
+const TERMINAL_STATUSES = new Set([LEAD_STATUS.BECAME_CLIENT, LEAD_STATUS.NOT_RELEVANT, LEAD_STATUS.MEETING_HELD, LEAD_STATUS.BACKED_OUT]);
 const FROZEN_DAYS = 5;
 
 function computeFrozen(lead) {
