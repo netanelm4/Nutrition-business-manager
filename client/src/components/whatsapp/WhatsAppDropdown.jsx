@@ -114,7 +114,7 @@ export default function WhatsAppDropdown({ clientId, phone, defaultTriggerEvent 
               }
             }
           }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
+          className="wa-trigger flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-green-700 text-sm font-medium hover:bg-green-100 transition-colors"
         >
           <span>💬</span>
           <span>וואטסאפ</span>
@@ -122,7 +122,7 @@ export default function WhatsAppDropdown({ clientId, phone, defaultTriggerEvent 
         </button>
 
         {open && (
-          <div className="absolute end-0 top-full mt-1 z-20 bg-surface border border-gray-200 rounded-xl shadow-lg w-72 overflow-hidden" dir="rtl">
+          <div className="absolute start-0 sm:start-auto sm:end-0 top-full mt-1 z-20 bg-surface border border-gray-200 rounded-xl shadow-lg w-72 max-w-[calc(100vw-2rem)] overflow-hidden" dir="rtl">
 
             {/* ── SPINNER while rendering ── */}
             {previewLoading && (

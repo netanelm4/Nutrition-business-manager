@@ -1118,3 +1118,29 @@ a.inbox-row__title:hover { text-decoration: underline; }
   .foodbank__hint--desktop { display: none; }
   .foodbank__hint--mobile { display: inline; }
 }
+
+/* ── Client detail header + mobile arrangement ────────────────────────────── */
+.detail > * { min-width: 0; } /* never let a column push the page wider than the screen */
+.client-head {
+  padding: 16px 20px 14px; border-bottom: 1px solid var(--hairline);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.client-head__id { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.client-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wa-trigger { height: 32px; }
+@media (max-width: 767px) {
+  .client-head { padding: 14px 14px 12px; flex-direction: column; align-items: stretch; }
+  .client-head__id { justify-content: space-between; }
+  /* 3 equal buttons per row: messaging / links / process */
+  .client-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .client-actions > .crm-btn,
+  .client-actions > .relative,
+  .client-actions > .relative > .wa-trigger { width: 100%; }
+  .client-actions .crm-btn, .client-actions .wa-trigger {
+    justify-content: center; height: 38px; padding: 0 6px; font-size: 12.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* tabs: all six visible as a 3×2 grid instead of a hidden horizontal scroll */
+  .detail-tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 0; overflow: visible; }
+  .detail-tabs button { justify-content: center; padding: 11px 4px; font-size: 13px; }
+}

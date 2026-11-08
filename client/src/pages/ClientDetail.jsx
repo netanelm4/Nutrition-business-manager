@@ -1849,14 +1849,15 @@ export default function ClientDetail() {
         {/* Main content with tabs */}
         <section className="card" style={{ padding: 0 }}>
           {/* Card header: name, date, status, actions */}
-          <div style={{ padding: '16px 20px 14px', borderBottom: '1px solid var(--hairline)', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink-1)', lineHeight: 1.2 }}>{client.full_name}</div>
-              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
-                מטופל מאז {client.start_date ? new Date(client.start_date).toLocaleDateString('he-IL') : '—'}
+          <div className="client-head">
+            <div className="client-head__id">
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--ink-1)', lineHeight: 1.2 }}>{client.full_name}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 3 }}>
+                  מטופל מאז {client.start_date ? new Date(client.start_date).toLocaleDateString('he-IL') : '—'}
+                </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
                 client.status === 'frozen' ? 'bg-blue-200 text-blue-800' :
                 client.status === 'ended'  ? 'bg-gray-100 text-gray-600' :
@@ -1869,6 +1870,10 @@ export default function ClientDetail() {
                   מוקפא עד {new Date(client.frozen_until + 'T12:00:00Z').toLocaleDateString('he-IL')}
                 </span>
               )}
+              </div>
+            </div>
+            <div className="client-actions">
+              <WhatsAppDropdown clientId={client.id} phone={client.phone} />
               {client.phone && (
                 <a
                   href={`https://wa.me/${client.phone.replace(/\D/g, '')}`}
@@ -1876,10 +1881,9 @@ export default function ClientDetail() {
                   rel="noopener noreferrer"
                   className="crm-btn crm-btn--sm"
                 >
-                  וואטסאפ
+                  פתיחת צ׳אט
                 </a>
               )}
-              <WhatsAppDropdown clientId={client.id} phone={client.phone} />
               <WeightLinkButton clientId={client.id} />
               <FoodBankLinkButton clientId={client.id} />
               <StopProcessButton

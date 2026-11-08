@@ -288,7 +288,7 @@ export default function SessionTimeline({ client, sessions }) {
     }));
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+    <div className="flex flex-col-reverse gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-6">
       {enrichedWindows.map((w) => (
         <TimelineSlot
           key={w.id}
