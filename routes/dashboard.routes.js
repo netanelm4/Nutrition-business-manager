@@ -219,6 +219,7 @@ router.get('/', (req, res) => {
         LEFT JOIN payments p ON p.client_id = c.id
         WHERE c.payment_status != 'paid'
           AND c.status != ?
+          AND COALESCE(c.payments_frozen, 0) = 0
         GROUP BY c.id
         ORDER BY c.full_name
       `)

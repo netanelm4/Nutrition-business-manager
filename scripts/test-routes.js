@@ -610,6 +610,21 @@ async function run() {
     await req('POST', '/inbox/refresh');
     assert('Frozen client → pending item auto-resolved', !itemFor(await inbox(), c6, 'session_due'));
 
+    // Freezing a process freezes its payments too (default) — off "open payments"
+    const unpaidIds = async () => ((await req('GET', '/dashboard')).data?.unpaid_clients || []).map((u) => u.id);
+    assert('Freeze → payments_frozen set by default', (await req('GET', `/clients/${c6}`)).data?.payments_frozen === 1);
+    assert('Frozen payments → not in open payments', !(await unpaidIds()).includes(c6));
+    const unfreezePay = await req('POST', `/clients/${c6}/payments-freeze`, { frozen: false });
+    assert('Payments unfrozen separately (process stays frozen)', unfreezePay.data?.payments_frozen === 0 && unfreezePay.data?.status === 'frozen');
+    assert('Unfrozen payments → back in open payments', (await unpaidIds()).includes(c6));
+    assert('payments-freeze validates its body (400)', (await req('POST', `/clients/${c6}/payments-freeze`, { frozen: 'yes' })).status === 400);
+    await req('POST', `/clients/${c6}/payments-freeze`, { frozen: true });
+    const react = await req('POST', `/clients/${c6}/reactivate`);
+    assert('Reactivate → payments unfrozen too', react.data?.payments_frozen === 0 && react.data?.status === 'active');
+    const c6b = await overdue('תיבה שש ב', '0521310016');
+    await req('POST', `/clients/${c6b}/freeze`, { days: 30, freeze_payments: false });
+    assert('Freeze with freeze_payments:false keeps payments open', (await req('GET', `/clients/${c6b}`)).data?.payments_frozen === 0);
+
     // 24h reminder job → inbox (deeplink mode: no auto-send) → approve marks the meeting confirmed
     const target = new Date(Date.now() + 23 * 3600 * 1000);
     const date = target.toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' });

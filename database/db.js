@@ -2294,4 +2294,13 @@ try { db.exec('ALTER TABLE weight_logs ADD COLUMN source TEXT'); } catch { /* ex
 // Automatic completion (6 sessions + 14-day grace) marks how a process ended
 try { db.exec('ALTER TABLE clients ADD COLUMN completed_automatically INTEGER NOT NULL DEFAULT 0'); } catch { /* exists */ }
 
+// Payments freeze: a frozen process can have its payments frozen too — no
+// "open payment" on the dashboard while it is set. Retroactive: when the
+// column is first added, clients already frozen get their payments frozen.
+try {
+  db.exec('ALTER TABLE clients ADD COLUMN payments_frozen INTEGER NOT NULL DEFAULT 0');
+  const n = db.prepare("UPDATE clients SET payments_frozen = 1 WHERE status = 'frozen'").run().changes;
+  console.log(`[migration] clients.payments_frozen added; ${n} frozen client(s) had payments frozen`);
+} catch { /* exists */ }
+
 module.exports = db;

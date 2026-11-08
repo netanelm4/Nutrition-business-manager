@@ -87,7 +87,8 @@ const STATUS_LABELS_HE = {
 
 // ── Payment chip ──────────────────────────────────────────────────────────────
 
-function PayChip({ status }) {
+function PayChip({ status, frozen }) {
+  if (frozen) return <span className="chip chip--blue"><span className="dot"/>מוקפא</span>;
   if (status === 'paid')    return <span className="chip chip--green"><span className="dot"/>שולם</span>;
   if (status === 'partial') return <span className="chip chip--amber"><span className="dot"/>חלקי</span>;
   return <span className="chip chip--red"><span className="dot"/>טרם שולם</span>;
@@ -258,7 +259,7 @@ export default function Clients() {
                     </td>
                     <td><SessionDots recorded={recorded} /></td>
                     <td><MiniRing pct={pct} /></td>
-                    <td><PayChip status={client.payment_status} /></td>
+                    <td><PayChip status={client.payment_status} frozen={!!client.payments_frozen} /></td>
                   </tr>
                 );
               })}

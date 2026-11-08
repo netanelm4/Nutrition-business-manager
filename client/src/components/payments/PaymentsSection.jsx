@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchPayments, createPayment, deletePayment } from '../../lib/api';
+import { fetchPayments, createPayment, deletePayment, setPaymentsFrozen } from '../../lib/api';
 import { formatDateHebrew } from '../../lib/dates';
 
 const inputClass =
@@ -82,6 +82,16 @@ export default function PaymentsSection({ client, engagementId = null }) {
     },
   });
 
+  const freezeMutation = useMutation({
+    mutationFn: (frozen) => setPaymentsFrozen(client.id, frozen),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client', String(client.id)] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+  const paymentsFrozen = !!client.payments_frozen;
+
   function handleSubmit(e) {
     e.preventDefault();
     if (!form.amount || Number(form.amount) <= 0) {
@@ -101,7 +111,9 @@ export default function PaymentsSection({ client, engagementId = null }) {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h2 className="text-base font-semibold text-gray-700">מעקב תשלומים</h2>
         <div className="flex items-center gap-2 flex-wrap">
-          <PaymentStatusBadge status={paymentStatus} />
+          {paymentsFrozen
+            ? <span className="text-xs px-2.5 py-1 rounded-full font-medium border bg-blue-100 text-blue-700 border-blue-200">❄️ תשלומים מוקפאים</span>
+            : <PaymentStatusBadge status={paymentStatus} />}
           {packagePrice > 0 && (
             <span className="text-sm text-gray-500">
               שולם {totalPaid.toLocaleString()} ₪ מתוך {packagePrice.toLocaleString()} ₪
@@ -113,6 +125,19 @@ export default function PaymentsSection({ client, engagementId = null }) {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Payments freeze */}
+      <div className="flex items-center justify-between gap-3 flex-wrap" style={{ fontSize: 13, color: 'var(--ink-3)' }}>
+        <span>{paymentsFrozen ? 'התשלומים מוקפאים: הלקוח לא מופיע ב"תשלומים פתוחים".' : ''}</span>
+        <button
+          type="button"
+          onClick={() => freezeMutation.mutate(!paymentsFrozen)}
+          disabled={freezeMutation.isPending}
+          className="crm-btn crm-btn--sm"
+        >
+          {freezeMutation.isPending ? '...' : paymentsFrozen ? 'הפשר תשלומים' : '❄️ הקפא תשלומים'}
+        </button>
       </div>
 
       {/* Progress bar */}

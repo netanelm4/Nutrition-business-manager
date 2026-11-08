@@ -676,6 +676,7 @@ router.post('/:id/freeze', (req, res) => {
     if (!client) return fail(res, 404, 'Client not found.');
 
     const frozenUntil = db.prepare("SELECT date('now', ?) AS d").get(`+${days} days`).d;
+    const freezePayments = req.body.freeze_payments !== false; // default: payments freeze too
 
     db.prepare(`
       UPDATE clients
@@ -683,9 +684,10 @@ router.post('/:id/freeze', (req, res) => {
           stop_reason = 'frozen',
           frozen_until = ?,
           stop_date = date('now'),
-          stopped_at = datetime('now')
+          stopped_at = datetime('now'),
+          payments_frozen = ?
       WHERE id = ?
-    `).run(frozenUntil, req.params.id);
+    `).run(frozenUntil, freezePayments ? 1 : 0, req.params.id);
 
     // The freeze_end job (services/jobs.service.js) puts a "return to the
     // process?" item in the inbox on frozen_until; reactivating resolves it.
@@ -696,6 +698,20 @@ router.post('/:id/freeze', (req, res) => {
   } catch (err) {
     console.error('[POST /clients/:id/freeze]', err);
     return fail(res, 500, 'Failed to freeze client process.');
+  }
+});
+
+// ─── POST /api/clients/:id/payments-freeze ── body { frozen: boolean } ───────
+
+router.post('/:id/payments-freeze', (req, res) => {
+  try {
+    if (typeof req.body.frozen !== 'boolean') return fail(res, 400, 'frozen must be true or false');
+    const r = db.prepare('UPDATE clients SET payments_frozen = ? WHERE id = ?').run(req.body.frozen ? 1 : 0, req.params.id);
+    if (r.changes === 0) return fail(res, 404, 'Client not found.');
+    return ok(res, db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id));
+  } catch (err) {
+    console.error('[POST /clients/:id/payments-freeze]', err);
+    return fail(res, 500, 'Failed to update payments freeze.');
   }
 });
 
@@ -713,7 +729,8 @@ router.post('/:id/reactivate', (req, res) => {
           stop_reason_text = NULL,
           frozen_until = NULL,
           stop_date = NULL,
-          stopped_at = NULL
+          stopped_at = NULL,
+          payments_frozen = 0
       WHERE id = ?
     `).run(req.params.id);
 

@@ -1405,6 +1405,7 @@ function StopProcessButton({ client, onSuccess }) {
   const [reason,    setReason]    = useState('goal_achieved');
   const [reasonText, setReasonText] = useState('');
   const [freezeDays, setFreezeDays] = useState(30);
+  const [freezePayments, setFreezePayments] = useState(true);
   const [loading,   setLoading]   = useState(false);
   const [error,     setError]     = useState(null);
 
@@ -1428,7 +1429,7 @@ function StopProcessButton({ client, onSuccess }) {
     setError(null);
     try {
       if (reason === 'frozen') {
-        await freezeClient(client.id, { days: Number(freezeDays) });
+        await freezeClient(client.id, { days: Number(freezeDays), freeze_payments: freezePayments });
       } else {
         await stopClient(client.id, { reason, reason_text: reasonText.trim() || undefined });
       }
@@ -1501,6 +1502,14 @@ function StopProcessButton({ client, onSuccess }) {
                   onChange={(e) => setFreezeDays(e.target.value)}
                   style={{ width: 100, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--hairline)', fontSize: 14 }}
                 />
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13.5, color: 'var(--ink-1)', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox" checked={freezePayments}
+                    onChange={(e) => setFreezePayments(e.target.checked)}
+                    style={{ accentColor: 'var(--blue)', width: 16, height: 16 }}
+                  />
+                  להקפיא גם את התשלומים (לא יופיע ב"תשלומים פתוחים")
+                </label>
               </div>
             ) : (
               <div>

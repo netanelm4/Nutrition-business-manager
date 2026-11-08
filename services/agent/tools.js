@@ -115,7 +115,7 @@ const READ = {
         client: {
           id: c.id, full_name: c.full_name, phone: c.phone, age: c.age, gender: c.gender, goal: c.goal,
           medical_notes: c.medical_notes, status: c.status, start_date: c.start_date, process_end_date: c.process_end_date,
-          initial_weight: c.initial_weight, menu_sent: !!c.menu_sent, payment_status: c.payment_status,
+          initial_weight: c.initial_weight, menu_sent: !!c.menu_sent, payment_status: c.payment_status, payments_frozen: !!c.payments_frozen,
           package_price: c.package_price, total_paid: paid, frozen_until: c.frozen_until,
         },
         protocol,

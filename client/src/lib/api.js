@@ -47,6 +47,7 @@ export const deleteClient     = (id)       => request('DELETE', `/clients/${id}`
 export const stopClient       = (id, body) => request('POST',   `/clients/${id}/stop`, body);
 export const freezeClient     = (id, body) => request('POST',   `/clients/${id}/freeze`, body);
 export const reactivateClient = (id)       => request('POST',   `/clients/${id}/reactivate`);
+export const setPaymentsFrozen = (id, frozen) => request('POST', `/clients/${id}/payments-freeze`, { frozen });
 
 // ── Session Windows ───────────────────────────────────────────────────────────
 export const fetchWindows = (clientId) => request('GET', `/clients/${clientId}/windows`);
