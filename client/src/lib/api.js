@@ -221,6 +221,74 @@ export function uploadSessionRecording(sessionId, file, { fileName, durationSeco
   });
 }
 
+/** PUT one chunk with upload progress (XHR: fetch has no upload progress). */
+function putChunk(url, blob, onChunkProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    xhr.setRequestHeader('Authorization', `Bearer ${getToken()}`);
+    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    xhr.timeout = 120000;
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onChunkProgress(e.loaded); };
+    xhr.onload = () => {
+      if (xhr.status === 401) { localStorage.removeItem('auth_token'); window.location.href = '/'; return; }
+      let json = {};
+      try { json = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+      if (json.success) resolve(json.data);
+      // 4xx other than 408/429 will not succeed on retry
+      else reject(Object.assign(new Error(json.error || `HTTP ${xhr.status}`), {
+        status: xhr.status, permanent: xhr.status >= 400 && xhr.status < 500 && ![408, 429].includes(xhr.status),
+      }));
+    };
+    xhr.onerror = () => reject(new Error('שגיאת רשת בהעלאה'));
+    xhr.ontimeout = () => reject(new Error('שגיאת רשת בהעלאה'));
+    xhr.send(blob);
+  });
+}
+
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Upload a recording of any size (up to 500MB) in chunks: declare → PUT each
+ * chunk (retried with backoff) → complete. Each request is short, so long
+ * sessions survive proxy limits and network blips.
+ * onProgress(fraction 0..1) follows bytes confirmed by the server.
+ */
+export async function uploadSessionRecordingChunked(sessionId, blob, {
+  fileName, durationSeconds = 0, onProgress, chunkBytes = 8 * 1024 * 1024, attempts = 5,
+} = {}) {
+  const totalChunks = Math.max(1, Math.ceil(blob.size / chunkBytes));
+  const init = await request('POST', `/sessions/${sessionId}/recording/uploads`, {
+    fileName: fileName || blob.name || 'blob',
+    mimeType: blob.type || '',
+    totalBytes: blob.size,
+    totalChunks,
+    durationSeconds: Math.round(durationSeconds || 0),
+  });
+  const base = `${BASE}/sessions/${sessionId}/recording/uploads/${init.uploadId}`;
+  let confirmed = 0;
+  try {
+    for (let i = 0; i < totalChunks; i++) {
+      const part = blob.slice(i * chunkBytes, Math.min(blob.size, (i + 1) * chunkBytes));
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await putChunk(`${base}/${i}`, part, (loaded) => onProgress?.((confirmed + loaded) / blob.size));
+          break;
+        } catch (err) {
+          if (err.permanent || attempt >= attempts) throw err;
+          await wait(Math.min(15000, 1000 * 2 ** (attempt - 1))); // 1s, 2s, 4s, 8s
+        }
+      }
+      confirmed += part.size;
+      onProgress?.(confirmed / blob.size);
+    }
+    return await request('POST', `/sessions/${sessionId}/recording/uploads/${init.uploadId}/complete`);
+  } catch (err) {
+    request('DELETE', `/sessions/${sessionId}/recording/uploads/${init.uploadId}`).catch(() => {});
+    throw err;
+  }
+}
+
 /** Audio needs the auth header, so it is fetched into an object URL (revoke when done). */
 export async function fetchRecordingAudioUrl(audioUrl) {
   const res = await fetch(audioUrl, { headers: { Authorization: `Bearer ${getToken()}` } });

@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["nodejs_22", "python3", "gnumake", "gcc", "chromium"]
+nixPkgs = ["nodejs_22", "python3", "gnumake", "gcc", "chromium", "ffmpeg"]
 
 [phases.build]
 cmds = ["npm run build"]

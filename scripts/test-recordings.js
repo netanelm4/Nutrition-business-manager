@@ -80,8 +80,10 @@ async function run() {
   assert('Non-audio rejected (400)', txt.status === 400 && /פורמט/.test(txt.error || ''), JSON.stringify(txt));
   const exe = await uploadAudio(session.id, audio, { type: 'application/octet-stream', name: 'x.exe' });
   assert('Unknown extension rejected (400)', exe.status === 400);
-  const big = await uploadAudio(session.id, Buffer.alloc(50 * 1024 * 1024 + 1), { type: 'audio/mpeg', name: 'big.mp3' });
-  assert('Over 50MB rejected (413)', big.status === 413, JSON.stringify(big));
+  const big = await req('POST', `/sessions/${session.id}/recording/uploads`, {
+    fileName: 'big.mp3', mimeType: 'audio/mpeg', totalBytes: 500 * 1024 * 1024 + 1, totalChunks: 50,
+  });
+  assert('Declared over 500MB rejected (413) before any bytes are sent', big.status === 413 && /500MB/.test(big.error || ''), JSON.stringify(big));
   const empty = await uploadAudio(session.id, Buffer.alloc(0), { type: 'audio/mpeg', name: 'empty.mp3' });
   assert('Empty file rejected (400)', empty.status === 400);
   const missing = await uploadAudio(999999, audio, { type: 'audio/mpeg', name: 'a.mp3' });
@@ -91,8 +93,67 @@ async function run() {
   const noFile = await fetch(`${BASE}/sessions/${session.id}/recording`, { method: 'POST', headers: { Authorization: AUTH }, body: new FormData() });
   assert('No file field → 400', noFile.status === 400);
   if (RECORDINGS_DIR) {
-    const tmp = fs.existsSync(path.join(RECORDINGS_DIR, 'tmp')) ? fs.readdirSync(path.join(RECORDINGS_DIR, 'tmp')) : [];
+    const tmp = fs.existsSync(path.join(RECORDINGS_DIR, 'tmp')) ? fs.readdirSync(path.join(RECORDINGS_DIR, 'tmp')).filter((f) => f !== 'uploads') : [];
     assert('Rejected uploads leave no temp files', tmp.length === 0, tmp.join(','));
+  }
+
+  // ── Chunked upload (long sessions, up to 500MB) ──
+  console.log('── chunked upload ──');
+  {
+    const CHUNK = 12 * 1024 * 1024;
+    const total = 2 * CHUNK + 777; // 3 chunks, larger than the old 50MB-era single body test
+    const bytes = Buffer.alloc(total);
+    for (let i = 0; i < total; i += 4096) bytes[i] = (i / 4096) % 251;
+    const putChunk = (uploadId, index, buf, sid = session.id) => fetch(`${BASE}/sessions/${sid}/recording/uploads/${uploadId}/${index}`, {
+      method: 'PUT', headers: { Authorization: AUTH, 'Content-Type': 'application/octet-stream' }, body: buf,
+    }).then(async (r) => ({ status: r.status, ...(await r.json().catch(() => ({}))) }));
+
+    const bad = await req('POST', `/sessions/${session.id}/recording/uploads`, { fileName: 'x.txt', mimeType: 'text/plain', totalBytes: 10, totalChunks: 1 });
+    assert('Chunked init: non-audio → 400', bad.status === 400, JSON.stringify(bad));
+    const tooFew = await req('POST', `/sessions/${session.id}/recording/uploads`, { fileName: 'blob', mimeType: 'audio/webm', totalBytes: total, totalChunks: 1 });
+    assert('Chunked init: chunk count too small for the size → 400', tooFew.status === 400);
+    assert('Chunked init: unknown session → 404', (await req('POST', '/sessions/999999/recording/uploads', { fileName: 'blob', mimeType: 'audio/webm', totalBytes: 10, totalChunks: 1 })).status === 404);
+
+    const init = await req('POST', `/sessions/${session.id}/recording/uploads`, {
+      fileName: 'blob', mimeType: 'audio/webm;codecs=opus', totalBytes: total, totalChunks: 3, durationSeconds: 7200,
+    });
+    const uploadId = init.data?.uploadId;
+    assert('Chunked init → 201 with uploadId and chunk size', init.status === 201 && !!uploadId && init.data.chunkBytes === CHUNK, JSON.stringify(init));
+
+    const p0 = await putChunk(uploadId, 0, bytes.subarray(0, CHUNK));
+    assert('Chunk 0 stored', p0.success && p0.data.received === 1, JSON.stringify(p0));
+    const again = await putChunk(uploadId, 0, bytes.subarray(0, CHUNK));
+    assert('Re-sending the same chunk is idempotent', again.success && again.data.received === 1);
+    assert('Chunk index out of range → 400', (await putChunk(uploadId, 3, Buffer.alloc(10))).status === 400);
+    assert('Chunk via another session → 404', (await putChunk(uploadId, 1, Buffer.alloc(10), 999999)).status === 404);
+    assert('Unknown upload id → 404', (await putChunk('00000000-0000-0000-0000-000000000000', 0, Buffer.alloc(10))).status === 404);
+
+    const early = await req('POST', `/sessions/${session.id}/recording/uploads/${uploadId}/complete`);
+    assert('Complete with missing chunks → 409 listing them', early.status === 409 && JSON.stringify(early.missing) === '[1,2]', JSON.stringify(early));
+    const status = await req('GET', `/sessions/${session.id}/recording/uploads/${uploadId}`);
+    assert('Upload status lists received chunks (resume)', JSON.stringify(status.data?.received) === '[0]', JSON.stringify(status));
+
+    await putChunk(uploadId, 2, bytes.subarray(2 * CHUNK));
+    await putChunk(uploadId, 1, bytes.subarray(CHUNK, 2 * CHUNK)); // out of order is fine
+    const done = await req('POST', `/sessions/${session.id}/recording/uploads/${uploadId}/complete`);
+    const big2 = done.data;
+    assert('Complete → 201 recording, size + duration + Hebrew name', done.status === 201 && big2?.file_size_bytes === total
+      && big2?.duration_seconds === 7200 && big2?.mime_type === 'audio/webm' && big2?.file_name === `הקלטת פגישה ${session.session_number}`, JSON.stringify(done).slice(0, 300));
+    if (big2) {
+      const got = Buffer.from(await (await fetch(`${BASE.replace(/\/api$/, '')}${big2.audio_url}`, { headers: { Authorization: AUTH } })).arrayBuffer());
+      assert('Assembled file is byte-identical to the original', got.equals(bytes));
+      assert('Completed upload cannot be completed twice (404)', (await req('POST', `/sessions/${session.id}/recording/uploads/${uploadId}/complete`)).status === 404);
+      await req('DELETE', `/sessions/${session.id}/recording/${big2.id}`);
+    }
+
+    const ab = await req('POST', `/sessions/${session.id}/recording/uploads`, { fileName: 'a.mp3', mimeType: 'audio/mpeg', totalBytes: 100, totalChunks: 1 });
+    await putChunk(ab.data.uploadId, 0, Buffer.alloc(100, 1));
+    const abort = await req('DELETE', `/sessions/${session.id}/recording/uploads/${ab.data.uploadId}`);
+    assert('Abandon an upload → parts removed', abort.success && (await req('GET', `/sessions/${session.id}/recording/uploads/${ab.data.uploadId}`)).status === 404);
+    if (RECORDINGS_DIR) {
+      const left = fs.readdirSync(path.join(RECORDINGS_DIR, 'tmp', 'uploads'));
+      assert('No chunk folders left behind', left.length === 0, left.join(','));
+    }
   }
 
   // ── List + stream ──

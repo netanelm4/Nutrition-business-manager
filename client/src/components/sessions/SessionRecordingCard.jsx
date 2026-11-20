@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  fetchSessionRecordings, uploadSessionRecording, deleteSessionRecording, fetchRecordingAudioUrl,
+  fetchSessionRecordings, uploadSessionRecordingChunked, deleteSessionRecording, fetchRecordingAudioUrl,
   transcribeSessionRecording, updateRecordingTranscript,
 } from '../../lib/api';
 import {
   RECORDING_MAX_BYTES, RECORDING_ACCEPT, RECORDING_MIME_CANDIDATES, RECORDING_LABELS as L,
+  RECORDING_CHUNK_BYTES, RECORDING_BITRATE, RECORDING_TIMESLICE_MS,
 } from '../../constants/recordings';
+import {
+  newRecordingId, startBackup, saveChunk, updateBackup, listBackups, backupBlob, deleteBackup,
+  downloadBlob, requestPersistentStorage,
+} from '../../lib/recordingBackup';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -152,7 +157,10 @@ function TranscriptPanel({ recording, sessionId }) {
     return (
       <p style={line}>
         <span className="animate-pulse motion-reduce:animate-none" style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--blue)' }} />
-        {status === 'queued' ? L.transcriptQueued : L.transcriptProcessing}
+        {status === 'queued' ? L.transcriptQueued
+          : recording.transcript_parts === 0 ? L.transcriptPreparing
+          : recording.transcript_parts > 1 ? L.transcriptPart(recording.transcript_part || 1, recording.transcript_parts)
+          : L.transcriptProcessing}
       </p>
     );
   }
@@ -317,12 +325,62 @@ function RecordingItem({ recording, sessionId }) {
   );
 }
 
+// ─── Unsent recordings kept in this browser (crash / refresh / failed upload) ─
+
+function BackupItem({ backup, onUpload, onDiscard, disabled }) {
+  const [confirming, setConfirming] = useState(false);
+  const [working, setWorking] = useState(false);
+  const started = new Date(backup.startedAt).toLocaleString('he-IL', {
+    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem',
+  });
+
+  async function download() {
+    setWorking(true);
+    const blob = await backupBlob(backup.id);
+    setWorking(false);
+    if (blob) downloadBlob(blob, `הקלטת פגישה ${started.replace(/[/:,\s]+/g, '-')}`);
+  }
+
+  return (
+    <li style={{ listStyle: 'none', border: '1px solid var(--amber, var(--line))', borderRadius: 'var(--r-md)', padding: 12, background: 'var(--surface-2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-1)', fontWeight: 500 }}>{L.recoveredTitle}</p>
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-3)' }}>
+        <bdi>{started}</bdi>{backup.durationSeconds > 0 && <> · <bdi>{formatDuration(backup.durationSeconds)}</bdi></>}
+      </p>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {!confirming ? (
+          <>
+            <button type="button" disabled={disabled} onClick={() => onUpload(backup)} style={{ ...btn.base, ...btn.primary, padding: '5px 12px', fontSize: 12, opacity: disabled ? 0.5 : 1 }}>
+              {L.recoveredUpload}
+            </button>
+            <button type="button" disabled={working} onClick={download} style={{ ...btn.base, padding: '5px 12px', fontSize: 12 }}>
+              {L.downloadBackup}
+            </button>
+            <button type="button" disabled={disabled} onClick={() => setConfirming(true)} style={{ ...btn.base, padding: '5px 12px', fontSize: 12, color: 'var(--ink-3)' }}>
+              {L.recoveredDiscard}
+            </button>
+          </>
+        ) : (
+          <>
+            <span style={{ fontSize: 12, color: 'var(--red-ink)' }}>{L.recoveredDiscardConfirm}</span>
+            <button type="button" onClick={() => onDiscard(backup)} style={{ ...btn.base, ...btn.danger, padding: '5px 10px', fontSize: 12 }}>{L.deleteYes}</button>
+            <button type="button" onClick={() => setConfirming(false)} style={{ ...btn.base, padding: '5px 10px', fontSize: 12 }}>{L.cancel}</button>
+          </>
+        )}
+      </div>
+    </li>
+  );
+}
+
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 /**
  * Record a consultation in the browser or upload an existing audio file,
  * then play back / delete saved recordings of the session.
- * Closing the view while recording saves what was recorded so far.
+ * Live recordings are mono speech-quality audio, backed up slice by slice in
+ * IndexedDB, and uploaded in chunks; the backup is removed only after the
+ * server confirmed the upload. Closing the view while recording saves what was
+ * recorded so far; a refresh or crash leaves a backup offered on next visit.
  */
 export default function SessionRecordingCard({ sessionId }) {
   const queryClient = useQueryClient();
@@ -339,9 +397,12 @@ export default function SessionRecordingCard({ sessionId }) {
   const [stream, setStream] = useState(null);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
+  // last failed upload: { blob, fileName, durationSeconds, backupId? } → retry / download
+  const [failedUpload, setFailedUpload] = useState(null);
+  const [backups, setBackups] = useState([]);
   const fileRef = useRef(null);
 
-  const rec = useRef({ recorder: null, chunks: [], startedAt: 0, accumulated: 0, mime: '' });
+  const rec = useRef({ recorder: null, chunks: [], startedAt: 0, accumulated: 0, mime: '', id: null, index: 0 });
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -349,25 +410,44 @@ export default function SessionRecordingCard({ sessionId }) {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['recordings', String(sessionId)] });
 
-  async function upload(file, { fileName, durationSeconds }) {
+  // Backups in this browser that never reached the server (not the one being recorded now)
+  const loadBackups = async () => {
+    const list = await listBackups(sessionId);
+    setBackups(list.filter((b) => b.id !== rec.current.id));
+  };
+  useEffect(() => { loadBackups(); }, [sessionId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Upload in chunks. On success the IndexedDB backup (if any) is removed. */
+  async function upload(blob, { fileName, durationSeconds, backupId = null }) {
     setProgress(0);
     setError('');
+    setFailedUpload(null);
     try {
-      await uploadSessionRecording(sessionId, file, { fileName, durationSeconds, onProgress: setProgress });
+      await uploadSessionRecordingChunked(sessionId, blob, {
+        fileName, durationSeconds, chunkBytes: RECORDING_CHUNK_BYTES, onProgress: setProgress,
+      });
+      if (backupId) await deleteBackup(backupId);
       refresh();
+      return true;
     } catch (err) {
-      setError(err.message || L.uploadFailed);
+      setError(err.status === 413 ? L.tooLarge : (err.message || L.uploadFailed));
+      setFailedUpload({ blob, fileName, durationSeconds, backupId });
+      return false;
     } finally {
       setProgress(null);
+      loadBackups();
     }
   }
 
-  // Timer
+  // Timer (+ the duration kept on the backup, so a recovered recording shows its length)
   useEffect(() => {
     if (state !== 'recording') return undefined;
+    let lastSaved = 0;
     const t = setInterval(() => {
       const r = rec.current;
-      setElapsed((r.accumulated + (Date.now() - r.startedAt)) / 1000);
+      const secs = (r.accumulated + (Date.now() - r.startedAt)) / 1000;
+      setElapsed(secs);
+      if (r.id && secs - lastSaved >= 5) { lastSaved = secs; updateBackup(r.id, { durationSeconds: Math.round(secs) }); }
     }, 250);
     return () => clearInterval(t);
   }, [state]);
@@ -388,20 +468,38 @@ export default function SessionRecordingCard({ sessionId }) {
   async function start() {
     if (stateRef.current !== 'idle') return; // no double start while the mic is connecting
     setError('');
+    setFailedUpload(null);
     setState('connecting');
     let media;
     try {
-      media = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      media = await navigator.mediaDevices.getUserMedia({
+        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
     } catch (err) {
       setError(err.name === 'NotAllowedError' ? L.micDenied : L.micUnavailable);
       setState('idle');
       return;
     }
     const mime = pickMimeType();
-    const recorder = new MediaRecorder(media, mime ? { mimeType: mime } : undefined);
-    rec.current = { recorder, chunks: [], startedAt: Date.now(), accumulated: 0, mime: recorder.mimeType || mime || 'audio/webm' };
-    recorder.ondataavailable = (e) => { if (e.data?.size) rec.current.chunks.push(e.data); };
-    recorder.start(1000); // a chunk every second → nothing is lost if the view closes
+    let recorder;
+    try {
+      recorder = new MediaRecorder(media, { ...(mime ? { mimeType: mime } : {}), audioBitsPerSecond: RECORDING_BITRATE });
+    } catch {
+      recorder = new MediaRecorder(media, mime ? { mimeType: mime } : undefined); // bitrate option refused
+    }
+    const id = newRecordingId();
+    const recMime = recorder.mimeType || mime || 'audio/webm';
+    rec.current = { recorder, chunks: [], startedAt: Date.now(), accumulated: 0, mime: recMime, id, index: 0 };
+    requestPersistentStorage();
+    startBackup({ id, sessionId, mime: recMime });
+    recorder.ondataavailable = (e) => {
+      if (!e.data?.size) return;
+      const r = rec.current;
+      if (r.id !== id) return;
+      r.chunks.push(e.data);
+      saveChunk(id, r.index++, e.data); // crash-safe copy; failures leave the in-memory copy
+    };
+    recorder.start(RECORDING_TIMESLICE_MS);
     setStream(media);
     setElapsed(0);
     setState('recording');
@@ -414,6 +512,7 @@ export default function SessionRecordingCard({ sessionId }) {
       r.recorder.pause();
       r.accumulated += Date.now() - r.startedAt;
       setElapsed(r.accumulated / 1000);
+      updateBackup(r.id, { durationSeconds: Math.round(r.accumulated / 1000) });
       setState('paused');
     } else if (state === 'paused') {
       r.recorder.resume();
@@ -421,6 +520,8 @@ export default function SessionRecordingCard({ sessionId }) {
       setState('recording');
     }
   }
+
+  const emptyRec = () => ({ recorder: null, chunks: [], startedAt: 0, accumulated: 0, mime: '', id: null, index: 0 });
 
   /** Stop and upload. Returns a promise that resolves after the upload. */
   function stopAndSave() {
@@ -434,34 +535,37 @@ export default function SessionRecordingCard({ sessionId }) {
         releaseMic(mediaStream);
         const type = r.mime.split(';')[0] || 'audio/webm';
         const blob = new Blob(r.chunks, { type });
-        rec.current = { recorder: null, chunks: [], startedAt: 0, accumulated: 0, mime: '' };
-        if (blob.size) {
-          await upload(blob, { fileName: 'blob', durationSeconds: total });
-        }
+        const backupId = r.id;
+        rec.current = emptyRec();
+        await updateBackup(backupId, { status: 'stopped', durationSeconds: Math.round(total) });
         setState('idle');
         setElapsed(0);
+        if (blob.size) await upload(blob, { fileName: 'blob', durationSeconds: total, backupId });
+        else await deleteBackup(backupId);
         resolve();
       };
       r.recorder.stop();
     });
   }
 
-  // Leaving the view mid-recording: stop and save what was recorded (upload continues in background)
+  // Leaving the view mid-recording: stop and save what was recorded (upload continues in background).
+  // If that upload fails, the IndexedDB backup stays and is offered on the next visit.
   useEffect(() => () => {
     const r = rec.current;
     if (!r.recorder || r.recorder.state === 'inactive') return;
     const total = (r.accumulated + (r.recorder.state === 'recording' ? Date.now() - r.startedAt : 0)) / 1000;
-    const { chunks, mime } = r;
+    const { chunks, mime, id } = r;
     const mediaStream = r.recorder.stream;
-    r.recorder.onstop = () => {
+    r.recorder.onstop = async () => {
       mediaStream.getTracks().forEach((t) => t.stop());
+      await updateBackup(id, { status: 'stopped', durationSeconds: Math.round(total) });
       const type = mime.split(';')[0] || 'audio/webm';
       const blob = new Blob(chunks, { type });
-      if (blob.size) {
-        uploadSessionRecording(sessionId, blob, { fileName: 'blob', durationSeconds: total })
-          .then(() => queryClient.invalidateQueries({ queryKey: ['recordings', String(sessionId)] }))
-          .catch(() => {});
-      }
+      if (!blob.size) { deleteBackup(id); return; }
+      uploadSessionRecordingChunked(sessionId, blob, { fileName: 'blob', durationSeconds: total, chunkBytes: RECORDING_CHUNK_BYTES })
+        .then(() => deleteBackup(id))
+        .then(() => queryClient.invalidateQueries({ queryKey: ['recordings', String(sessionId)] }))
+        .catch(() => {});
     };
     r.recorder.stop();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -476,8 +580,27 @@ export default function SessionRecordingCard({ sessionId }) {
     await upload(file, { fileName: file.name, durationSeconds });
   }
 
+  async function uploadBackup(backup) {
+    const blob = await backupBlob(backup.id);
+    if (!blob) { await deleteBackup(backup.id); loadBackups(); return; }
+    await upload(blob, { fileName: 'blob', durationSeconds: backup.durationSeconds, backupId: backup.id });
+  }
+
+  async function discardBackup(backup) {
+    await deleteBackup(backup.id);
+    if (failedUpload?.backupId === backup.id) { setFailedUpload(null); setError(''); }
+    loadBackups();
+  }
+
+  function retryFailed() {
+    const f = failedUpload;
+    if (f) upload(f.blob, { fileName: f.fileName, durationSeconds: f.durationSeconds, backupId: f.backupId });
+  }
+
   const busy = state === 'saving' || state === 'connecting' || progress !== null;
   const live = state === 'recording' || state === 'paused';
+  // a failed live recording is listed with the backups below; show it there only once
+  const visibleBackups = backups.filter((b) => b.id !== failedUpload?.backupId);
 
   return (
     <section
@@ -517,7 +640,7 @@ export default function SessionRecordingCard({ sessionId }) {
               </button>
             </>
           )}
-          {state === 'saving' && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{L.saving}</span>}
+          {state === 'saving' && progress === null && <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{L.saving}</span>}
         </div>
       ) : (
         <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-3)' }}>{L.unsupported}</p>
@@ -535,13 +658,44 @@ export default function SessionRecordingCard({ sessionId }) {
       )}
 
       {progress !== null && (
-        <div role="progressbar" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}
-          style={{ height: 4, borderRadius: 2, background: 'var(--surface-3)', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: 'var(--blue)', transition: 'width 120ms linear' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--ink-2, var(--ink-1))', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span>{L.uploading}</span>
+            <bdi style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--ink-3)' }}>{Math.round(progress * 100)}%</bdi>
+          </p>
+          <div role="progressbar" aria-label={L.uploading} aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}
+            style={{ height: 4, borderRadius: 2, background: 'var(--surface-3)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${Math.round(progress * 100)}%`, background: 'var(--blue)', transition: 'width 120ms linear' }} />
+          </div>
         </div>
       )}
 
-      {error && <p style={{ margin: 0, fontSize: 12, color: 'var(--red-ink)' }}>{error}</p>}
+      {error && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--red-ink)' }}>{error}</p>
+          {failedUpload && progress === null && (
+            <>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button type="button" onClick={retryFailed} style={{ ...btn.base, ...btn.primary, padding: '5px 12px', fontSize: 12 }}>{L.uploadRetry}</button>
+                {failedUpload.backupId && (
+                  <button type="button" onClick={() => downloadBlob(failedUpload.blob, 'הקלטת פגישה')} style={{ ...btn.base, padding: '5px 12px', fontSize: 12 }}>
+                    {L.downloadBackup}
+                  </button>
+                )}
+              </div>
+              {failedUpload.backupId && <p style={{ margin: 0, fontSize: 11.5, color: 'var(--ink-3)' }}>{L.backupNote}</p>}
+            </>
+          )}
+        </div>
+      )}
+
+      {visibleBackups.length > 0 && !live && (
+        <ul style={{ margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {visibleBackups.map((b) => (
+            <BackupItem key={b.id} backup={b} disabled={busy} onUpload={uploadBackup} onDiscard={discardBackup} />
+          ))}
+        </ul>
+      )}
 
       <p style={{ margin: 0, fontSize: 11.5, color: 'var(--ink-4)' }}>{L.consent}</p>
 

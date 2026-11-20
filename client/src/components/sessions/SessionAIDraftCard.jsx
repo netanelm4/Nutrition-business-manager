@@ -6,7 +6,7 @@ import {
   discardSessionAnalysis, fetchSessionRecordings, setRecordingSpeakers,
 } from '../../lib/api';
 import {
-  ANALYSIS_TITLE, IMPORT_TARGETS, FOLLOWUP_IMPORT_TARGETS, INTAKE_FIELD_LABEL, MODE_LABEL,
+  ANALYSIS_TITLE, ANALYSIS_RUNNING, IMPORT_TARGETS, FOLLOWUP_IMPORT_TARGETS, INTAKE_FIELD_LABEL, MODE_LABEL,
 } from '../../constants/session-analysis';
 import FollowUpReview, { cleanFollowUpDraft } from './FollowUpReview';
 import {
@@ -139,7 +139,7 @@ export default function SessionAIDraftCard({ sessionId, clientId }) {
       {status === 'running' && (
         <p style={{ ...muted, display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="animate-pulse motion-reduce:animate-none" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--blue)' }} />
-          מנתח את הפגישה. זה יכול לקחת עד כשתי דקות.
+          {ANALYSIS_RUNNING}
         </p>
       )}
       {status === 'failed' && <p style={{ ...muted, color: 'var(--red-ink)' }}>הניתוח נכשל: {row.error}</p>}

@@ -5,15 +5,23 @@ const db = require('../database/db');
 const {
   TMP_DIR, MAX_RECORDING_BYTES, ensureDirs, extensionFor, absolutePath,
   saveRecording, listForSession, getRecording, deleteRecording, updateTranscript,
+  MAX_CHUNK_BYTES, initUpload, writeUploadPart, completeUpload, abortUpload, uploadStatus,
 } = require('../services/recordings.service');
 const { queueTranscription } = require('../services/jobs.service');
 const { isConfigured: transcriptionConfigured } = require('../services/ai/transcription.service');
 
 const MAX_TRANSCRIPT_CHARS = 200_000;
+const TOO_LARGE_MESSAGE = 'הקובץ גדול מדי (עד 500MB).';
+const UNSUPPORTED_MESSAGE = 'פורמט לא נתמך. אפשר להעלות WebM, WAV, MP3, M4A או OGG.';
 const { publish } = require('../services/event-bus.service');
 
 // ─── Session recordings ─── mounted at /api, after requireAuth ───────────────
-//   POST   /api/sessions/:id/recording                 multipart "audio" (+ duration_seconds)
+//   POST   /api/sessions/:id/recording                 multipart "audio" (+ duration_seconds), small files
+//   POST   /api/sessions/:id/recording/uploads         chunked: declare { fileName, mimeType, totalBytes, totalChunks, durationSeconds }
+//   GET    /api/sessions/:id/recording/uploads/:uploadId          chunk indexes already received (resume)
+//   PUT    /api/sessions/:id/recording/uploads/:uploadId/:index   raw bytes of one chunk (idempotent)
+//   POST   /api/sessions/:id/recording/uploads/:uploadId/complete assemble → same 201 as the single upload
+//   DELETE /api/sessions/:id/recording/uploads/:uploadId          abandon
 //   GET    /api/sessions/:id/recording                 recordings of the session, newest first
 //   DELETE /api/sessions/:id/recording/:recordingId    row + file
 //   GET    /api/recordings/:recordingId/audio          the audio (Range supported, auth required)
@@ -39,14 +47,94 @@ const upload = multer({
 function receiveAudio(req, res, next) {
   upload.single('audio')(req, res, (err) => {
     if (!err) return next();
-    if (err.code === 'LIMIT_FILE_SIZE') return fail(res, 413, 'הקובץ גדול מדי (עד 50MB).');
-    if (err.code === 'UNSUPPORTED_TYPE') return fail(res, 400, 'פורמט לא נתמך. אפשר להעלות WebM, WAV, MP3, M4A או OGG.');
+    if (err.code === 'LIMIT_FILE_SIZE') return fail(res, 413, TOO_LARGE_MESSAGE);
+    if (err.code === 'UNSUPPORTED_TYPE') return fail(res, 400, UNSUPPORTED_MESSAGE);
     console.error('[recording upload]', err);
     return fail(res, 400, 'העלאת הקובץ נכשלה.');
   });
 }
 
 const findSession = (id) => db.prepare('SELECT id, client_id, session_number FROM sessions WHERE id = ?').get(id);
+
+/** Announce a new recording, queue its transcription, return the listed shape. */
+function afterSave(session, saved) {
+  publish(db, 'session.recording_added', { entityType: 'session', entityId: session.id, payload: { recordingId: saved.id } });
+  // Automatic transcription in the background (no-op when no provider key is configured)
+  queueTranscription(db, saved.id);
+  return listForSession(db, session.id).find((r) => r.id === saved.id) || saved;
+}
+
+/** Service errors (status set) → clean JSON; anything else → 500. */
+function failUpload(res, err, label) {
+  if (err.message === 'TOO_LARGE') return fail(res, 413, TOO_LARGE_MESSAGE);
+  if (err.message === 'UNSUPPORTED_TYPE') return fail(res, 400, UNSUPPORTED_MESSAGE);
+  if (err.status) {
+    return res.status(err.status).json({ success: false, error: err.message, ...(err.missing ? { missing: err.missing } : {}) });
+  }
+  console.error(`[${label}]`, err);
+  return fail(res, 500, 'העלאת הקובץ נכשלה.');
+}
+
+// ─── Chunked upload ──────────────────────────────────────────────────────────
+
+// POST /api/sessions/:id/recording/uploads
+router.post('/sessions/:id/recording/uploads', (req, res) => {
+  try {
+    const session = findSession(req.params.id);
+    if (!session) return fail(res, 404, 'Session not found.');
+    return res.status(201).json({ success: true, data: initUpload(session, req.body || {}) });
+  } catch (err) {
+    return failUpload(res, err, 'POST /sessions/:id/recording/uploads');
+  }
+});
+
+// GET /api/sessions/:id/recording/uploads/:uploadId
+router.get('/sessions/:id/recording/uploads/:uploadId', (req, res) => {
+  try {
+    return ok(res, uploadStatus(req.params.id, req.params.uploadId));
+  } catch (err) {
+    return failUpload(res, err, 'GET /sessions/:id/recording/uploads/:uploadId');
+  }
+});
+
+// Route-scoped raw parser: the global JSON parser ignores non-JSON bodies
+const rawChunk = express.raw({ type: () => true, limit: MAX_CHUNK_BYTES });
+
+// PUT /api/sessions/:id/recording/uploads/:uploadId/:index
+router.put('/sessions/:id/recording/uploads/:uploadId/:index', (req, res, next) => {
+  rawChunk(req, res, (err) => {
+    if (err) return fail(res, err.type === 'entity.too.large' ? 413 : 400, 'Invalid chunk.');
+    return next();
+  });
+}, (req, res) => {
+  try {
+    return ok(res, writeUploadPart(req.params.id, req.params.uploadId, req.params.index, req.body));
+  } catch (err) {
+    return failUpload(res, err, 'PUT /sessions/:id/recording/uploads/:uploadId/:index');
+  }
+});
+
+// POST /api/sessions/:id/recording/uploads/:uploadId/complete
+router.post('/sessions/:id/recording/uploads/:uploadId/complete', async (req, res) => {
+  try {
+    const session = findSession(req.params.id);
+    if (!session) return fail(res, 404, 'Session not found.');
+    const saved = await completeUpload(db, session, req.params.uploadId);
+    return res.status(201).json({ success: true, data: afterSave(session, saved) });
+  } catch (err) {
+    return failUpload(res, err, 'POST /sessions/:id/recording/uploads/:uploadId/complete');
+  }
+});
+
+// DELETE /api/sessions/:id/recording/uploads/:uploadId
+router.delete('/sessions/:id/recording/uploads/:uploadId', (req, res) => {
+  try {
+    abortUpload(req.params.id, req.params.uploadId);
+    return ok(res, { uploadId: req.params.uploadId, deleted: true });
+  } catch (err) {
+    return failUpload(res, err, 'DELETE /sessions/:id/recording/uploads/:uploadId');
+  }
+});
 
 // POST /api/sessions/:id/recording
 router.post('/sessions/:id/recording', (req, res, next) => {
@@ -61,11 +149,7 @@ router.post('/sessions/:id/recording', (req, res, next) => {
     const session = findSession(req.params.id);
     if (!session) { cleanupTmp(); return fail(res, 404, 'Session not found.'); }
     const saved = saveRecording(db, { session, file: req.file, durationSeconds: req.body?.duration_seconds });
-    publish(db, 'session.recording_added', { entityType: 'session', entityId: session.id, payload: { recordingId: saved.id } });
-    // Automatic transcription in the background (no-op when no provider key is configured)
-    queueTranscription(db, saved.id);
-    const recording = listForSession(db, session.id).find((r) => r.id === saved.id) || saved;
-    return res.status(201).json({ success: true, data: recording });
+    return res.status(201).json({ success: true, data: afterSave(session, saved) });
   } catch (err) {
     cleanupTmp();
     console.error('[POST /sessions/:id/recording]', err);

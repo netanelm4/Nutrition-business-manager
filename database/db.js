@@ -2303,4 +2303,43 @@ try {
   console.log(`[migration] clients.payments_frozen added; ${n} frozen client(s) had payments frozen`);
 } catch { /* exists */ }
 
+// Long recordings: transcription progress (part X of Y; 0 of 0 = preparing the audio)
+for (const col of ['transcript_part INTEGER', 'transcript_parts INTEGER']) {
+  try { db.exec(`ALTER TABLE session_recordings ADD COLUMN ${col}`); } catch { /* exists */ }
+}
+
+// [repair] Transcriptions interrupted by a restart/deploy. The job runner lives
+// only in the server process, so at server startup a job still marked
+// "running" was cut off (a 2 hour session can take a while to transcribe).
+// Interrupted jobs → failed; recordings left "queued"/"processing" without a
+// live job → NULL, which reconcileTranscriptions re-queues automatically.
+// Idempotent. Only in the server process, so a script opening the DB while the
+// server runs never touches a job that is really running.
+function repairStuckTranscriptions(database) {
+  try {
+    const now = new Date().toISOString();
+    const jobs = database.prepare(
+      "UPDATE scheduled_jobs SET status = 'failed', last_error = 'interrupted by restart', updated_at = ? WHERE type = 'transcribe_recording' AND status = 'running'"
+    ).run(now).changes;
+    if (jobs) console.log(`[repair] marked ${jobs} interrupted transcription job(s) as failed`);
+    const stuck = database.prepare(`
+      SELECT r.id, r.client_id FROM session_recordings r
+      WHERE r.transcript_status IN ('queued', 'processing')
+        AND NOT EXISTS (
+          SELECT 1 FROM scheduled_jobs j
+          WHERE j.type = 'transcribe_recording' AND j.status IN ('pending', 'running')
+            AND j.payload LIKE '%' || r.id || '%'
+        )
+    `).all();
+    for (const r of stuck) {
+      database.prepare('UPDATE session_recordings SET transcript_status = NULL, transcript_part = NULL, transcript_parts = NULL WHERE id = ?').run(r.id);
+      console.log(`[repair] Re-queued interrupted transcription ${r.id} for client ${r.client_id}`);
+    }
+    if (!jobs && !stuck.length) console.log('[repair] transcriptions: none interrupted');
+  } catch (err) {
+    console.error('[repair] stuck transcriptions failed:', err.message);
+  }
+}
+if (/server\.js$/.test(require.main?.filename || '')) repairStuckTranscriptions(db);
+
 module.exports = db;

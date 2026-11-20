@@ -1,6 +1,7 @@
 // Session clinical analysis (Phase 10): labels for the review card
 
 export const ANALYSIS_TITLE = 'תובנות AI וטיוטת תפריט';
+export const ANALYSIS_RUNNING = 'מייצר תובנות AI... זה יכול לקחת עד כשתי דקות.';
 
 export const MEAL_LABEL = Object.freeze({
   breakfast: 'ארוחת בוקר', ten_oclock: 'ארוחת עשר', lunch: 'ארוחת צהריים',
