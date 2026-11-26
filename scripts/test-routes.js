@@ -677,6 +677,67 @@ async function run() {
 
   // ── Cleanup ────────────────────────────────────────────────────────────────
   console.log('\n── Cleanup ──');
+  // ── Weigh-in access freeze (per client, public /w/:token only) ──────────
+  console.log('\n── Weigh-in access freeze ──');
+  {
+    // Public calls carry no auth header — exactly like the client's browser
+    const pub = async (method, path, body) => {
+      const res = await fetch(`${BASE}${path}`, {
+        method, headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      let json = {}; try { json = await res.json(); } catch { /* non-JSON */ }
+      return { status: res.status, ...json };
+    };
+    const tokenOf = async (id) => (await req('GET', `/clients/${id}/weight-link`)).data?.url?.split('/w/')[1];
+    // A recent Monday, so an unfrozen POST is valid (Mon / Thu only)
+    const monday = (() => { const d = new Date(); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); return d.toISOString().slice(0, 10); })();
+    const thursdayBefore = (() => { const d = new Date(monday + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 4); return d.toISOString().slice(0, 10); })();
+
+    const other = (await req('POST', '/clients', { full_name: 'לקוח ביקורת שקילות', phone: '0521310099', start_date: '2026-03-01' })).data?.id;
+    const tA = await tokenOf(clientId);
+    const tB = await tokenOf(other);
+    assert('Weigh-in tokens available for both clients', !!tA && !!tB && tA !== tB);
+
+    assert('New client defaults to weigh_in_frozen = 0', (await req('GET', `/clients/${clientId}`)).data?.weigh_in_frozen === 0);
+    assert('Unfrozen: public GET works', (await pub('GET', `/public/weight/${tA}`)).status === 200);
+    assert('Unfrozen: public POST works', (await pub('POST', `/public/weight/${tA}`, { date: monday, weight: 88.4 })).status === 200);
+
+    assert('weigh-in-freeze validates its body (400)', (await req('POST', `/clients/${clientId}/weigh-in-freeze`, { frozen: 'yes' })).status === 400);
+    assert('weigh-in-freeze unknown client → 404', (await req('POST', '/clients/99999/weigh-in-freeze', { frozen: true })).status === 404);
+    const fr = await req('POST', `/clients/${clientId}/weigh-in-freeze`, { frozen: true, reason: 'תשלום פתוח' });
+    assert('Freeze weigh-in access → flag + reason saved', fr.data?.weigh_in_frozen === 1 && fr.data?.weigh_in_frozen_reason === 'תשלום פתוח' && !!fr.data?.weigh_in_frozen_at);
+
+    const g = await pub('GET', `/public/weight/${tA}`);
+    assert('Frozen: public GET → 403 { frozen: true }', g.status === 403 && g.frozen === true && g.success === false, JSON.stringify(g));
+    assert('Frozen: Hebrew paused-access message returned', /מושהית/.test(g.data?.title || '') && /וואטסאפ/.test(g.data?.message || ''));
+    assert('Frozen: WhatsApp link to Netanel', /^https:\/\/wa\.me\/972\d+\?text=/.test(g.data?.whatsapp_url || ''));
+    assert('Frozen: no weigh-in data or internal reason leaked', g.data?.all_weeks === undefined && g.data?.latest_weight === undefined && !JSON.stringify(g).includes('תשלום פתוח'));
+
+    const before = (await req('GET', `/weight/${clientId}`)).data?.logs?.length;
+    const p = await pub('POST', `/public/weight/${tA}`, { date: thursdayBefore, weight: 87.9 });
+    assert('Frozen: public POST → 403 { frozen: true }', p.status === 403 && p.frozen === true);
+    assert('Frozen: invalid body still gets 403, not 400', (await pub('POST', `/public/weight/${tA}`, {})).status === 403);
+    assert('Frozen: nothing written by the blocked POST', (await req('GET', `/weight/${clientId}`)).data?.logs?.length === before);
+
+    assert('Frozen: admin can still view weigh-ins', (await req('GET', `/weight/${clientId}`)).success === true && before >= 1);
+    const adminAdd = await req('POST', `/weight/${clientId}`, { date: thursdayBefore, weight: 87.6 });
+    assert('Frozen: admin can still log a weigh-in', adminAdd.success === true);
+
+    assert('Other client unaffected: public GET 200', (await pub('GET', `/public/weight/${tB}`)).status === 200);
+    assert('Other client unaffected: public POST 200', (await pub('POST', `/public/weight/${tB}`, { date: monday, weight: 70.2 })).status === 200);
+    assert('Other client still weigh_in_frozen = 0', (await req('GET', `/clients/${other}`)).data?.weigh_in_frozen === 0);
+    assert('Bad token still → 404 (not 403)', (await pub('GET', '/public/weight/not-a-real-token')).status === 404);
+
+    const un = await req('POST', `/clients/${clientId}/weigh-in-freeze`, { frozen: false });
+    assert('Unfreeze → flag, reason and timestamp cleared', un.data?.weigh_in_frozen === 0 && un.data?.weigh_in_frozen_reason === null && un.data?.weigh_in_frozen_at === null);
+    const g2 = await pub('GET', `/public/weight/${tA}`);
+    assert('Unfrozen again: public GET restored with full history', g2.status === 200 && (g2.data?.all_weeks || []).length >= 1);
+    assert('Unfrozen again: public POST restored', (await pub('POST', `/public/weight/${tA}`, { date: monday, weight: 88.1 })).status === 200);
+
+    await req('DELETE', `/clients/${other}`);
+  }
+
   {
     const r = await req('DELETE', `/clients/${clientId}`);
     assert('Delete client', r.success && r.data.id === clientId, JSON.stringify(r));

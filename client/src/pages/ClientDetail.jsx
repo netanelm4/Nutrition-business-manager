@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeMeeting, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight, fetchWeightLink, stopClient, freezeClient, reactivateClient } from '../lib/api';
+import { fetchClient, fetchSessions, fetchWindows, updateClient, deleteClient, fetchWhatsAppLog, fetchProtocols, personalizeProtocol, addProtocolTasks, generateClientAISummary, fetchClientAISummary, generateProcessSummary, fetchProcessSummary, updateSession, createSession, fetchEngagements, createEngagement, closeEngagement, fetchClientMeetings, completeMeeting, fetchClientMenus, createMenu, fetchWeightLog, addWeight, deleteWeight, fetchWeightLink, setWeighInFrozen, stopClient, freezeClient, reactivateClient } from '../lib/api';
 import PaymentsSection from '../components/payments/PaymentsSection';
 import { formatDateHebrew, daysUntil } from '../lib/dates';
 import { CLIENT_STATUS_LABEL, GENDER_LABEL } from '../constants/statuses';
@@ -1227,7 +1227,80 @@ function WeightCell({ weight, weightId, date, offDay, clientId, onSaved, onDelet
   );
 }
 
-function WeightsTab({ clientId }) {
+// ─── Weigh-in access freeze (pauses only the client's public /w/ page) ───────
+
+function WeighInFrozenBadge() {
+  return (
+    <span style={{ fontSize: 11, color: 'var(--red-ink)', background: 'var(--red-soft)', border: '1px solid color-mix(in oklab, var(--red-ink) 30%, transparent)', padding: '2px 8px', borderRadius: 99, fontWeight: 600, whiteSpace: 'nowrap' }}>
+      גישה לשקילות מוקפאת
+    </span>
+  );
+}
+
+function WeighInAccessBar({ client }) {
+  const queryClient = useQueryClient();
+  const frozen = !!client?.weigh_in_frozen;
+  const [reason, setReason] = useState('');
+  const mut = useMutation({
+    mutationFn: (next) => setWeighInFrozen(client.id, next, next ? reason : undefined),
+    onSuccess: () => {
+      setReason('');
+      queryClient.invalidateQueries({ queryKey: ['client', String(client.id)] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
+    },
+  });
+  if (!client) return null;
+
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap',
+        padding: '12px 16px', borderRadius: 10,
+        background: frozen ? 'var(--red-soft)' : 'var(--surface-2)',
+        border: `1px solid ${frozen ? 'color-mix(in oklab, var(--red-ink) 30%, transparent)' : 'var(--line)'}`,
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0, flex: '1 1 220px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--ink-1)' }}>גישת הלקוח לטבלת השקילות</span>
+          {frozen
+            ? <WeighInFrozenBadge />
+            : <span style={{ fontSize: 11, color: 'var(--green-ink, #1a7a4a)', background: 'var(--green-soft, #e8f9f4)', padding: '2px 8px', borderRadius: 99, fontWeight: 600 }}>פעילה</span>}
+        </div>
+        <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>
+          {frozen
+            ? `הקישור האישי מציג הודעת השהיה. כאן אפשר להמשיך לצפות ולרשום שקילות.${client.weigh_in_frozen_reason ? ` סיבה: ${client.weigh_in_frozen_reason}` : ''}`
+            : 'הקפאה חוסמת צפייה ורישום בקישור האישי בלבד. הנתונים נשמרים.'}
+        </span>
+        {mut.isError && <span style={{ fontSize: 12.5, color: 'var(--red-ink)' }}>{mut.error?.message || 'שגיאה בעדכון'}</span>}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {!frozen && (
+          <input
+            type="text"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="סיבה (פנימי, לא מוצג ללקוח)"
+            maxLength={200}
+            className="crm-input"
+            style={{ width: 200, height: 34 }}
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => mut.mutate(!frozen)}
+          disabled={mut.isPending}
+          className={frozen ? 'crm-btn crm-btn--primary crm-btn--sm' : 'crm-btn crm-btn--sm'}
+          style={{ height: 34 }}
+        >
+          {mut.isPending ? '...' : frozen ? 'בטל הקפאת שקילות' : 'הקפא גישה לשקילות'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WeightsTab({ clientId, client }) {
   const queryClient = useQueryClient();
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [weightVal, setWeightVal] = useState('');
@@ -1272,6 +1345,8 @@ function WeightsTab({ clientId }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }} dir="rtl">
+
+      <WeighInAccessBar client={client} />
 
       {/* Quick add */}
       <form
@@ -1879,6 +1954,7 @@ export default function ClientDetail() {
                   מוקפא עד {new Date(client.frozen_until + 'T12:00:00Z').toLocaleDateString('he-IL')}
                 </span>
               )}
+              {!!client.weigh_in_frozen && <WeighInFrozenBadge />}
               </div>
             </div>
             <div className="client-actions">
@@ -2077,7 +2153,7 @@ export default function ClientDetail() {
             )}
 
             {activeTab === 'weights' && (
-              <WeightsTab clientId={id} />
+              <WeightsTab clientId={id} client={client} />
             )}
           </div>
         </section>

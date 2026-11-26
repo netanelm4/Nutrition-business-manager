@@ -2342,4 +2342,15 @@ function repairStuckTranscriptions(database) {
 }
 if (/server\.js$/.test(require.main?.filename || '')) repairStuckTranscriptions(db);
 
+// Weigh-in access freeze (per client): blocks the public /w/:token page
+// (view + submit) while set. Admin weigh-in routes are unaffected.
+// NOT NULL DEFAULT 0 fills every existing client with 0 (access open), so no
+// separate repair is needed. The reason is internal only, never shown publicly.
+try {
+  db.exec('ALTER TABLE clients ADD COLUMN weigh_in_frozen INTEGER NOT NULL DEFAULT 0');
+  console.log('[migration] clients.weigh_in_frozen added (all existing clients: access open)');
+} catch { /* exists */ }
+try { db.exec('ALTER TABLE clients ADD COLUMN weigh_in_frozen_reason TEXT'); } catch { /* exists */ }
+try { db.exec('ALTER TABLE clients ADD COLUMN weigh_in_frozen_at TEXT'); } catch { /* exists */ }
+
 module.exports = db;

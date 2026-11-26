@@ -715,6 +715,33 @@ router.post('/:id/payments-freeze', (req, res) => {
   }
 });
 
+// ─── POST /api/clients/:id/weigh-in-freeze ── body { frozen: boolean, reason? } ─
+// Pauses only this client's public weigh-in page (/w/:token). Admin access to
+// /api/weight/* is unaffected. The reason is internal and never sent publicly.
+
+router.post('/:id/weigh-in-freeze', (req, res) => {
+  try {
+    const { WEIGH_IN_REASON_MAX } = require('../constants/weigh-in');
+    if (typeof req.body.frozen !== 'boolean') return fail(res, 400, 'frozen must be true or false');
+    const reason = req.body.frozen && typeof req.body.reason === 'string'
+      ? req.body.reason.trim().slice(0, WEIGH_IN_REASON_MAX) || null
+      : null;
+    const r = db.prepare(`
+      UPDATE clients
+      SET weigh_in_frozen = ?,
+          weigh_in_frozen_reason = ?,
+          weigh_in_frozen_at = CASE WHEN ? = 1 THEN datetime('now') ELSE NULL END
+      WHERE id = ?
+    `).run(req.body.frozen ? 1 : 0, reason, req.body.frozen ? 1 : 0, req.params.id);
+    if (r.changes === 0) return fail(res, 404, 'Client not found.');
+    console.log(`[weigh-in-freeze] client ${req.params.id} → ${req.body.frozen ? 'frozen' : 'open'}`);
+    return ok(res, db.prepare('SELECT * FROM clients WHERE id = ?').get(req.params.id));
+  } catch (err) {
+    console.error('[POST /clients/:id/weigh-in-freeze]', err);
+    return fail(res, 500, 'Failed to update weigh-in access.');
+  }
+});
+
 // ─── POST /api/clients/:id/reactivate ────────────────────────────────────────
 
 router.post('/:id/reactivate', (req, res) => {

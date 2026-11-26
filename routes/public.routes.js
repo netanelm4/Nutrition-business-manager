@@ -82,13 +82,35 @@ function ensureWeightSchema() {
   try { db.exec("UPDATE clients SET weight_token = hex(randomblob(8)) WHERE weight_token IS NULL"); } catch {}
 }
 
+// ─── Weigh-in access freeze ──────────────────────────────────────────────────
+// A frozen client gets a structured 403 (no stats, never the internal reason),
+// so the page can show the paused-access screen instead of "invalid link".
+
+const { CONTACT_PHONE, WEIGH_IN_FROZEN } = require('../constants/weigh-in');
+const { generateLink } = require('../services/whatsapp.service');
+
+function sendWeighInFrozen(res) {
+  return res.status(403).json({
+    success: false,
+    frozen: true,
+    error: WEIGH_IN_FROZEN.MESSAGE,
+    data: {
+      title: WEIGH_IN_FROZEN.TITLE,
+      message: WEIGH_IN_FROZEN.MESSAGE,
+      cta_label: WEIGH_IN_FROZEN.CTA_LABEL,
+      whatsapp_url: generateLink(CONTACT_PHONE, WEIGH_IN_FROZEN.WHATSAPP_TEXT),
+    },
+  });
+}
+
 // ─── GET /api/public/weight/:token ───────────────────────────────────────────
 
 router.get('/public/weight/:token', (req, res) => {
   try {
     ensureWeightSchema();
-    const client = db.prepare('SELECT id, full_name FROM clients WHERE weight_token = ?').get(req.params.token);
+    const client = db.prepare('SELECT id, full_name, weigh_in_frozen FROM clients WHERE weight_token = ?').get(req.params.token);
     if (!client) return res.status(404).json({ success: false, error: 'קישור לא תקין' });
+    if (client.weigh_in_frozen) return sendWeighInFrozen(res);
 
     const stats = buildWeightStats(client.id);
     return res.json({ success: true, data: { client_name: client.full_name, ...stats } });
@@ -103,8 +125,9 @@ router.get('/public/weight/:token', (req, res) => {
 router.post('/public/weight/:token', publicActionLimiter, (req, res) => {
   try {
     ensureWeightSchema();
-    const client = db.prepare('SELECT id FROM clients WHERE weight_token = ?').get(req.params.token);
+    const client = db.prepare('SELECT id, weigh_in_frozen FROM clients WHERE weight_token = ?').get(req.params.token);
     if (!client) return res.status(404).json({ success: false, error: 'קישור לא תקין' });
+    if (client.weigh_in_frozen) return sendWeighInFrozen(res); // before body validation
 
     const { date, weight } = req.body;
     if (!date || weight === undefined || weight === null) {

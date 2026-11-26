@@ -8,10 +8,19 @@ import {
 
 const BASE = '/api';
 
+// Errors keep the server's `frozen` flag + payload, so a paused weigh-in
+// access (403 { frozen: true }) renders its own screen, not "invalid link".
+function toError(json) {
+  const err = new Error(json.error || 'שגיאה');
+  err.frozen = json.frozen === true;
+  err.frozenInfo = err.frozen ? json.data : null;
+  return err;
+}
+
 async function apiGet(path) {
   const res  = await fetch(`${BASE}${path}`);
   const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'שגיאה');
+  if (!json.success) throw toError(json);
   return json.data;
 }
 
@@ -22,7 +31,7 @@ async function apiPost(path, body) {
     body: JSON.stringify(body),
   });
   const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'שגיאה');
+  if (!json.success) throw toError(json);
   return json.data;
 }
 
@@ -172,6 +181,15 @@ const S = {
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
+  frozenIcon: {
+    width: 56, height: 56, borderRadius: '50%', background: C.pink,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px',
+  },
+  waBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    height: 48, marginTop: 20, borderRadius: 12, background: C.green, color: '#fff',
+    fontSize: 16, fontWeight: 700, textDecoration: 'none', fontFamily: 'inherit',
+  },
   notFound: {
     minHeight: '100dvh',
     display: 'flex',
@@ -186,6 +204,40 @@ const S = {
     gap: 8,
   },
 };
+
+// ─── Paused access screen ─────────────────────────────────────────────────────
+
+function FrozenScreen({ info }) {
+  return (
+    <div style={S.page}>
+      <link rel="preconnect" href="https://fonts.googleapis.com" />
+      <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700&display=swap" rel="stylesheet" />
+      <div style={S.header}>
+        <img src="/logo-color.png" alt="לוגו" style={S.logo} />
+      </div>
+      <div style={S.body}>
+        <div style={{ ...S.card, textAlign: 'center', padding: '28px 22px', marginTop: 24 }} role="status">
+          <div aria-hidden="true" style={S.frozenIcon}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={C.blue} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="6" y="4" width="4" height="16" rx="1" /><rect x="14" y="4" width="4" height="16" rx="1" />
+            </svg>
+          </div>
+          <h1 style={{ fontSize: 19, fontWeight: 700, color: C.text, margin: '0 0 10px' }}>
+            {info?.title || 'הגישה לטבלת השקילות מושהית כרגע'}
+          </h1>
+          <p style={{ fontSize: 15, color: C.sub, lineHeight: 1.6, margin: '0 auto', maxWidth: 360 }}>
+            {info?.message || 'כדי לחדש את הגישה, אפשר לפנות לנתנאל בוואטסאפ.'}
+          </p>
+          {info?.whatsapp_url && (
+            <a href={info.whatsapp_url} target="_blank" rel="noopener noreferrer" style={S.waBtn}>
+              {info.cta_label || 'פנייה לנתנאל בוואטסאפ'}
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Stat pill ────────────────────────────────────────────────────────────────
 
@@ -338,7 +390,7 @@ export default function PublicWeight() {
   const [success, setSuccess] = useState(false);
   const [dateErr, setDateErr] = useState(null);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['public-weight', token],
     queryFn:  () => apiGet(`/public/weight/${token}`),
     retry: false,
@@ -379,6 +431,11 @@ export default function PublicWeight() {
       </div>
     );
   }
+
+  // Paused access: on load, or when a save is rejected because access was
+  // paused while the page was open.
+  if (error?.frozen) return <FrozenScreen info={error.frozenInfo} />;
+  if (saveMut.error?.frozen) return <FrozenScreen info={saveMut.error.frozenInfo} />;
 
   if (isError || !data) {
     return (
