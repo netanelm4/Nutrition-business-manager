@@ -305,20 +305,25 @@
   .g-score { font-size: 46px; font-weight: 900; line-height: 1; letter-spacing: -0.04em; }
   .g-meta { display: flex; flex-direction: column; gap: 2px; font-size: 15px; font-weight: 700; }
   .stars { color: #f2a33a; letter-spacing: 2px; font-size: 15px; line-height: 1; }
-  /* One row drifting right on a loop (the cards are cloned once by JS, so -50%..0 is seamless).
-     Pauses while a review is hovered, focused or opened. */
-  .review-marquee { margin: 44px calc(-1 * var(--pad)) 0; overflow: hidden; padding: 8px 0 30px;
-    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
-  .review-track { display: flex; align-items: flex-start; width: max-content; animation: reviewsDrift 300s linear infinite; } /* duration is recalculated in JS for a fixed slow speed */
-  .review-track:has(.review:hover, .review :focus-visible, .review.is-open) { animation-play-state: paused; }
-  @keyframes reviewsDrift { from { transform: translateX(0); } to { transform: translateX(50%); } }
-  .review-track .review { flex: 0 0 clamp(270px, 25vw, 350px); margin-left: 20px; transition: scale .25s var(--ease); }
+  /* A horizontal scroller: JS drifts it slowly until the last review is fully in view, then stops.
+     Swipe on touch, arrows on desktop. The edge fade drops on a side once there is nothing more there. */
+  .reviews-aside { display: flex; align-items: center; gap: 18px; }
+  .review-marquee { --fade-l: 6%; --fade-r: 0%;
+    margin: 44px calc(-1 * var(--pad)) 0; padding: 8px 0 30px;
+    overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent); }
+  .review-marquee::-webkit-scrollbar { display: none; }
+  .review-marquee:focus-visible { outline: 2px solid var(--blue-ink); outline-offset: -2px; }
+  .review-marquee.is-start { --fade-r: 0%; }
+  .review-marquee.is-mid { --fade-r: 6%; }
+  .review-marquee.is-end { --fade-l: 0%; --fade-r: 6%; }
+  .review-track { display: flex; align-items: flex-start; gap: 20px; width: max-content; padding-inline: var(--pad); }
+  .review-track .review { flex: 0 0 clamp(270px, 25vw, 350px); transition: scale .25s var(--ease); }
   .review-track .review:hover { scale: 1.015; }
-  @media (prefers-reduced-motion: reduce) {
-    .review-marquee { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
-    .review-track { animation: none; padding-inline: var(--pad); }
-    .review[data-clone] { display: none; }
-  }
+  /* Once the visitor takes over, cards settle on a card edge. */
+  .review-marquee.is-manual { scroll-snap-type: x proximity; scroll-padding-inline: var(--pad); }
+  .review-track .review { scroll-snap-align: start; }
   .review { background: var(--paper-2); border-radius: 26px; padding: 24px 24px 20px; box-shadow: 0 22px 45px -34px rgb(38 40 70 / .55); }
   .review header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   .review header b { display: block; font-size: 17px; line-height: 1.2; margin-bottom: 4px; }
@@ -331,8 +336,10 @@
   .review-more:hover { color: var(--ink); }
   @media (max-width: 680px) {
     .g-badge { width: 100%; }
+    .reviews-aside { width: 100%; }
     .review-marquee { margin-top: 30px; }
-    .review-track .review { flex-basis: 78vw; margin-left: 14px; }
+    .review-track { gap: 14px; }
+    .review-track .review { flex-basis: 78vw; }
   }
   dialog.viewer { padding: 0; border: 0; background: transparent; max-width: none; max-height: none; overflow: visible; }
   dialog.viewer::backdrop { background: rgb(12 14 30 / .82); backdrop-filter: blur(6px); }
@@ -687,12 +694,18 @@
         <p class="label">המלצות מטופלים</p>
         <div class="section-head"><h2 id="reviews-title">מה <em>אומרים</em></h2></div>
       </div>
-      <a class="g-badge" href="https://www.google.com/maps/search/?api=1&amp;query=%D7%A0%D7%AA%D7%90%20%D7%A7%D7%9C%D7%99%D7%A0%D7%99%D7%A7%D7%AA%20%D7%AA%D7%96%D7%95%D7%A0%D7%94" target="_blank" rel="noopener" aria-label="דירוג 5.0 מתוך 5 בביקורות מאומתות מ-Google. לכל הביקורות ב-Google, נפתח בחלון חדש">
-        <span class="g-score" dir="ltr">5.0</span>
-        <span class="g-meta"><span class="stars" aria-hidden="true">★★★★★</span><span>ביקורות מאומתות מ־Google</span><span class="g-link">לכל הביקורות <span aria-hidden="true">←</span></span></span>
-      </a>
+      <div class="reviews-aside">
+        <a class="g-badge" href="https://www.google.com/maps/search/?api=1&amp;query=%D7%A0%D7%AA%D7%90%20%D7%A7%D7%9C%D7%99%D7%A0%D7%99%D7%A7%D7%AA%20%D7%AA%D7%96%D7%95%D7%A0%D7%94" target="_blank" rel="noopener" aria-label="דירוג 5.0 מתוך 5 בביקורות מאומתות מ-Google. לכל הביקורות ב-Google, נפתח בחלון חדש">
+          <span class="g-score" dir="ltr">5.0</span>
+          <span class="g-meta"><span class="stars" aria-hidden="true">★★★★★</span><span>ביקורות מאומתות מ־Google</span><span class="g-link">לכל הביקורות <span aria-hidden="true">←</span></span></span>
+        </a>
+        <div class="rail-nav">
+          <button type="button" aria-label="להמלצה הקודמת" data-review-prev><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <button type="button" aria-label="להמלצה הבאה" data-review-next><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 4L6 9l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
     </div>
-    <div class="review-marquee">
+    <div class="review-marquee is-start" tabindex="0" aria-label="המלצות מטופלים, אפשר לגלול לצדדים" data-review-marquee>
       <div class="review-track" data-reviews>
       <article class="review"><header><span class="avatar" aria-hidden="true">נ</span><div><b>נ.י.</b><span class="stars" role="img" aria-label="5 כוכבים">★★★★★</span></div></header>
         <p class="review-text" data-review-text>אחת המתנות הכי טובות שהייתי יכולה לתת לעצמי!<br>החל מהמפגשים הפרונטלים ועד הליווי הרציף בווצאפ. הליווי של נתנאל היה יוצא מן הכלל. מאוד מעשיפ ומלא תמיכה ומוטיבציה.<br>קבלתי גם תוצאות פרקטיות שאפשר לראות ולהרגיש על עצמי אבל יותר חשוב קיבלתי כלים לאורך חיים בריא שהוא ישים ומותאם עבורי שאני יכולה להתמיד בו 🙏🏼</p>
@@ -992,19 +1005,6 @@
 
   /* ── Reviews: show "להמשך קריאה" only on cards that are actually clamped ── */
   var reviewTrack = document.querySelector('[data-reviews]');
-  // Three extra copies: the track is two identical halves (2 sets each), so the -50%..0 loop never
-  // shows an edge, even on screens wider than one set of cards.
-  var originals = Array.prototype.slice.call(reviewTrack.children);
-  for (var copy = 0; copy < 3; copy++) originals.forEach(function (card) {
-    var c = card.cloneNode(true);
-    c.setAttribute('aria-hidden', 'true'); c.setAttribute('data-clone', '');
-    c.querySelector('[data-review-more]').tabIndex = -1;
-    reviewTrack.appendChild(c);
-  });
-  var REVIEW_SPEED = 13; // px per second: a slow, steady drift
-  function reviewSpeed() { reviewTrack.style.animationDuration = Math.round(reviewTrack.scrollWidth / 2 / REVIEW_SPEED) + 's'; }
-  reviewSpeed();
-  window.addEventListener('resize', reviewSpeed);
   var reviewEls = Array.prototype.slice.call(reviewTrack.querySelectorAll('.review'));
   function reviewToggles() {
     reviewEls.forEach(function (card) {
@@ -1024,6 +1024,58 @@
   reviewToggles();
   window.addEventListener('resize', reviewToggles);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(reviewToggles);
+
+  /* ── Reviews: slow drift until the last review is fully in view, then stop ──
+     RTL scroller: scrollLeft runs from 0 (first review) to -max (last review). */
+  var marq = document.querySelector('[data-review-marquee]');
+  var rPrev = document.querySelector('[data-review-prev]');
+  var rNext = document.querySelector('[data-review-next]');
+  var REVIEW_SPEED = 16; // px per second
+  var reviewMax = function () { return Math.max(0, marq.scrollWidth - marq.clientWidth); };
+  var reviewPos = function () { return Math.abs(marq.scrollLeft); };
+  function reviewState() {
+    var pos = reviewPos(), max = reviewMax(), atStart = pos < 4, atEnd = pos > max - 4;
+    marq.classList.toggle('is-start', atStart);
+    marq.classList.toggle('is-end', atEnd && !atStart);
+    marq.classList.toggle('is-mid', !atStart && !atEnd);
+    rPrev.disabled = atStart; rNext.disabled = atEnd;
+  }
+  var drifting = false, driftPos = 0, driftLast = 0;
+  function stopDrift() { drifting = false; marq.classList.add('is-manual'); }
+  function driftStep(now) {
+    if (!drifting) return;
+    var dt = Math.min(0.1, (now - driftLast) / 1000); driftLast = now;
+    var paused = marq.matches(':hover') || marq.querySelector('.review.is-open') ||
+      root.classList.contains('a11y-still') || document.hidden;
+    if (!paused) {
+      // Anything else moving the row (a swipe, keys, a screen reader) means the visitor took over.
+      if (Math.abs(reviewPos() - driftPos) > 3) { stopDrift(); reviewState(); return; }
+      driftPos = Math.min(reviewMax(), driftPos + REVIEW_SPEED * dt);
+      marq.scrollLeft = -driftPos;
+      if (driftPos >= reviewMax()) { drifting = false; reviewState(); return; }
+    }
+    requestAnimationFrame(driftStep);
+  }
+  function startDrift() {
+    if (drifting || marq.classList.contains('is-manual') || reviewPos() >= reviewMax() - 1) return;
+    drifting = true; driftPos = reviewPos(); driftLast = performance.now();
+    requestAnimationFrame(driftStep);
+  }
+  // Any hand on the reviews hands control to the visitor for good.
+  ['pointerdown', 'wheel', 'touchstart', 'keydown'].forEach(function (ev) {
+    marq.addEventListener(ev, stopDrift, { passive: true });
+  });
+  function reviewStep() { var c = reviewTrack.querySelector('.review'); return c ? c.getBoundingClientRect().width + parseFloat(getComputedStyle(reviewTrack).columnGap || 0) : 320; }
+  rNext.addEventListener('click', function () { stopDrift(); marq.scrollBy({ left: -reviewStep(), behavior: motion ? 'smooth' : 'auto' }); });
+  rPrev.addEventListener('click', function () { stopDrift(); marq.scrollBy({ left: reviewStep(), behavior: motion ? 'smooth' : 'auto' }); });
+  marq.addEventListener('scroll', reviewState, { passive: true });
+  window.addEventListener('resize', reviewState);
+  reviewState();
+  if (motion && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      if (entries[entries.length - 1].isIntersecting) startDrift(); else drifting = false;
+    }, { threshold: 0.35 }).observe(marq);
+  }
 
   /* ── Method illustrations animate only while on screen ────────────── */
   var ills = document.querySelectorAll('[data-ill]');
