@@ -160,9 +160,6 @@
   .track-card.blue::after { color: rgb(255 255 255 / .12); }
   .track-card .for { font-size: 14px; font-weight: 700; opacity: .75; }
   .track-card h3 { font-size: clamp(36px, 3.2vw, 52px); line-height: 1; margin: 12px 0 14px; }
-  .track-card .price { display: flex; align-items: baseline; gap: .4em; margin-bottom: 18px; }
-  .track-card .price b { font-size: clamp(30px, 2.5vw, 40px); font-weight: 900; font-variant-numeric: tabular-nums; }
-  .track-card .price span { font-size: 14px; opacity: .8; }
   .track-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 16px; }
   .track-card li { display: flex; gap: 10px; align-items: baseline; }
   .track-card li::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .55; transform: translateY(-2px); }
@@ -176,9 +173,8 @@
   }
   .alumni h3 { font-size: 24px; }
   .alumni p { color: var(--ink-soft); }
-  .alumni dl { display: flex; flex-wrap: wrap; gap: 14px 40px; margin: 0; }
-  .alumni dt { font-size: 14px; color: var(--ink-soft); }
-  .alumni dd { margin: 0; font-weight: 800; font-size: 20px; }
+  .alumni ul { display: flex; flex-wrap: wrap; gap: 14px 40px; margin: 0; padding: 0; list-style: none; }
+  .alumni li { font-weight: 800; font-size: 20px; }
 
   /* ── About: reels lane behind a phone ───────────────────────────────── */
   .about { --head: clamp(44px, min(7.4vw, 10svh), 132px); background: var(--paper); padding: max(90px, 10svh) 0 clamp(30px, 4svh, 60px); overflow-x: clip; }
@@ -196,7 +192,11 @@
     transition: transform .35s var(--ease), box-shadow .35s var(--ease);
   }
   .clip:hover { transform: translateY(-8px) scale(1.02); box-shadow: 0 24px 40px -24px rgb(30 30 60 / .55); }
+  .clip { background: #ddd center / cover no-repeat; }
   .clip video, .clip img { width: 100%; height: 100%; object-fit: cover; }
+  /* The poster sits on the button itself; the loop fades in only once it really plays, so a clip is never blank. */
+  .clip video { opacity: 0; transition: opacity .3s; }
+  .clip video.is-on { opacity: 1; }
   .clip span {
     position: absolute; inset: auto 0 0 0; padding: 40px 14px 14px; direction: rtl; text-align: right;
     color: #fff; font-weight: 800; font-size: 15px; line-height: 1.25;
@@ -437,10 +437,6 @@
     .track-card::after { font-size: 150px; }
     .about { --head: 12vw; }
     .about-title { margin-bottom: 10px; }
-    .reel-stage { height: auto; padding-block: 10px; }
-    .clip { height: 300px; }
-    .phone { display: none; }
-    .lane { position: relative; top: auto; translate: none; }
     .about-copy p { text-align: right; line-height: 1.65; }
     .about-name { margin-top: 18px; }
     .method-head { grid-template-columns: 1fr; }
@@ -522,7 +518,6 @@
       <article class="track-card pink" data-number="3" data-flip>
         <p class="for">לבניית הרגלים יציבים</p>
         <h3>3 חודשים</h3>
-        <p class="price"><b>2,400 ₪</b><span>אפשר בתשלומים</span></p>
         <ul>
           <li>פגישת פתיחה מעמיקה, עד 60 דקות</li>
           <li>6 פגישות מעקב, אחת לשבועיים, 30 עד 40 דקות</li>
@@ -535,7 +530,6 @@
       <article class="track-card blue" data-number="6" data-flip>
         <p class="for">לשינוי עמוק ולשימור לטווח ארוך</p>
         <h3>6 חודשים</h3>
-        <p class="price"><b>4,200 ₪</b><span>אפשר בתשלומים</span></p>
         <ul>
           <li>פגישת פתיחה מעמיקה</li>
           <li>12 פגישות מעקב, אחת לשבועיים</li>
@@ -546,9 +540,8 @@
       </article>
 
       <article class="track-card green" data-number="1" data-flip>
-        <p class="for">פגישה אחת, בלי ליווי מתמשך</p>
+        <p class="for">פגישה אחת של 60 דקות, בלי ליווי מתמשך</p>
         <h3>ייעוץ חד פעמי</h3>
-        <p class="price"><b>250 ₪</b><span>60 דקות</span></p>
         <ul>
           <li>מצגת על חשיבה תזונתית ויחסים בריאים עם אוכל</li>
           <li>פענוח קליני של בדיקות דם</li>
@@ -564,10 +557,10 @@
         <h3 id="alumni-title">סיימתם מסלול? ממשיכים יחד.</h3>
         <p>לבוגרי מסלולי 3 ו־6 החודשים בלבד.</p>
       </div>
-      <dl>
-        <div><dt>ליווי שוטף בוואטסאפ, כל עוד המנוי פעיל</dt><dd>100 ₪ לחודש</dd></div>
-        <div><dt>פגישות מעקב נקודתיות לפי הצורך</dt><dd>במחיר מוזל</dd></div>
-      </dl>
+      <ul>
+        <li>ליווי שוטף בוואטסאפ, כל עוד המנוי פעיל</li>
+        <li>פגישות מעקב נקודתיות לפי הצורך</li>
+      </ul>
     </aside>
   </section>
 
@@ -897,6 +890,7 @@
   function clip(r, decorative) {
     var b = document.createElement('button');
     b.type = 'button'; b.className = 'clip'; b.setAttribute('data-reel', r.id);
+    b.style.backgroundImage = 'url(' + BASE + r.id + '-poster.jpg)';
     if (decorative) { b.tabIndex = -1; b.setAttribute('aria-hidden', 'true'); }
     else b.setAttribute('aria-label', 'צפייה בסרטון: ' + r.title);
     var media;
@@ -921,19 +915,34 @@
     for (var rep = 0; rep < 2; rep++) REELS.forEach(function (r) { group.appendChild(clip(r, g === 1 || rep === 1)); });
     track.appendChild(group);
   }
-  // Play the loops only while the lane is on screen.
+  // Phones cap how many videos decode at once (16 at a time left clips blank), so only the
+  // clips actually inside the lane get a source; the rest are unloaded and show their poster.
   var vids = Array.prototype.slice.call(track.querySelectorAll('video'));
+  var laneEl = document.querySelector('[data-lane]');
   if (vids.length && 'IntersectionObserver' in window) {
-    new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        vids.forEach(function (v) {
-          if (en.isIntersecting) {
-            if (!v.src) v.src = v.getAttribute('data-src');
-            var p = v.play(); if (p && p.catch) p.catch(function () {});
-          } else v.pause();
-        });
+    var laneOn = false, sweepTimer = null;
+    var startClip = function (v) {
+      if (root.classList.contains('a11y-still')) return;
+      if (!v.getAttribute('src')) v.src = v.getAttribute('data-src');
+      if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+    };
+    var stopClip = function (v) {
+      if (!v.getAttribute('src')) return;
+      v.pause(); v.classList.remove('is-on'); v.removeAttribute('src'); v.load();
+    };
+    var sweep = function () {
+      var lr = laneEl.getBoundingClientRect();
+      vids.forEach(function (v) {
+        var r = v.getBoundingClientRect();
+        if (laneOn && r.right > lr.left - 40 && r.left < lr.right + 40) startClip(v); else stopClip(v);
       });
-    }, { rootMargin: '200px 0px' }).observe(document.querySelector('[data-lane]'));
+    };
+    vids.forEach(function (v) { v.addEventListener('playing', function () { v.classList.add('is-on'); }); });
+    new IntersectionObserver(function (entries) {
+      laneOn = entries[entries.length - 1].isIntersecting;
+      clearInterval(sweepTimer); sweepTimer = laneOn ? setInterval(sweep, 400) : null;
+      sweep();
+    }, { rootMargin: '200px 0px' }).observe(laneEl);
   }
 
   /* ── Video dialog ─────────────────────────────────────────────────── */
