@@ -179,8 +179,11 @@
   /* ── About: reels lane behind a phone ───────────────────────────────── */
   .about { --head: clamp(44px, min(7.4vw, 10svh), 132px); background: var(--paper); padding: max(90px, 10svh) 0 clamp(30px, 4svh, 60px); overflow-x: clip; }
   .about-title { position: relative; z-index: 3; margin: 0 var(--pad) calc(-.22 * var(--head)); font-size: var(--head); line-height: .9; color: #333240; text-align: right; white-space: nowrap; }
-  .reel-stage { position: relative; height: clamp(300px, 48svh, 500px); display: grid; align-items: center; }
-  .lane { direction: ltr; position: absolute; inset-inline: 0; top: 50%; translate: 0 -50%; overflow: hidden;
+  /* Lane and phone share one grid cell. Safari on iPhone drew nothing for an absolutely
+     positioned, translated lane with a mask, so the lane stays in flow. */
+  .reel-stage { position: relative; height: clamp(300px, 48svh, 500px); display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; }
+  .reel-stage > * { grid-area: 1 / 1; }
+  .lane { direction: ltr; position: relative; min-width: 0; overflow: hidden;
     mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
   .lane-track { display: flex; width: max-content; direction: ltr; animation: lane 46s linear infinite; }
   .lane:hover .lane-track, .lane:focus-within .lane-track { animation-play-state: paused; }
@@ -188,11 +191,10 @@
   @keyframes lane { to { transform: translateX(-50%); } }
   .clip {
     position: relative; flex: none; height: clamp(220px, 40svh, 420px); aspect-ratio: 9 / 16;
-    border-radius: 20px; overflow: hidden; background: #ddd; border: 0; padding: 0; cursor: pointer;
+    border-radius: 20px; overflow: hidden; background: #ddd center / cover no-repeat; border: 0; padding: 0; cursor: pointer;
     transition: transform .35s var(--ease), box-shadow .35s var(--ease);
   }
   .clip:hover { transform: translateY(-8px) scale(1.02); box-shadow: 0 24px 40px -24px rgb(30 30 60 / .55); }
-  .clip { background: #ddd center / cover no-repeat; }
   .clip video, .clip img { width: 100%; height: 100%; object-fit: cover; }
   /* The poster sits on the button itself; the loop fades in only once it really plays, so a clip is never blank. */
   .clip video { opacity: 0; transition: opacity .3s; }
