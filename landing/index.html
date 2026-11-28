@@ -1,1481 +1,1080 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="he" dir="rtl">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>נתא | קליניקת תזונה - נתנאל מלכה</title>
-  <meta name="description" content="תזונה קלינית שמתאימה לחיים שלך. ליווי אישי, מבוסס מחקר, בלי קיצוניות. נתנאל מלכה - קליניקת נתא." />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500&family=Heebo:wght@400;500;600;700&family=Assistant:wght@400;500&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet" />
-  <style>
-    /* ── Reset & base ─────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      /* Brand colors */
-      --bg:         #fcf4f9;
-      --bg-warm:    #fbeef4;
-      --pink:       #f5dbea;
-      --pink-soft:  #fbe7f1;
-      --pink-deep:  #ecc4dc;
-      --blue:       #567dbf;
-      --blue-deep:  #3d5f99;
-      --blue-ink:   #2a4170;
-      --blue-soft:  #e6edf8;
-      --green:      #31b996;
-      --green-deep: #259577;
-      --green-soft: #d8f0e7;
-      --ink:        #1a1a1a;
-      --ink-soft:   #3d3d3d;
-      --ink-mute:   #6b6b6b;
-      --ink-faint:  #a0a0a0;
-      --line:       rgba(26,26,26,0.08);
-      --line-strong: rgba(26,26,26,0.16);
-      --paper:      #ffffff;
-
-      /* Legacy aliases */
-      --text:  var(--ink);
-      --muted: var(--ink-mute);
-      --white: var(--paper);
-
-      /* Fonts */
-      --font-sans:    "Heebo", "Assistant", -apple-system, system-ui, sans-serif;
-      --font-display: "Frank Ruhl Libre", "Heebo", serif;
-      --font-mono:    "JetBrains Mono", "SF Mono", Menlo, monospace;
-
-      /* Radii */
-      --radius-card: 16px;
-      --radius-lg:   24px;
-      --radius-btn:  999px;
-      --radius-pill: 999px;
-
-      /* Layout */
-      --pad-desktop: 80px;
-      --pad-mobile:  48px;
-      --max-w:       1100px;
-    }
-
-    html { scroll-behavior: auto; }
-
-    body {
-      font-family: var(--font-sans);
-      font-size: 16px;
-      line-height: 1.6;
-      color: var(--ink);
-      background: var(--bg);
-      -webkit-font-smoothing: antialiased;
-      font-feature-settings: "kern", "ss01";
-      padding-bottom: 70px;
-    }
-
-    /* ── Layout helpers ───────────────────────────────────── */
-    .container {
-      width: 100%;
-      max-width: var(--max-w);
-      margin-inline: auto;
-      padding-inline: 24px;
-    }
-
-    section {
-      padding-block: var(--pad-desktop);
-    }
-
-    @media (max-width: 640px) {
-      section { padding-block: var(--pad-mobile); }
-    }
-
-    .section-title {
-      font-family: var(--font-display);
-      font-size: clamp(32px, 5vw, 52px);
-      font-weight: 500;
-      line-height: 1.08;
-      letter-spacing: -0.025em;
-      color: var(--blue);
-      margin-bottom: 12px;
-      text-wrap: balance;
-    }
-
-    .section-sub {
-      color: var(--ink-soft);
-      font-size: 1rem;
-      max-width: 580px;
-      margin-bottom: 48px;
-    }
-
-    /* ── Fade-in animation (IntersectionObserver) ─────────── */
-    .fade-in {
-      opacity: 0;
-      transform: translateY(24px);
-      transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
-    }
-    .fade-in.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* ── Scroll-triggered fade-in (photo, badge, stat cards) ─ */
-    .fade-in-on-scroll {
-      opacity: 0;
-      transform: translateY(24px);
-    }
-    .fade-in-on-scroll.in-view {
-      opacity: 1;
-      transform: translateY(0);
-      transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
-    }
-
-    /* ── Reveal animations (cards, steps, form) ──────────── */
-    .reveal {
-      opacity: 0;
-      transform: translateY(28px);
-      transition: opacity 0.7s cubic-bezier(0.16,1,0.3,1), transform 0.7s cubic-bezier(0.16,1,0.3,1);
-    }
-    .reveal.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-    .reveal-delay-1 { transition-delay: 0.1s; }
-    .reveal-delay-2 { transition-delay: 0.2s; }
-    .reveal-delay-3 { transition-delay: 0.3s; }
-    .reveal-delay-4 { transition-delay: 0.4s; }
-
-    /* ── Buttons ──────────────────────────────────────────── */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      padding: 16px 28px;
-      border-radius: var(--radius-pill);
-      font-family: var(--font-sans);
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      text-decoration: none;
-      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
-    }
-    .btn:active { transform: translateY(0); }
-
-    .btn-green {
-      background: var(--green);
-      color: #fff;
-      box-shadow: 0 6px 18px rgba(49,185,150,0.32);
-    }
-    .btn-green:hover {
-      background: var(--green-deep);
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(49,185,150,0.4);
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* SECTION 1 — HERO                                       */
-    /* ══════════════════════════════════════════════════════ */
-    #hero {
-      background: var(--bg);
-      text-align: center;
-      padding-block: 32px var(--pad-desktop);
-      position: relative;
-      overflow: hidden;
-    }
-
-    #hero::before {
-      content: "";
-      position: absolute;
-      top: -200px;
-      inset-inline-start: -200px;
-      width: 700px;
-      height: 700px;
-      border-radius: 50%;
-      background: radial-gradient(closest-side, var(--pink) 0%, transparent 70%);
-      opacity: 0.6;
-      z-index: 0;
-      pointer-events: none;
-    }
-
-    @media (max-width: 640px) {
-      #hero { padding-block-start: 24px; }
-    }
-
-    .hero-logo {
-      display: block;
-      max-width: 180px;
-      margin-inline: auto;
-      margin-bottom: 16px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero-separator {
-      width: 60px;
-      height: 2px;
-      background: linear-gradient(to left, var(--green), var(--blue));
-      margin: 24px auto;
-      border-radius: 2px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .contact-logo {
-      display: block;
-      max-width: 180px;
-      margin-inline: auto;
-      margin-bottom: 24px;
-    }
-
-    .footer-logo {
-      display: block;
-      max-width: 140px;
-      margin-inline: auto;
-      margin-bottom: 12px;
-    }
-
-    @media (max-width: 640px) {
-      .hero-logo    { max-width: 140px; margin-bottom: 16px; }
-      .contact-logo { max-width: 140px; }
-      .footer-logo  { max-width: 120px; }
-    }
-
-    .hero-flex {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      justify-content: center;
-      gap: 64px;
-      max-width: 1000px;
-      margin: 0 auto;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero-text {
-      flex: 1;
-      text-align: right;
-    }
-
-    .hero-photo-wrap {
-      flex-shrink: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .hero-photo {
-      width: 280px;
-      height: 280px;
-      border-radius: 50%;
-      object-fit: cover;
-      object-position: center top;
-      border: 4px solid var(--paper);
-      box-shadow: 0 12px 40px rgba(86,125,191,0.2);
-      display: block;
-    }
-
-    .hero-badge {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--blue);
-      background: var(--paper);
-      border-radius: var(--radius-pill);
-      padding: 8px 18px;
-      margin-top: 14px;
-      text-align: center;
-      display: inline-block;
-      box-shadow: 0 4px 16px rgba(86,125,191,0.15);
-    }
-
-    @media (max-width: 768px) {
-      .hero-flex { flex-direction: column; gap: 32px; }
-      .hero-text { text-align: center; }
-      .hero-photo { width: 180px; height: 180px; }
-    }
-
-    .hero-headline {
-      font-family: var(--font-display);
-      font-size: clamp(28px, 4.5vw, 52px);
-      font-weight: 500;
-      line-height: 1.1;
-      letter-spacing: -0.02em;
-      color: var(--ink);
-      max-width: 720px;
-      margin-inline: auto;
-      margin-bottom: 20px;
-      text-wrap: balance;
-    }
-
-    @media (min-width: 769px) {
-      .hero-text .hero-headline,
-      .hero-text .hero-sub {
-        margin-inline: 0;
-      }
-    }
-
-    .hero-sub {
-      font-size: clamp(1rem, 2vw, 1.15rem);
-      color: var(--ink-soft);
-      max-width: 540px;
-      margin-inline: auto;
-      margin-bottom: 40px;
-      line-height: 1.7;
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* SECTION 1b — STATS                                     */
-    /* ══════════════════════════════════════════════════════ */
-    #stats {
-      padding: 80px 24px;
-      background: var(--pink);
-      text-align: center;
-    }
-
-    .stats-inner {
-      max-width: 900px;
-      margin: 0 auto;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-
-    @media (max-width: 640px) {
-      .stats-grid { grid-template-columns: 1fr; }
-    }
-
-    .stat-card {
-      background: var(--paper);
-      border-radius: var(--radius-lg);
-      padding: 40px 24px;
-      text-align: center;
-      border: 1px solid var(--line);
-      transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), box-shadow 0.4s;
-    }
-    .stat-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 20px 48px rgba(26,26,26,0.10);
-    }
-
-    .stat-num {
-      font-family: var(--font-display);
-      font-size: clamp(48px, 8vw, 64px);
-      font-weight: 500;
-      color: var(--blue);
-      display: block;
-      line-height: 1;
-      letter-spacing: -0.03em;
-    }
-
-    .stat-label {
-      font-size: 15px;
-      color: var(--ink-mute);
-      margin-top: 10px;
-      display: block;
-      line-height: 1.4;
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* SECTION 2 — BELIEFS                                    */
-    /* ══════════════════════════════════════════════════════ */
-    #beliefs {
-      background: var(--paper);
-    }
-
-    .beliefs-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 0;
-      border-top: 1px solid var(--ink);
-      border-bottom: 1px solid var(--ink);
-    }
-
-    @media (max-width: 900px) {
-      .beliefs-grid { grid-template-columns: 1fr 1fr; }
-      .belief-card { border-inline-start: none; border-bottom: 1px solid var(--line); }
-      .belief-card:nth-child(odd) { border-inline-start: 1px solid var(--line); }
-      .belief-card:nth-child(odd):first-child { border-inline-start: none; }
-      .belief-card:nth-child(2) { border-inline-start: none !important; }
-    }
-
-    @media (max-width: 640px) {
-      .beliefs-grid { grid-template-columns: 1fr; }
-      .belief-card { border-inline-start: none !important; }
-    }
-
-    .belief-card {
-      padding: 40px 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      border-inline-start: 1px solid var(--line);
-      transition: background 0.4s;
-      position: relative;
-      background: var(--paper);
-    }
-    .belief-card:first-child { border-inline-start: none; }
-    .belief-card:hover { background: var(--bg-warm); }
-
-    .belief-icon {
-      width: 52px;
-      height: 52px;
-      border-radius: 50%;
-      background: var(--bg-warm);
-      display: grid;
-      place-items: center;
-      font-size: 1.5rem;
-      transition: background 0.4s;
-      flex-shrink: 0;
-    }
-    .belief-card:hover .belief-icon { background: var(--blue-soft); }
-
-    .belief-title {
-      font-family: var(--font-display);
-      font-size: 20px;
-      font-weight: 500;
-      line-height: 1.25;
-      letter-spacing: -0.01em;
-      color: var(--ink);
-    }
-
-    .belief-desc {
-      font-size: 14px;
-      color: var(--ink-soft);
-      line-height: 1.65;
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* SECTION 3 — BENEFITS                                   */
-    /* ══════════════════════════════════════════════════════ */
-    #benefits {
-      background: var(--bg);
-    }
-
-    .benefits-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-
-    @media (max-width: 768px) {
-      .benefits-grid { grid-template-columns: 1fr; }
-    }
-
-    .benefit-card {
-      background: var(--paper);
-      border-radius: var(--radius-lg);
-      padding: 40px 32px;
-      border: 1px solid var(--line);
-      transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), box-shadow 0.4s;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      min-height: 280px;
-      position: relative;
-      overflow: hidden;
-    }
-    .benefit-card:hover {
-      transform: translateY(-6px);
-      box-shadow: 0 24px 60px rgba(26,26,26,0.10);
-    }
-    .benefit-card::after {
-      content: "";
-      position: absolute;
-      bottom: 0;
-      inset-inline-start: 0;
-      height: 4px;
-      width: 0;
-      background: var(--green);
-      transition: width 0.5s cubic-bezier(0.16,1,0.3,1);
-    }
-    .benefit-card:hover::after { width: 100%; }
-
-    .benefit-num {
-      font-family: var(--font-display);
-      font-size: 56px;
-      font-weight: 400;
-      color: var(--blue);
-      line-height: 0.9;
-      letter-spacing: -0.04em;
-    }
-
-    .benefit-title {
-      font-family: var(--font-display);
-      font-size: 22px;
-      font-weight: 500;
-      line-height: 1.25;
-      letter-spacing: -0.015em;
-      color: var(--ink);
-    }
-
-    .benefit-desc {
-      font-size: 14px;
-      color: var(--ink-soft);
-      line-height: 1.7;
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* SECTION 4 — PROCESS                                    */
-    /* ══════════════════════════════════════════════════════ */
-    #process {
-      background: var(--paper);
-    }
-
-    .timeline {
-      position: relative;
-      max-width: 720px;
-      margin-inline: auto;
-    }
-
-    .timeline::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      right: 18px;
-      width: 2px;
-      height: 0;
-      background: linear-gradient(180deg, var(--pink-deep) 0%, var(--blue) 50%, var(--green) 100%);
-      transition: height 1.2s cubic-bezier(0.16,1,0.3,1);
-    }
-
-    .timeline.line-visible::before {
-      height: 100%;
-    }
-
-    .timeline-step {
-      position: relative;
-      padding-right: 60px;
-      padding-bottom: 44px;
-    }
-
-    .timeline-step:last-child { padding-bottom: 0; }
-
-    .timeline-step::before {
-      content: '';
-      position: absolute;
-      right: 10px;
-      top: 6px;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: var(--blue);
-      border: 3px solid var(--paper);
-      box-shadow: 0 0 0 2px var(--blue);
-    }
-
-    .step-num {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--blue);
-      text-transform: uppercase;
-      letter-spacing: 0.2em;
-      margin-bottom: 4px;
-    }
-
-    .step-title {
-      font-family: var(--font-display);
-      font-size: 20px;
-      font-weight: 500;
-      line-height: 1.25;
-      letter-spacing: -0.015em;
-      color: var(--ink);
-      margin-bottom: 8px;
-    }
-
-    .step-desc {
-      font-size: 14px;
-      color: var(--ink-soft);
-      line-height: 1.7;
-    }
-
-    .price-box {
-      max-width: 560px;
-      margin: 64px auto 0;
-      background: var(--ink);
-      color: var(--bg);
-      padding: 48px;
-      border-radius: var(--radius-lg);
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 32px;
-      align-items: center;
-      position: relative;
-      overflow: hidden;
-    }
-    .price-box::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at 100% 0%, rgba(49,185,150,0.18), transparent 50%);
-    }
-
-    .price-label {
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--pink);
-      margin-bottom: 10px;
-      opacity: 0.85;
-      position: relative;
-      white-space: nowrap;
-    }
-
-    .price-amount {
-      font-family: var(--font-display);
-      font-size: clamp(48px, 8vw, 72px);
-      font-weight: 500;
-      color: var(--bg);
-      line-height: 1;
-      letter-spacing: -0.03em;
-      position: relative;
-      text-align: center;
-    }
-
-    .price-includes {
-      font-size: 13px;
-      color: rgba(252,244,249,0.65);
-      position: relative;
-      line-height: 1.5;
-    }
-
-    @media (max-width: 640px) {
-      .price-box { grid-template-columns: 1fr; gap: 20px; padding: 32px 28px; text-align: center; }
-      .price-amount { text-align: center; }
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* SECTION 5 — TESTIMONIALS                               */
-    /* ══════════════════════════════════════════════════════ */
-    #testimonials {
-      background: var(--bg);
-    }
-
-    .testimonials-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 24px;
-    }
-
-    @media (max-width: 900px) {
-      .testimonials-grid {
-        grid-template-columns: 1fr;
-        display: flex;
-        overflow-x: auto;
-        gap: 16px;
-        padding-bottom: 12px;
-        scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch;
-      }
-      .testimonial-card {
-        flex: 0 0 82vw;
-        scroll-snap-align: start;
-      }
-    }
-
-    .testimonial-card {
-      background: var(--paper);
-      border-radius: var(--radius-lg);
-      border: 1px solid var(--line);
-      padding: 32px 28px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      gap: 20px;
-      transition: transform 0.4s cubic-bezier(0.16,1,0.3,1), box-shadow 0.4s;
-    }
-    .testimonial-card:nth-child(2) {
-      border: 2px solid var(--pink-deep);
-      background: var(--bg);
-    }
-    .testimonial-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 24px 60px rgba(26,26,26,0.08);
-    }
-
-    .testimonial-quote {
-      font-family: var(--font-display);
-      font-size: 17px;
-      color: var(--ink);
-      line-height: 1.6;
-      font-weight: 400;
-      margin-bottom: 0;
-      position: relative;
-      text-wrap: pretty;
-      flex: 1;
-    }
-
-    .testimonial-quote::before {
-      content: '"';
-      font-size: 3rem;
-      color: var(--pink-deep);
-      line-height: 0.5;
-      vertical-align: -0.6rem;
-      margin-left: 4px;
-    }
-
-    .testimonial-meta {
-      font-size: 13px;
-      color: var(--ink-mute);
-      font-weight: 500;
-      padding-top: 16px;
-      border-top: 1px solid var(--line);
-    }
-
-    .testimonial-meta strong {
-      display: block;
-      color: var(--ink);
-      font-size: 14px;
-      font-weight: 600;
-      margin-bottom: 2px;
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* SECTION 6 — LEAD FORM                                  */
-    /* ══════════════════════════════════════════════════════ */
-    #contact {
-      background: var(--blue-ink);
-      background-image:
-        radial-gradient(circle at 0% 0%, rgba(86,125,191,0.4), transparent 50%),
-        radial-gradient(circle at 100% 100%, rgba(49,185,150,0.2), transparent 50%);
-      color: var(--bg);
-      position: relative;
-      overflow: hidden;
-    }
-
-    #contact::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-    }
-
-    .contact-header {
-      text-align: center;
-      margin-bottom: 40px;
-      position: relative;
-    }
-
-    .contact-title {
-      font-family: var(--font-display);
-      font-size: clamp(32px, 4vw, 52px);
-      font-weight: 500;
-      line-height: 1.1;
-      letter-spacing: -0.02em;
-      color: var(--bg);
-      margin-bottom: 12px;
-      text-wrap: balance;
-    }
-
-    .contact-sub {
-      color: rgba(252,244,249,0.78);
-      font-size: 1rem;
-      line-height: 1.7;
-    }
-
-    .form-card {
-      background: var(--bg);
-      border-radius: var(--radius-lg);
-      padding: 40px 36px;
-      max-width: 560px;
-      margin-inline: auto;
-      box-shadow: 0 40px 80px rgba(0,0,0,0.25), 0 8px 24px rgba(0,0,0,0.12);
-      position: relative;
-    }
-
-    @media (max-width: 640px) {
-      .form-card { padding: 28px 20px; }
-    }
-
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    .form-label {
-      display: block;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--ink);
-      margin-bottom: 8px;
-    }
-
-    .form-input,
-    .form-select,
-    .form-textarea {
-      width: 100%;
-      padding: 14px 16px;
-      border: 1.5px solid var(--line-strong);
-      border-radius: 12px;
-      font-family: var(--font-sans);
-      font-size: 16px;
-      color: var(--ink);
-      background: var(--paper);
-      transition: border-color 0.2s, box-shadow 0.2s;
-      direction: rtl;
-      outline: none;
-    }
-
-    .form-input:focus,
-    .form-select:focus,
-    .form-textarea:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 4px rgba(86,125,191,0.14);
-    }
-
-    .form-textarea { resize: vertical; min-height: 80px; font-family: inherit; }
-
-    .form-submit {
-      width: 100%;
-      padding: 16px;
-      border-radius: var(--radius-pill);
-      background: var(--green);
-      color: #fff;
-      font-family: var(--font-sans);
-      font-size: 1.05rem;
-      font-weight: 600;
-      border: none;
-      cursor: pointer;
-      transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
-      margin-top: 8px;
-      box-shadow: 0 6px 18px rgba(49,185,150,0.32);
-    }
-
-    .form-submit:hover:not(:disabled) {
-      background: var(--green-deep);
-      transform: translateY(-2px);
-      box-shadow: 0 12px 28px rgba(49,185,150,0.4);
-    }
-
-    .form-submit:disabled {
-      opacity: 0.7;
-      cursor: not-allowed;
-    }
-
-    .form-error {
-      margin-top: 10px;
-      color: #c0392b;
-      font-size: 0.9rem;
-      text-align: center;
-    }
-
-    /* Success state */
-    .form-success {
-      text-align: center;
-      padding: 24px 0 8px;
-    }
-
-    .success-icon {
-      font-size: 3.5rem;
-      margin-bottom: 16px;
-    }
-
-    .success-title {
-      font-family: var(--font-display);
-      font-size: 28px;
-      font-weight: 500;
-      letter-spacing: -0.02em;
-      color: var(--green);
-      margin-bottom: 10px;
-    }
-
-    .success-note {
-      font-size: 0.93rem;
-      color: var(--ink-soft);
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* FOOTER                                                 */
-    /* ══════════════════════════════════════════════════════ */
-    footer {
-      background: var(--ink);
-      color: var(--paper);
-      text-align: center;
-      padding: 48px 24px 40px;
-    }
-
-    .footer-contact {
-      font-size: 14px;
-      color: rgba(255,255,255,0.65);
-      margin-bottom: 10px;
-    }
-
-    .footer-copy {
-      font-size: 12px;
-      color: rgba(255,255,255,0.35);
-      letter-spacing: 0.05em;
-    }
-
-    /* ══════════════════════════════════════════════════════ */
-    /* STICKY CTA BAR                                         */
-    /* ══════════════════════════════════════════════════════ */
-    #sticky-cta {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 999;
-      background: var(--ink);
-      color: var(--bg);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 24px;
-      direction: rtl;
-      box-shadow: 0 -8px 24px rgba(0,0,0,0.14);
-      backdrop-filter: blur(10px);
-    }
-
-    #sticky-cta span {
-      font-size: 15px;
-      font-weight: 500;
-      opacity: 0.9;
-    }
-
-    #sticky-cta button {
-      background: var(--green);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius-pill);
-      padding: 11px 22px;
-      font-size: 14px;
-      cursor: pointer;
-      font-weight: 600;
-      font-family: inherit;
-      transition: background 0.2s, transform 0.2s;
-      box-shadow: 0 4px 14px rgba(49,185,150,0.35);
-    }
-
-    #sticky-cta button:hover {
-      background: var(--green-deep);
-      transform: translateY(-1px);
-    }
-
-    #sticky-cta.hidden {
-      display: none;
-    }
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>נתא | קליניקת תזונה, נתנאל מלכה</title>
+<meta name="description" content="תזונה קלינית מבוססת מדע, שמותאמת לחיים עצמם. ליווי אישי של 3 או 6 חודשים עם נתנאל מלכה, דיאטן קליני. בקליניקה באשדוד או בזום.">
+<meta name="theme-color" content="#fcf4f9">
+<link rel="icon" type="image/png" href="assets/logo-color.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="assets/netanel-cutout.png">
+<link rel="stylesheet" href="a11y.css">
+<style>
+  /* ── Tokens. Brand: #fcf4f9 paper, #F5DBEA pink, #567DBF blue, #31B996 green, Heebo ── */
+  :root {
+    --paper: #fcf4f9;
+    --paper-2: #fffafd;
+    --pink: #f5dbea;
+    --pink-deep: #ecc4dc;
+    --blue: #567dbf;
+    --blue-soft: #cfdcf2;
+    --blue-ink: #2c5295;
+    --green: #31b996;
+    --green-soft: #cdeee3;
+    --green-ink: #1d6f58;
+    --navy: #15203a;
+    --ink: #1b1d2a;
+    --ink-soft: #55506a;
+    --pad: clamp(20px, 4.2vw, 64px);
+    --radius: 34px;
+    --ease: cubic-bezier(.22, 1, .36, 1);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 400 17px/1.6 "Heebo", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased; overflow-x: clip;
+  }
+  img, video { display: block; max-width: 100%; }
+  a { color: inherit; text-decoration: none; }
+  button { font: inherit; }
+  h1, h2, h3 { margin: 0; font-weight: 900; letter-spacing: -0.02em; text-wrap: balance; }
+  p { margin: 0; text-wrap: pretty; }
+  :focus-visible { outline: 3px solid var(--blue-ink); outline-offset: 3px; border-radius: 8px; }
+  .sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: .55em;
+    min-height: 52px; padding: 0 1.5em; border-radius: 999px;
+    font-weight: 800; font-size: 1.05rem; border: 0; cursor: pointer;
+    background: var(--ink); color: var(--paper);
+    transition: transform .3s var(--ease), background-color .3s var(--ease), box-shadow .3s var(--ease);
+  }
+  .pill:hover { transform: translateY(-3px); }
+  .pill:active { transform: scale(.97); }
+  .pill b { font-weight: 800; transition: transform .3s var(--ease); }
+  .pill:hover b { transform: translateX(-4px); }
+
+  /* ── Opening: the logo opens from a hairline ─────────────────────────── */
+  .intro { position: fixed; inset: 0; z-index: 100; display: none; place-items: center; background: var(--paper); }
+  .motion-ready .intro { display: grid; }
+  .intro img { width: clamp(120px, 14vw, 190px); height: auto; transform-origin: center; animation: logo-open .92s cubic-bezier(.65,0,.35,1) .12s both; }
+  @keyframes logo-open { 0% { opacity: 0; transform: scaleY(.015); } 12% { opacity: .22; } 100% { opacity: 1; transform: scaleY(1); } }
+  .intro.is-done { opacity: 0; visibility: hidden; transition: opacity .55s var(--ease), visibility 0s .55s; }
+
+  /* ── Header pill ─────────────────────────────────────────────────────── */
+  .site-header {
+    position: fixed; z-index: 50; top: 8px; inset-inline: clamp(10px, 3.2vw, 46px);
+    display: flex; align-items: center; justify-content: space-between; gap: 20px;
+    height: 70px; padding: 0 22px; border-radius: 999px;
+    background: color-mix(in oklab, var(--paper-2) 88%, transparent);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 10px 30px -18px rgb(40 30 60 / .35);
+  }
+  .brand img { height: 58px; width: auto; margin-block: -6px; }
+  .desktop-nav { display: flex; gap: 36px; font-size: 15px; }
+  .desktop-nav a { position: relative; padding: 6px 0; }
+  .desktop-nav a::after { content: ""; position: absolute; inset-inline: 0; bottom: 0; height: 2px; background: var(--blue); transform: scaleX(0); transform-origin: right; transition: transform .35s var(--ease); }
+  .desktop-nav a:hover::after { transform: scaleX(1); }
+  .header-cta { min-height: 46px; padding: 0 1.3em; border: 1.5px solid var(--ink); border-radius: 999px; display: inline-flex; align-items: center; font-weight: 800; transition: background-color .3s var(--ease), color .3s var(--ease); }
+  .header-cta:hover { background: var(--ink); color: var(--paper); }
+  .menu-toggle { display: none; }
+  .mobile-menu { display: none; }
+
+  /* ── Hero ────────────────────────────────────────────────────────────── */
+  .hero {
+    position: relative; overflow: clip;
+    background:
+      radial-gradient(48% 60% at 8% 0%, rgb(245 219 234 / .95), transparent 70%),
+      radial-gradient(42% 52% at 100% 100%, rgb(86 125 191 / .38), transparent 72%),
+      radial-gradient(50% 50% at 0% 100%, rgb(49 185 150 / .2), transparent 70%),
+      linear-gradient(160deg, #fbe9f2, #f3eef8 46%, #dfe9f6);
+  }
+  .grain { position: absolute; inset: 0; pointer-events: none; opacity: .22; mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .5 0 0 0 0 .45 0 0 0 0 .55 0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"); }
+  .stage { --sh: max(640px, 100svh); --ph: min(calc((var(--sh) - 84px + 55.5cqw) / 2), calc((var(--sh) - 92px) / .85)); position: relative; height: var(--sh); container-type: inline-size; }
+  .hero-title {
+    position: absolute; top: 17%; right: 3.6%; z-index: 1;
+    font-size: clamp(40px, 8.4cqw, 150px); line-height: 1; white-space: nowrap; color: var(--ink);
+    translate: 0 var(--t-y, 0);
+  }
+  .hero-title .dash { color: var(--blue-ink); }
+  .topic-wrap { position: absolute; z-index: 1; left: 2.5%; top: 33%; width: calc(45% - var(--ph) * .2467); text-align: center; translate: 0 var(--k-y, 0); }
+  .topic { display: block; transition: opacity .35s, transform .35s var(--ease); }
+  .topic.is-changing { opacity: 0; transform: translateY(-14px); }
+  .topic span { display: block; font-weight: 900; line-height: .92; letter-spacing: -0.03em; }
+  /* The blue topic stays on one line, sized to the column (longest topic is ~5.8em). The column reaches
+     about one letter behind the portrait (z-index 2), so the longest topic's first letter tucks under it. */
+  .topic .t1 { font-size: max(30px, min(6.4cqw, calc((45cqw - var(--ph) * .2467) / 5.8))); white-space: nowrap; color: var(--blue); text-shadow: 0 2px 0 rgb(255 255 255 / .5); }
+  /* Only the big blue line may tuck behind the portrait; the subtitle keeps clear of it and wraps. */
+  .topic .t2 { padding-right: 1.4em; margin-top: .3em; font-size: max(18px, min(3cqw, calc((45cqw - var(--ph) * .2467) / 11))); color: var(--ink); text-wrap: balance; }
+  .person {
+    position: absolute; z-index: 2; bottom: 0; height: var(--ph); width: auto; max-width: none; left: calc(40% - var(--ph) / 3); pointer-events: none;
+    translate: 0 var(--p-y, 0);
+    filter: drop-shadow(0 30px 40px rgb(40 30 60 / .18));
+  }
+  .hero-lede { position: absolute; z-index: 3; right: 3.6%; top: 44%; width: 30%; font-size: clamp(16px, 1.45cqw, 22px); line-height: 1.55; color: #3a3446; }
+  .hero-lede strong { font-weight: 800; color: var(--ink); }
+  .hero-cta {
+    position: absolute; z-index: 4; left: 12%; bottom: 9%;
+    min-height: 0; padding: .45em 1.1em; font-size: clamp(22px, 3.6cqw, 58px); font-weight: 900;
+    background: rgb(207 220 242 / .92); color: var(--blue-ink); border-radius: 999px;
+    box-shadow: 0 24px 50px -24px rgb(44 82 149 / .55);
+  }
+  .hero-cta:hover { background: #fff; }
+  .hero-meta { position: absolute; z-index: 3; right: 3.6%; bottom: 7%; display: flex; gap: 22px; font-size: 14px; color: var(--ink-soft); }
+  .hero-meta span::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); margin-inline-end: 8px; transform: translateY(-1px); }
+
+  /* staged entrance */
+  .motion-ready .enter { opacity: 0; }
+  .motion-ready.entered .enter { animation: arrive .85s var(--ease) var(--d, 0ms) both; }
+  @keyframes arrive { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+
+  /* ── Section heading ─────────────────────────────────────────────────── */
+  .section { padding: clamp(96px, 10vw, 150px) var(--pad); position: relative; }
+  .label { font-weight: 800; font-size: 15px; color: var(--blue-ink); margin-bottom: 6px; }
+  .section-head h2 { font-size: clamp(46px, 6.5vw, 104px); line-height: .94; letter-spacing: -0.045em; max-width: 14ch; }
+  .section-head h2 em { font-style: normal; color: var(--blue); }
+
+  /* ── Tracks: cards that turn in with the scroll ─────────────────────── */
+  .tracks { background: linear-gradient(180deg, #dfe9f6 0%, var(--blue-soft) 100%); padding-top: clamp(80px, 8vw, 120px); }
+  .track-grid { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px; margin-top: 56px; perspective: 1400px; }
+  .track-card {
+    position: relative; overflow: hidden; border-radius: var(--radius);
+    min-height: 640px; padding: 34px 34px 200px; display: flex; flex-direction: column; align-items: flex-start;
+    background: var(--paper-2); color: var(--ink);
+    transform-style: preserve-3d; will-change: transform, opacity, filter;
+    box-shadow: 0 30px 60px -40px rgb(30 40 80 / .45);
+  }
+  .track-card.pink  { background: #fdeef6; }
+  .track-card.blue  { background: var(--blue-ink); color: #fff; }
+  .track-card.green { background: #e7f6f0; }
+  .track-card::before { content: ""; position: absolute; bottom: -90px; left: -60px; width: 320px; height: 320px; border-radius: 50%; background: rgb(255 255 255 / .35); }
+  .track-card.blue::before { background: rgb(255 255 255 / .1); }
+  .track-card::after { content: attr(data-number); position: absolute; bottom: -.22em; left: .1em; font-size: 210px; font-weight: 900; line-height: 1; color: rgb(27 29 42 / .07); }
+  .track-card.blue::after { color: rgb(255 255 255 / .12); }
+  .track-card .for { font-size: 14px; font-weight: 700; opacity: .75; }
+  .track-card h3 { font-size: clamp(36px, 3.2vw, 52px); line-height: 1; margin: 12px 0 14px; }
+  .track-card .price { display: flex; align-items: baseline; gap: .4em; margin-bottom: 18px; }
+  .track-card .price b { font-size: clamp(30px, 2.5vw, 40px); font-weight: 900; font-variant-numeric: tabular-nums; }
+  .track-card .price span { font-size: 14px; opacity: .8; }
+  .track-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; font-size: 16px; }
+  .track-card li { display: flex; gap: 10px; align-items: baseline; }
+  .track-card li::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: .55; transform: translateY(-2px); }
+  .track-card .pill { position: absolute; z-index: 2; bottom: 34px; right: 34px; background: var(--ink); color: #fff; }
+  .track-card.blue .pill { background: #fff; color: var(--blue-ink); }
+  .track-card:hover { transform: translateY(-10px); }
+  .alumni {
+    margin-top: 30px; border-radius: var(--radius); padding: 26px 34px;
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 40px;
+    background: rgb(255 255 255 / .55); border: 1px solid rgb(255 255 255 / .8);
+  }
+  .alumni h3 { font-size: 24px; }
+  .alumni p { color: var(--ink-soft); }
+  .alumni dl { display: flex; flex-wrap: wrap; gap: 14px 40px; margin: 0; }
+  .alumni dt { font-size: 14px; color: var(--ink-soft); }
+  .alumni dd { margin: 0; font-weight: 800; font-size: 20px; }
+
+  /* ── About: reels lane behind a phone ───────────────────────────────── */
+  .about { --head: clamp(44px, min(7.4vw, 10svh), 132px); background: var(--paper); padding: max(90px, 10svh) 0 clamp(30px, 4svh, 60px); overflow-x: clip; }
+  .about-title { position: relative; z-index: 3; margin: 0 var(--pad) calc(-.22 * var(--head)); font-size: var(--head); line-height: .9; color: #333240; text-align: right; white-space: nowrap; }
+  .reel-stage { position: relative; height: clamp(300px, 48svh, 500px); display: grid; align-items: center; }
+  .lane { direction: ltr; position: absolute; inset-inline: 0; top: 50%; translate: 0 -50%; overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+  .lane-track { display: flex; width: max-content; direction: ltr; animation: lane 46s linear infinite; }
+  .lane:hover .lane-track, .lane:focus-within .lane-track { animation-play-state: paused; }
+  .lane-group { display: flex; gap: 14px; padding-right: 14px; }
+  @keyframes lane { to { transform: translateX(-50%); } }
+  .clip {
+    position: relative; flex: none; height: clamp(220px, 40svh, 420px); aspect-ratio: 9 / 16;
+    border-radius: 20px; overflow: hidden; background: #ddd; border: 0; padding: 0; cursor: pointer;
+    transition: transform .35s var(--ease), box-shadow .35s var(--ease);
+  }
+  .clip:hover { transform: translateY(-8px) scale(1.02); box-shadow: 0 24px 40px -24px rgb(30 30 60 / .55); }
+  .clip video, .clip img { width: 100%; height: 100%; object-fit: cover; }
+  .clip span {
+    position: absolute; inset: auto 0 0 0; padding: 40px 14px 14px; direction: rtl; text-align: right;
+    color: #fff; font-weight: 800; font-size: 15px; line-height: 1.25;
+    background: linear-gradient(transparent, rgb(10 12 30 / .78));
+  }
+  .clip .play { position: absolute; top: 12px; left: 12px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: rgb(255 255 255 / .85); color: var(--ink); }
+  .phone {
+    position: relative; z-index: 2; justify-self: center;
+    width: clamp(150px, 22svh, 240px); border-radius: 34px; padding: 9px; /* height follows the video below */
+    background: #20222d; box-shadow: 0 0 0 2px #4b4e5c inset, 0 40px 70px -30px rgb(20 20 50 / .6);
+  }
+  .phone::before { content: ""; position: absolute; z-index: 2; top: 15px; left: 50%; translate: -50% 0; width: 34%; height: 18px; border-radius: 99px; background: #000; }
+  .phone-screen { width: 100%; border-radius: 26px; overflow: hidden; background: #fff; position: relative; padding-top: 26px; }
+  /* Real Instagram profile screen recording (assets/instagram-feed.mp4). The strip above it is the phone's status bar. */
+  .phone-screen .ph-video { display: block; width: 100%; height: auto; aspect-ratio: 720 / 1460; background: #fff; }
+  .about-copy { padding: clamp(16px, 2.4svh, 30px) var(--pad) 0; }
+  .about-copy p { font-size: clamp(16px, min(1.3vw, 2.2svh), 21px); line-height: 1.55; text-align: justify; max-width: none; }
+  .about-copy strong { font-weight: 800; }
+  .about-name { margin: clamp(10px, 2svh, 24px) var(--pad) 0; font-weight: 900; letter-spacing: -0.02em; font-size: var(--head); line-height: .9; color: #333240; text-align: left; white-space: nowrap; }
+
+  /* ── Method rail ─────────────────────────────────────────────────────── */
+  .method {
+    overflow: hidden;
+    background:
+      radial-gradient(62% 52% at 86% 6%, rgb(207 220 242 / .7), transparent 68%),
+      radial-gradient(66% 58% at 6% 96%, rgb(245 219 234 / .8), transparent 72%),
+      linear-gradient(158deg, #eef3fb, var(--paper) 44%, #fbeef5);
+  }
+  .method-head { display: grid; grid-template-columns: 1fr auto; gap: 30px; align-items: end; }
+  .method-head p.sub { margin-top: 12px; font-size: 18px; color: var(--ink-soft); max-width: 52ch; }
+  .rail-nav { display: flex; gap: 10px; }
+  .rail-nav button { width: 52px; height: 52px; border-radius: 50%; border: 1.5px solid var(--ink); background: transparent; cursor: pointer; display: grid; place-items: center; transition: background-color .3s var(--ease), color .3s var(--ease), opacity .3s; }
+  .rail-nav button:hover { background: var(--ink); color: #fff; }
+  .rail-nav button:disabled { opacity: .3; cursor: default; background: transparent; color: var(--ink); }
+  .rail {
+    --per-row: 4; --gap: 18px;
+    display: flex; gap: var(--gap); margin: 36px -6px 0; padding: 10px 6px 26px;
+    overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
+  }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail-card {
+    flex: 0 0 calc((100% - (var(--per-row) - 1) * var(--gap)) / var(--per-row)); scroll-snap-align: start;
+    background: var(--paper-2); border-radius: 26px; overflow: hidden;
+    box-shadow: 0 22px 45px -34px rgb(38 40 70 / .55);
+    transition: scale .28s var(--ease), box-shadow .28s var(--ease);
+  }
+  .rail-card:hover { scale: 1.018; box-shadow: 0 24px 48px -30px rgb(38 40 70 / .62); }
+  .rail-art { aspect-ratio: 4 / 3; display: grid; place-items: center; position: relative; overflow: hidden; }
+  .rail-art .big { font-size: clamp(90px, 9vw, 150px); font-weight: 900; line-height: 1; letter-spacing: -0.05em; }
+  .rail-art .chip { position: absolute; top: 16px; right: 16px; padding: 5px 12px; border-radius: 99px; background: rgb(255 255 255 / .75); font-size: 13px; font-weight: 700; }
+  /* ── Method illustrations: one looping SVG scene per card; the real example opens from "דוגמה אמיתית" ── */
+  .rail-ill svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .rail-ill svg * { transform-box: fill-box; transform-origin: center; }
+  .ex-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; padding: 0; border: 0; background: none; color: var(--blue-ink); font-family: inherit; font-size: 14px; font-weight: 700; cursor: zoom-in; border-bottom: 1.5px solid currentColor; padding-bottom: 1px; }
+  .ex-btn:hover { color: var(--ink); }
+  .rail-ill * { animation-play-state: paused; }
+  .rail-ill.is-live * { animation-play-state: running; }
+  /* 1 · exchange menu: the carb serving cycles bread, rice, pita */
+  .ex-food { opacity: 0; animation: exCycle 6s infinite; }
+  .ex-a { opacity: 1; } .ex-b { animation-delay: 2s; } .ex-c { animation-delay: 4s; }
+  @keyframes exCycle { 0% { opacity: 0; transform: scale(.85); } 6%, 30% { opacity: 1; transform: none; } 36%, 100% { opacity: 0; transform: scale(.85); } }
+  .ex-arrows { animation: exNudge 2s var(--ease) infinite; }
+  @keyframes exNudge { 0%, 70%, 100% { opacity: .5; } 20% { opacity: 1; } }
+  .ex-row { animation: exRow 2s infinite; }
+  @keyframes exRow { 0%, 100% { stroke-opacity: .35; } 20% { stroke-opacity: 1; } }
+  /* 2 · snack basket: three snacks drop in, the calorie tag pulses */
+  .sn-item { animation: snDrop 6s var(--ease) infinite; }
+  .sn-2 { animation-delay: .5s; } .sn-3 { animation-delay: 1s; }
+  @keyframes snDrop { 0% { transform: translateY(-150px); opacity: 0; } 12% { opacity: 1; } 18% { transform: none; } 22% { transform: translateY(-6px); } 26%, 86% { transform: none; opacity: 1; } 96%, 100% { transform: none; opacity: 0; } }
+  .sn-tag { animation: snTag 3s ease-in-out infinite; }
+  @keyframes snTag { 0%, 100% { transform: none; } 50% { transform: scale(1.06); } }
+  /* 3 · weekend: Friday and Saturday take turns, dishes come out, candles flicker */
+  .wk-fri rect, .wk-sat rect { fill: #fff; } .wk-fri text, .wk-sat text { fill: #9a6a1c; }
+  .wk-fri rect { animation: wkTab 6s infinite; } .wk-fri text { animation: wkTabT 6s infinite; }
+  .wk-sat rect { animation: wkTab 6s 3s infinite; } .wk-sat text { animation: wkTabT 6s 3s infinite; }
+  @keyframes wkTab { 0%, 46% { fill: #9a6a1c; } 50%, 100% { fill: #fff; } }
+  @keyframes wkTabT { 0%, 46% { fill: #fff; } 50%, 100% { fill: #9a6a1c; } }
+  .wk-dish { animation: wkDish 3s var(--ease) infinite; }
+  .wk-d2 { animation-delay: .25s; } .wk-d3 { animation-delay: .5s; }
+  @keyframes wkDish { 0% { opacity: 0; transform: translateY(-14px) scale(.8); } 15%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+  .rail-ill .wk-flame { transform-origin: center bottom; animation: wkFlicker 1.4s ease-in-out infinite alternate; }
+  @keyframes wkFlicker { from { transform: scaleY(1); } to { transform: scaleY(.82) skewX(4deg); } }
+  /* 4 · no restrictions: the ban sign lifts off, "נשארים בתפריט" lands */
+  .nr-ban { animation: nrBan 5s var(--ease) infinite; }
+  @keyframes nrBan { 0%, 30% { opacity: 1; transform: none; } 45%, 90% { opacity: 0; transform: scale(1.25); } 100% { opacity: 1; transform: none; } }
+  .nr-ok { animation: nrOk 5s var(--ease) infinite; }
+  @keyframes nrOk { 0%, 40% { opacity: 0; transform: translateY(12px) scale(.9); } 52%, 88% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; } }
+  /* 5 · close follow-up: chat bubbles in sequence, Monday and Thursday weigh-ins */
+  .fu-b { animation: fuB 6s var(--ease) infinite; }
+  .fu-b2 { animation-delay: .9s; } .fu-b3 { animation-delay: 1.8s; }
+  @keyframes fuB { 0% { opacity: 0; transform: translateY(10px) scale(.92); } 8%, 80% { opacity: 1; transform: none; } 92%, 100% { opacity: 0; } }
+  .fu-day { animation: fuDay 3s ease-in-out infinite; } .fu-thu { animation-delay: 1.5s; }
+  @keyframes fuDay { 0%, 100% { transform: scale(1); } 20% { transform: scale(1.35); } 40% { transform: scale(1); } }
+  .fu-num { animation: fuNum 3s ease-in-out infinite; }
+  @keyframes fuNum { 0%, 100% { opacity: .35; } 25%, 60% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .rail-ill * { animation: none !important; } .ex-b, .ex-c, .nr-ban { opacity: 0; } }
+  /* ── Reviews: verbatim Google reviews, clamped with an expand toggle ── */
+  .reviews { background: linear-gradient(180deg, var(--paper) 0%, #fbeef5 100%); padding-bottom: clamp(56px, 6vw, 90px); }
+  .reviews-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .g-badge { display: flex; align-items: center; gap: 14px; padding: 14px 22px 14px 18px; background: var(--paper-2); border-radius: 22px; box-shadow: 0 22px 45px -34px rgb(38 40 70 / .55); color: inherit; text-decoration: none; transition: translate .25s var(--ease), box-shadow .25s var(--ease); }
+  .g-badge:hover { translate: 0 -2px; box-shadow: 0 26px 48px -30px rgb(38 40 70 / .6); }
+  .g-link { margin-top: 4px; font-size: 13px; color: var(--blue-ink); }
+  .g-badge:hover .g-link { text-decoration: underline; text-underline-offset: 3px; }
+  .g-score { font-size: 46px; font-weight: 900; line-height: 1; letter-spacing: -0.04em; }
+  .g-meta { display: flex; flex-direction: column; gap: 2px; font-size: 15px; font-weight: 700; }
+  .stars { color: #f2a33a; letter-spacing: 2px; font-size: 15px; line-height: 1; }
+  /* One row drifting right on a loop (the cards are cloned once by JS, so -50%..0 is seamless).
+     Pauses while a review is hovered, focused or opened. */
+  .review-marquee { margin: 44px calc(-1 * var(--pad)) 0; overflow: hidden; padding: 8px 0 30px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+  .review-track { display: flex; align-items: flex-start; width: max-content; animation: reviewsDrift 300s linear infinite; } /* duration is recalculated in JS for a fixed slow speed */
+  .review-track:has(.review:hover, .review :focus-visible, .review.is-open) { animation-play-state: paused; }
+  @keyframes reviewsDrift { from { transform: translateX(0); } to { transform: translateX(50%); } }
+  .review-track .review { flex: 0 0 clamp(270px, 25vw, 350px); margin-left: 20px; transition: scale .25s var(--ease); }
+  .review-track .review:hover { scale: 1.015; }
+  @media (prefers-reduced-motion: reduce) {
+    .review-marquee { overflow-x: auto; -webkit-mask-image: none; mask-image: none; }
+    .review-track { animation: none; padding-inline: var(--pad); }
+    .review[data-clone] { display: none; }
+  }
+  .review { background: var(--paper-2); border-radius: 26px; padding: 24px 24px 20px; box-shadow: 0 22px 45px -34px rgb(38 40 70 / .55); }
+  .review header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .review header b { display: block; font-size: 17px; line-height: 1.2; margin-bottom: 4px; }
+  .avatar { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 18px; background: var(--blue-soft); color: var(--blue-ink); }
+  .review:nth-child(3n+2) .avatar { background: var(--pink); color: #c0568f; }
+  .review:nth-child(3n) .avatar { background: var(--green-soft); color: var(--green-ink); }
+  .review-text { font-size: 16px; line-height: 1.65; color: #3a3446; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; }
+  .review.is-open .review-text { display: block; -webkit-line-clamp: unset; line-clamp: none; }
+  .review-more { margin-top: 10px; padding: 0 0 1px; border: 0; border-bottom: 1.5px solid currentColor; background: none; color: var(--blue-ink); font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+  .review-more:hover { color: var(--ink); }
+  @media (max-width: 680px) {
+    .g-badge { width: 100%; }
+    .review-marquee { margin-top: 30px; }
+    .review-track .review { flex-basis: 78vw; margin-left: 14px; }
+  }
+  dialog.viewer { padding: 0; border: 0; background: transparent; max-width: none; max-height: none; overflow: visible; }
+  dialog.viewer::backdrop { background: rgb(12 14 30 / .82); backdrop-filter: blur(6px); }
+  dialog.viewer[open] { animation: pop .38s var(--ease); }
+  .viewer-frame { position: relative; background: #fff; border-radius: 20px; overflow: auto; max-height: 90svh; max-width: min(92vw, 1100px); }
+  .viewer-frame img { display: block; width: 100%; height: auto; }
+  .viewer .player-close { position: sticky; float: left; top: 12px; left: 12px; margin: 12px; }
+  .art-pink { background: var(--pink); color: #c0568f; }
+  .art-blue { background: var(--blue-soft); color: var(--blue-ink); }
+  .art-green { background: var(--green-soft); color: var(--green-ink); }
+  .art-sand { background: #f6ecd9; color: #9a6a1c; }
+  .art-navy { background: var(--navy); color: #a9c1ec; }
+  .art-navy .chip { color: var(--navy); background: #e6edf8; }
+  .rail-body { padding: 20px 22px 24px; }
+  .rail-body h3 { font-size: clamp(20px, 1.6vw, 25px); line-height: 1.12; margin-bottom: 10px; }
+  .rail-body p { font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
+
+  /* ── Contact ─────────────────────────────────────────────────────────── */
+  .contact { background: #9fbde6; display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); gap: clamp(30px, 6vw, 90px); align-items: start; }
+  .contact h2 { font-size: clamp(56px, 8vw, 128px); line-height: .9; letter-spacing: -0.045em; }
+  .contact .lede { margin-top: 22px; font-size: 19px; max-width: 34ch; }
+  .lead-form { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 20px; }
+  .field { display: grid; gap: 6px; }
+  .field.full { grid-column: 1 / -1; }
+  .field label { font-weight: 800; font-size: 15px; }
+  .field label .req { color: var(--blue-ink); }
+  .field input, .field select, .field textarea {
+    width: 100%; font: 400 16px/1.4 "Heebo", system-ui, sans-serif; color: var(--ink);
+    background: rgb(255 255 255 / .38); border: 1.5px solid rgb(27 29 42 / .16); border-radius: 16px;
+    padding: 0 16px; min-height: 52px;
+    transition: border-color .25s var(--ease), background-color .25s var(--ease), box-shadow .25s var(--ease);
+  }
+  .field textarea { padding: 14px 16px; min-height: 130px; resize: vertical; }
+  .field select { appearance: none; -webkit-appearance: none; padding-inline-end: 44px; background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'><path d='M3 5l4 4 4-4' fill='none' stroke='%231b1d2a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/></svg>"); background-repeat: no-repeat; background-position: left 18px center; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: none; background-color: rgb(255 255 255 / .7); border-color: var(--blue-ink); box-shadow: 0 0 0 4px rgb(44 82 149 / .18); }
+  .field input[type="tel"] { direction: ltr; text-align: right; }
+  .field [aria-invalid="true"] { border-color: #b3264a; }
+  .form-foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding-top: 18px; border-top: 1px solid rgb(27 29 42 / .16); }
+  .form-foot small { font-size: 13px; color: #2f3447; }
+  .form-foot small a { color: var(--blue-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .form-error { grid-column: 1 / -1; padding: 12px 16px; border-radius: 14px; background: #fbe1e8; color: #8a1d38; font-weight: 600; }
+  .form-error[hidden] { display: none; }
+  .hp { position: absolute !important; inset-inline-start: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .form-success { grid-column: 1 / -1; padding: 30px; border-radius: 24px; background: rgb(255 255 255 / .5); }
+  .form-success h3 { font-size: 32px; }
+  .form-success p { margin-top: 10px; font-size: 18px; }
+  .form-success a { font-weight: 800; border-bottom: 2px solid currentColor; }
+
+  .site-footer { background: var(--navy); color: #d9d3e4; padding: 40px var(--pad); display: flex; flex-wrap: wrap; gap: 20px 40px; align-items: center; justify-content: space-between; font-size: 15px; }
+  .site-footer img { height: 54px; width: auto; }
+  .site-footer nav { display: flex; flex-wrap: wrap; gap: 26px; }
+  .site-footer a:hover { color: #fff; }
+  .site-footer .legal-nav { gap: 18px; font-size: 14px; }
+  .site-footer .legal-nav a, .site-footer .legal-nav button { color: #b9c6e4; text-decoration: underline; text-underline-offset: 3px; }
+  .site-footer .legal-nav button { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+  .site-footer .legal-nav button:hover { color: #fff; }
+
+  /* ── Video dialog ───────────────────────────────────────────────────── */
+  dialog.player { padding: 0; border: 0; background: transparent; max-width: none; max-height: none; overflow: visible; }
+  dialog.player::backdrop { background: rgb(12 14 30 / .82); backdrop-filter: blur(6px); }
+  dialog.player[open] { animation: pop .38s var(--ease); }
+  @keyframes pop { from { opacity: 0; transform: scale(.94); } }
+  .player-frame { position: relative; height: min(86svh, 860px); aspect-ratio: 9 / 16; border-radius: 26px; overflow: hidden; background: #000; }
+  .player-frame video { width: 100%; height: 100%; object-fit: contain; }
+  .player-close { position: absolute; top: 12px; left: 12px; z-index: 2; width: 46px; height: 46px; border-radius: 50%; border: 0; background: #fff; color: var(--ink); cursor: pointer; display: grid; place-items: center; box-shadow: 0 8px 20px -8px rgb(0 0 0 / .5); }
+
+  /* ── Responsive ──────────────────────────────────────────────────────── */
+  @media (max-width: 1023px) {
+    .desktop-nav, .header-cta { display: none; }
+    .menu-toggle { display: grid; width: 44px; height: 44px; padding: 10px; border: 0; background: transparent; align-content: center; gap: 7px; cursor: pointer; }
+    .menu-toggle span { display: block; width: 24px; height: 2px; background: var(--ink); transition: transform .25s; }
+    .menu-toggle[aria-expanded="true"] span:first-child { transform: translateY(4.5px) rotate(45deg); }
+    .menu-toggle[aria-expanded="true"] span:last-child { transform: translateY(-4.5px) rotate(-45deg); }
+    .mobile-menu { position: fixed; z-index: 49; display: block; top: 86px; inset-inline: clamp(10px, 3.2vw, 46px); padding: 10px 18px; border-radius: 24px; background: var(--navy); color: var(--paper); box-shadow: 0 25px 50px rgb(20 20 50 / .25); visibility: hidden; opacity: 0; transform: translateY(-10px); transition: .25s; }
+    .mobile-menu.is-open { visibility: visible; opacity: 1; transform: none; }
+    .mobile-menu a { display: flex; justify-content: space-between; min-height: 52px; align-items: center; border-bottom: 1px solid rgb(252 244 249 / .16); font-weight: 700; }
+    .mobile-menu a:last-child { border: 0; }
+    .mobile-menu small { opacity: .55; font-weight: 400; }
+    .track-grid { grid-template-columns: repeat(2, 1fr); }
+    .track-card:last-child { grid-column: 1 / -1; }
+    .rail { --per-row: 2.4; }
+    .contact { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 680px) {
+    body { font-size: 16px; }
+    .site-header { height: 62px; padding: 0 14px 0 8px; }
+    .brand img { height: 50px; }
+    .mobile-menu { top: 78px; }
+    .stage { height: auto; min-height: 0; aspect-ratio: auto; padding: 96px 0 0; display: flex; flex-direction: column; }
+    .hero-title { position: static; translate: none; margin: 0 var(--pad); font-size: 14.5cqw; white-space: normal; line-height: .95; }
+    .topic-wrap { position: static; translate: none; width: auto; margin: 10px var(--pad) 0; text-align: right; }
+    .topic .t1 { font-size: 13.5cqw; }
+    .topic .t2 { padding-right: 0; font-size: 7cqw; color: var(--blue-ink); text-shadow: none; }
+    .hero-lede { position: static; width: auto; margin: 16px var(--pad) 0; font-size: 16px; }
+    .person-wrap { position: relative; margin-top: -14cqw; height: 122cqw; }
+    .person { left: auto; right: -4%; width: 84%; height: auto; translate: none; }
+    .hero-cta { left: var(--pad); bottom: 7%; font-size: 7.4cqw; }
+    .hero-meta { display: none; }
+    .section-head h2 { font-size: 13cqw; }
+    .tracks { container-type: inline-size; }
+    .track-grid { grid-template-columns: 1fr; gap: 22px; margin-top: 36px; }
+    .track-card { min-height: 0; padding: 28px 24px 120px; }
+    .track-card .pill { right: 24px; bottom: 26px; }
+    .track-card::after { font-size: 150px; }
+    .about { --head: 12vw; }
+    .about-title { margin-bottom: 10px; }
+    .reel-stage { height: auto; padding-block: 10px; }
+    .clip { height: 300px; }
+    .phone { display: none; }
+    .lane { position: relative; top: auto; translate: none; }
+    .about-copy p { text-align: right; line-height: 1.65; }
+    .about-name { margin-top: 18px; }
+    .method-head { grid-template-columns: 1fr; }
+    .rail-nav { display: none; }
+    .rail { --per-row: 1.25; }
+    .lead-form { grid-template-columns: 1fr; }
+    .contact h2 { font-size: 15cqw; }
+    .contact { container-type: inline-size; }
+    .player-frame { height: auto; width: min(92vw, 480px); }
+  }
+  @media (min-width: 681px) { .person-wrap { display: contents; } }
+  @media (prefers-reduced-motion: reduce) {
+    .intro { display: none !important; }
+    .motion-ready .enter { opacity: 1; animation: none !important; }
+    .lane-track { animation: none; }
+    .lane { overflow-x: auto; }
+    .track-card, .section-head { transform: none !important; opacity: 1 !important; filter: none !important; }
+    .topic { transition: none; }
+  }
+</style>
+<script>
+  // Motion classes only when JS runs, so the page is complete without it.
+  document.documentElement.classList.add('js');
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches) document.documentElement.classList.add('motion-ready');
+</script>
+<script src="a11y.js"></script>
 </head>
-
 <body>
+<a class="skip-link" href="#top">דילוג לתוכן הראשי</a>
 
-  <!-- ══════════════════════════════════════════════
-       SECTION 1 — HERO
-  ══════════════════════════════════════════════ -->
-  <section id="hero">
-    <div class="container">
-      <img src="assets/logo-color.png" class="hero-logo fade-in" alt="נתא | קליניקת תזונה" />
+<div class="intro" aria-hidden="true" data-intro><img src="assets/logo-dark.png" width="1093" height="672" alt=""></div>
 
-      <div class="hero-separator"></div>
+<header class="site-header enter" style="--d:0ms">
+  <a class="brand" href="#top" aria-label="נתא, קליניקת תזונה. לראש העמוד"><img src="assets/logo-dark.png" width="1093" height="672" alt="נתא, קליניקת תזונה"></a>
+  <nav class="desktop-nav" aria-label="ניווט ראשי">
+    <a href="#tracks">מסלולי ליווי</a>
+    <a href="#about">עליי</a>
+    <a href="#method">איך זה עובד</a>
+    <a href="#reviews">המלצות</a>
+  </nav>
+  <a class="header-cta" href="#contact">בואו נדבר</a>
+  <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="פתיחת תפריט" data-menu-toggle><span></span><span></span></button>
+</header>
+<nav class="mobile-menu" id="mobile-menu" aria-label="ניווט ראשי" data-menu>
+  <a href="#tracks">מסלולי ליווי <small>3 או 6 חודשים</small></a>
+  <a href="#about">עליי <small>נעים להכיר</small></a>
+  <a href="#method">איך זה עובד <small>השיטה</small></a>
+  <a href="#reviews">המלצות <small>מה אומרים</small></a>
+  <a href="#contact">בואו נדבר <small>שיחת התאמה</small></a>
+</nav>
 
-      <div class="hero-flex">
-        <div class="hero-text">
-          <h1 class="hero-headline fade-in">
-            תזונה שמתאימה לחיים שלך -<br>
-            לא לחיים שאחרים ממציאים לך
-          </h1>
+<main id="top" tabindex="-1">
 
-          <p class="hero-sub fade-in">
-            בלי הבטחות שווא, בלי קיצוניות.<br>
-            רק תהליך שפוי, מבוסס מחקר, שאפשר להחזיק לאורך זמן.
-          </p>
+  <!-- ═══ Hero: headline, rotating topic, cut-out portrait between them ═══ -->
+  <section class="hero" aria-labelledby="hero-title" data-hero>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="stage">
+      <h1 id="hero-title" class="hero-title enter" style="--d:160ms">תזונה קלינית<span class="dash"> ל־</span><span class="sr-only" data-topic-sr>ירידה במשקל</span></h1>
+      <div class="topic-wrap enter" style="--d:680ms" aria-hidden="true">
+        <div class="topic" data-topic><span class="t1">ירידה במשקל</span><span class="t2">שפויה ומאוזנת</span></div>
+      </div>
+      <p class="hero-lede enter" style="--d:520ms"><strong>בלי טרנדים, בלי איסורים מיותרים.</strong> תזונה מבוססת מדע, שמותאמת לחיים עצמם. ליווי אישי של נתנאל מלכה, דיאטן קליני.</p>
+      <div class="person-wrap">
+        <img class="person enter" style="--d:850ms" src="assets/netanel-cutout.png" width="1400" height="2100" alt="נתנאל מלכה, דיאטן קליני, מחייך בידיים שלובות" fetchpriority="high">
+        <a class="pill hero-cta enter" style="--d:1100ms" href="#contact">בואו נדבר <b aria-hidden="true">←</b></a>
+      </div>
+      <div class="hero-meta enter" style="--d:1250ms"><span>בקליניקה באשדוד</span><span>או בזום</span></div>
+    </div>
+  </section>
 
-          <a href="#contact" class="btn btn-green fade-in">אני רוצה להשאיר פרטים ↓</a>
+  <!-- ═══ Tracks ═══ -->
+  <section class="section tracks" id="tracks" aria-labelledby="tracks-title">
+    <header class="section-head" data-flip-head>
+      <p class="label">מסלולי הליווי</p>
+      <h2 id="tracks-title">שני מסלולים, <em>מטרה אחת</em></h2>
+    </header>
+
+    <div class="track-grid">
+      <article class="track-card pink" data-number="3" data-flip>
+        <p class="for">לבניית הרגלים יציבים</p>
+        <h3>3 חודשים</h3>
+        <p class="price"><b>2,400 ₪</b><span>אפשר בתשלומים</span></p>
+        <ul>
+          <li>פגישת פתיחה מעמיקה, עד 60 דקות</li>
+          <li>6 פגישות מעקב, אחת לשבועיים, 30 עד 40 דקות</li>
+          <li>תפריט תחליפים דינמי, סל נשנושים יומי ותבניות לסוף השבוע, תוך 48 שעות</li>
+          <li>שקילה פעמיים בשבוע וליווי יומי בוואטסאפ</li>
+        </ul>
+        <a class="pill" href="#contact" data-interest="three_month">מתחילים <b aria-hidden="true">←</b></a>
+      </article>
+
+      <article class="track-card blue" data-number="6" data-flip>
+        <p class="for">לשינוי עמוק ולשימור לטווח ארוך</p>
+        <h3>6 חודשים</h3>
+        <p class="price"><b>4,200 ₪</b><span>אפשר בתשלומים</span></p>
+        <ul>
+          <li>פגישת פתיחה מעמיקה</li>
+          <li>12 פגישות מעקב, אחת לשבועיים</li>
+          <li>כל המסגרת של מסלול 3 החודשים: תפריט, שקילות וליווי בוואטסאפ</li>
+          <li>ביסוס הרגלים, הסתגלות מטבולית ומעבר בטוח לשמירה על המשקל</li>
+        </ul>
+        <a class="pill" href="#contact" data-interest="six_month">מתחילים <b aria-hidden="true">←</b></a>
+      </article>
+
+      <article class="track-card green" data-number="1" data-flip>
+        <p class="for">פגישה אחת, בלי ליווי מתמשך</p>
+        <h3>ייעוץ חד פעמי</h3>
+        <p class="price"><b>250 ₪</b><span>60 דקות</span></p>
+        <ul>
+          <li>מצגת על חשיבה תזונתית ויחסים בריאים עם אוכל</li>
+          <li>פענוח קליני של בדיקות דם</li>
+          <li>תשובות מבוססות לכל השאלות האישיות</li>
+          <li>בקליניקה באשדוד או בזום. לא כולל תפריט אישי</li>
+        </ul>
+        <a class="pill" href="#contact" data-interest="one_off">קובעים ייעוץ <b aria-hidden="true">←</b></a>
+      </article>
+    </div>
+
+    <aside class="alumni" aria-labelledby="alumni-title">
+      <div>
+        <h3 id="alumni-title">סיימתם מסלול? ממשיכים יחד.</h3>
+        <p>לבוגרי מסלולי 3 ו־6 החודשים בלבד.</p>
+      </div>
+      <dl>
+        <div><dt>ליווי שוטף בוואטסאפ, כל עוד המנוי פעיל</dt><dd>100 ₪ לחודש</dd></div>
+        <div><dt>פגישות מעקב נקודתיות לפי הצורך</dt><dd>במחיר מוזל</dd></div>
+      </dl>
+    </aside>
+  </section>
+
+  <!-- ═══ About: reels ═══ -->
+  <section class="about" id="about" aria-labelledby="about-title">
+    <h2 id="about-title" class="about-title">נעים להכיר,</h2>
+    <div class="reel-stage">
+      <div class="lane" data-lane>
+        <div class="lane-track" data-lane-track></div>
+      </div>
+      <div class="phone" aria-hidden="true">
+        <div class="phone-screen">
+          <video class="ph-video" src="assets/instagram-feed.mp4" poster="assets/instagram-feed-poster.jpg" muted loop playsinline preload="none" width="720" height="1460" data-ph-video></video>
         </div>
+      </div>
+    </div>
+    <div class="about-copy">
+      <p>אני <strong>דיאטן קליני</strong> עם תואר <bdi dir="ltr">B.Sc.</bdi> בתזונה קלינית מהפקולטה לחקלאות, ובוגר לימודי המשך בניהול סוכרת באוניברסיטת תל אביב. <strong>בקליניקה הפרטית שלי באשדוד</strong> אני מלווה כל תהליך באופן אישי ולאורך זמן, ואת הניסיון הקליני אני מביא גם מהעבודה כדיאטן בבית החולים אסותא אשדוד. אני לא מבטיח תוצאות מהירות, <strong>אני מבטיח תהליך שאפשר לחיות איתו</strong>: תפריט גמיש לפי קבוצות מזון, בלי איסורים בלי סיבה קלינית, וליווי צמוד בין הפגישות.</p>
+    </div>
+    <p class="about-name" aria-hidden="true">אני נתנאל</p>
+  </section>
 
-        <div class="hero-photo-wrap">
-          <img
-            src="assets/netanel.JPG"
-            class="hero-photo fade-in-on-scroll"
-            alt="נתנאל מלכה - תזונאי קליני"
-          />
-          <span class="hero-badge fade-in-on-scroll">תזונאי קליני מורשה</span>
-        </div>
+  <!-- ═══ Method rail ═══ -->
+  <section class="section method" id="method" aria-labelledby="method-title">
+    <div class="method-head">
+      <div>
+        <p class="label">השיטה</p>
+        <div class="section-head"><h2 id="method-title">איך זה <em>עובד</em></h2></div>
+        <p class="sub">מסגרת קלינית ברורה, בלי לספור כל קלוריה. חמישה עקרונות שמחזיקים את כל התהליך.</p>
+      </div>
+      <div class="rail-nav">
+        <button type="button" aria-label="לכרטיס הקודם" data-rail-prev><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M7 4l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" aria-label="לכרטיס הבא" data-rail-next><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M11 4L6 9l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+    <div class="rail" tabindex="0" aria-label="עקרונות השיטה" data-rail>
+      <article class="rail-card"><div class="rail-art rail-ill art-blue" data-ill>
+        <svg viewBox="0 0 400 300" aria-hidden="true" focusable="false">
+          <rect x="196" y="46" width="172" height="208" rx="20" fill="#fff"/>
+          <g font-family="Heebo, sans-serif" font-weight="700" font-size="15" fill="#1b1d2a" text-anchor="start">
+            <circle cx="344" cy="88" r="9" fill="#e8a0c4"/><text x="326" y="93">חלבון</text><rect x="222" y="82" width="38" height="10" rx="5" fill="#e8eef8"/>
+            <rect class="ex-row" x="208" y="124" width="148" height="52" rx="14" fill="#eef3fb" stroke="#567dbf" stroke-width="2"/>
+            <circle cx="344" cy="150" r="9" fill="#e8b46a"/><text x="326" y="155">פחמימה</text><rect x="222" y="144" width="30" height="10" rx="5" fill="#cfdcf2"/>
+            <circle cx="344" cy="212" r="9" fill="#31b996"/><text x="326" y="217">ירקות</text><rect x="222" y="206" width="42" height="10" rx="5" fill="#e8eef8"/>
+          </g>
+          <g class="ex-arrows" fill="none" stroke="#2c5295" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M162 136 h26 m-8 -7 l8 7 -8 7"/><path d="M188 164 h-26 m8 -7 l-8 7 8 7"/>
+          </g>
+          <circle cx="92" cy="150" r="62" fill="#fff"/><circle cx="92" cy="150" r="50" fill="none" stroke="#e8eef8" stroke-width="2"/>
+          <g class="ex-food ex-a"><path d="M66 172 v-28 a26 20 0 0 1 52 0 v28 z" fill="#e8b46a"/><path d="M73 168 v-22 a19 14 0 0 1 38 0 v22 z" fill="#f6dcae"/></g>
+          <g class="ex-food ex-b"><path d="M58 150 h68 a34 30 0 0 1 -68 0 z" fill="#567dbf"/><ellipse cx="92" cy="150" rx="34" ry="13" fill="#fff" stroke="#dfe6f1" stroke-width="2"/><g fill="#dfe6f1"><circle cx="82" cy="147" r="2"/><circle cx="96" cy="152" r="2"/><circle cx="104" cy="146" r="2"/></g></g>
+          <g class="ex-food ex-c"><ellipse cx="92" cy="152" rx="40" ry="26" fill="#e9c58a"/><path d="M60 150 q32 -16 64 0" fill="none" stroke="#c99a52" stroke-width="3" stroke-linecap="round"/></g>
+          <g font-family="Heebo, sans-serif" font-weight="700" font-size="16" fill="#2c5295" text-anchor="middle">
+            <text class="ex-food ex-a" x="92" y="244">לחם</text><text class="ex-food ex-b" x="92" y="244">אורז</text><text class="ex-food ex-c" x="92" y="244">פיתה</text>
+          </g>
+        </svg>
+        <span class="chip">תפריט</span>
+      </div><div class="rail-body"><h3>תפריט תחליפים דינמי</h3><p>תפריט לפי קבוצות מזון. כל מנה אפשר להחליף במנה שקולה מאותה קבוצה, כך שהתפריט משתנה איתכם.</p><button type="button" class="ex-btn" data-zoom="assets/method/exchange-menu.png" data-zoom-alt="דוגמה מתוך תפריט תחליפים של הקליניקה" aria-label="הגדלת הדוגמה: תפריט תחליפים דינמי">לדוגמה אמיתית מהקליניקה <span aria-hidden="true">←</span></button></div></article>
+      <article class="rail-card"><div class="rail-art rail-ill art-pink" data-ill>
+        <svg viewBox="0 0 400 300" aria-hidden="true" focusable="false">
+          <g class="sn-tag"><rect x="34" y="40" width="150" height="36" rx="18" fill="#fff"/><text x="109" y="64" font-family="Heebo, sans-serif" font-weight="800" font-size="15" fill="#c0568f" text-anchor="middle">100–120 קלוריות</text></g>
+          <g class="sn-item sn-1"><circle cx="168" cy="186" r="22" fill="#e85d6f"/><path d="M168 166 q4 -10 14 -10 q-2 10 -14 10z" fill="#31b996"/><rect x="166" y="160" width="3" height="10" rx="1.5" fill="#7a4a2a"/></g>
+          <g class="sn-item sn-2"><rect x="196" y="160" width="50" height="34" rx="6" fill="#6b3b2a" transform="rotate(-10 221 177)"/><path d="M204 166 l40 -7 M206 178 l40 -7" stroke="#8a5240" stroke-width="2"/></g>
+          <g class="sn-item sn-3"><rect x="252" y="146" width="30" height="46" rx="14" fill="#f5c26b"/><rect x="252" y="146" width="30" height="18" rx="9" fill="#f08fb6"/><rect x="264" y="190" width="6" height="22" rx="3" fill="#d9b48a"/></g>
+          <path d="M140 198 q60 -90 120 0" fill="none" stroke="#c0568f" stroke-width="7" stroke-linecap="round"/>
+          <path d="M112 196 h176 l-20 70 h-136 z" fill="#fff"/>
+          <g stroke="#ecc4dc" stroke-width="3"><path d="M120 218 h160 M126 240 h148"/><path d="M160 198 l-6 66 M200 198 v66 M240 198 l6 66"/></g>
+          <path d="M112 196 h176" stroke="#c0568f" stroke-width="6" stroke-linecap="round"/>
+        </svg>
+        <span class="chip">כל יום</span>
+      </div><div class="rail-body"><h3>סל נשנושים יומי</h3><p>מקום קבוע לנשנוש גמיש של 100 עד 120 קלוריות. הוא חלק מהתוכנית, לא חריגה ממנה.</p><button type="button" class="ex-btn" data-zoom="assets/method/snack-basket.png" data-zoom-alt="דוגמה לסל היומי: מנת פרי, גלידות, שוקולדים באריזות אישיות ועוד" aria-label="הגדלת הדוגמה: סל נשנושים יומי">לדוגמה אמיתית מהקליניקה <span aria-hidden="true">←</span></button></div></article>
+      <article class="rail-card"><div class="rail-art rail-ill art-sand" data-ill>
+        <svg viewBox="0 0 400 300" aria-hidden="true" focusable="false">
+          <g font-family="Heebo, sans-serif" font-weight="800" font-size="16" text-anchor="middle">
+            <g class="wk-fri"><rect x="150" y="42" width="84" height="36" rx="18"/><text x="192" y="66">שישי</text></g>
+            <g class="wk-sat"><rect x="56" y="42" width="84" height="36" rx="18"/><text x="98" y="66">שבת</text></g>
+          </g>
+          <g class="wk-flame"><path d="M178 116 q-7 -10 0 -20 q7 10 0 20z" fill="#f2a33a"/><path d="M222 116 q-7 -10 0 -20 q7 10 0 20z" fill="#f2a33a"/></g>
+          <rect x="173" y="118" width="10" height="44" rx="3" fill="#fff"/><rect x="217" y="118" width="10" height="44" rx="3" fill="#fff"/>
+          <rect x="40" y="196" width="320" height="16" rx="8" fill="#9a6a1c"/><rect x="66" y="212" width="12" height="52" rx="4" fill="#b98a3e"/><rect x="322" y="212" width="12" height="52" rx="4" fill="#b98a3e"/>
+          <g fill="#fff"><ellipse cx="100" cy="186" rx="44" ry="13"/><ellipse cx="200" cy="186" rx="44" ry="13"/><ellipse cx="300" cy="186" rx="44" ry="13"/></g>
+          <g class="wk-dish wk-d1"><ellipse cx="100" cy="180" rx="26" ry="9" fill="#31b996"/><circle cx="92" cy="176" r="4" fill="#e85d6f"/><circle cx="108" cy="178" r="4" fill="#f5c26b"/></g>
+          <g class="wk-dish wk-d2"><path d="M172 182 q28 -30 56 0z" fill="#e8b46a"/><path d="M182 172 q18 -8 36 0" fill="none" stroke="#c99a52" stroke-width="2"/></g>
+          <g class="wk-dish wk-d3"><ellipse cx="300" cy="180" rx="26" ry="9" fill="#e9c58a"/><ellipse cx="294" cy="176" rx="12" ry="6" fill="#c0703a"/></g>
+        </svg>
+        <span class="chip">שישי ושבת</span>
+      </div><div class="rail-body"><h3>תבניות לסוף השבוע</h3><p>תבניות מאוזנות ומציאותיות לשישי ושבת. ארוחות משפחתיות נשארות על השולחן, בלי ספירה אובססיבית.</p><button type="button" class="ex-btn" data-zoom="assets/method/weekend.png" data-zoom-alt="דוגמה לתבנית ליום שישי וליום שבת" aria-label="הגדלת הדוגמה: תבניות לסוף השבוע">לדוגמה אמיתית מהקליניקה <span aria-hidden="true">←</span></button></div></article>
+      <article class="rail-card"><div class="rail-art rail-ill art-green" data-ill>
+        <svg viewBox="0 0 400 300" aria-hidden="true" focusable="false">
+          <g><path d="M96 200 v-44 a46 30 0 0 1 92 0 v44 z" fill="#e8b46a"/><g stroke="#c99a52" stroke-width="4" stroke-linecap="round"><path d="M118 138 l10 14 M142 132 l10 14 M166 138 l8 12"/></g></g>
+          <g><path d="M232 112 h56 v18 l12 20 v50 h-80 v-50 l12 -20 z" fill="#fff"/><path d="M232 112 h56 v-12 h-56z" fill="#567dbf"/><rect x="232" y="158" width="56" height="22" rx="4" fill="#cfdcf2"/></g>
+          <g font-family="Heebo, sans-serif" font-weight="800" font-size="17" fill="#1d6f58" text-anchor="middle"><text x="142" y="232">גלוטן</text><text x="260" y="232">חלב</text></g>
+          <g class="nr-ban" fill="none" stroke="#d6455d" stroke-width="12"><circle cx="200" cy="160" r="104" stroke-opacity=".9"/><path d="M127 87 l146 146" stroke-linecap="round"/></g>
+          <g class="nr-ok"><rect x="128" y="246" width="144" height="36" rx="18" fill="#1d6f58"/><text x="200" y="270" font-family="Heebo, sans-serif" font-weight="800" font-size="15" fill="#fff" text-anchor="middle">נשארים בתפריט</text></g>
+        </svg>
+        <span class="chip">מבוסס ראיות</span>
+      </div><div class="rail-body"><h3>בלי איסורים מיותרים</h3><p>גלוטן וחלב לא יוצאים מהתפריט בלי סיבה קלינית. ההמלצות מבוססות על ספרות מקצועית ועל הבדיקות שלכם.</p><button type="button" class="ex-btn" data-zoom="assets/method/no-restrictions.png" data-zoom-alt="דוגמה לארוחות מתפריט, כולל לחם, פסטה וסל יומי" aria-label="הגדלת הדוגמה: בלי איסורים מיותרים">לדוגמה אמיתית מהקליניקה <span aria-hidden="true">←</span></button></div></article>
+      <article class="rail-card"><div class="rail-art rail-ill art-navy" data-ill>
+        <svg viewBox="0 0 400 300" aria-hidden="true" focusable="false">
+          <rect x="40" y="84" width="136" height="136" rx="30" fill="#e6edf8"/><rect x="62" y="104" width="92" height="34" rx="8" fill="#1b2a4a"/>
+          <text class="fu-num" x="108" y="128" font-family="Heebo, sans-serif" font-weight="800" font-size="20" fill="#7fe0c3" text-anchor="middle" direction="ltr">✓</text>
+          <g fill="#cfdcf2"><circle cx="84" cy="182" r="10"/><circle cx="132" cy="182" r="10"/></g>
+          <g font-family="Heebo, sans-serif" font-weight="700" font-size="14" text-anchor="start">
+            <g class="fu-b fu-b1"><rect x="214" y="92" width="150" height="36" rx="14" fill="#31b996"/><text x="350" y="115" fill="#fff">איך עבר היום?</text></g>
+            <g class="fu-b fu-b2"><rect x="200" y="136" width="134" height="36" rx="14" fill="#e6edf8"/><text x="320" y="159" fill="#1b2a4a">מעולה, הנה הצלחת</text></g>
+            <g class="fu-b fu-b3"><rect x="244" y="180" width="120" height="36" rx="14" fill="#31b996"/><text x="350" y="203" fill="#fff">כל הכבוד!</text></g>
+          </g>
+          <g font-family="Heebo, sans-serif" font-weight="700" font-size="12" fill="#a9c1ec" text-anchor="middle">
+            <g fill="#2f4372"><circle cx="76" cy="256" r="11"/><circle cx="116" cy="256" r="11"/><circle cx="156" cy="256" r="11"/><circle cx="196" cy="256" r="11"/><circle cx="236" cy="256" r="11"/><circle cx="276" cy="256" r="11"/><circle cx="316" cy="256" r="11"/></g>
+            <circle class="fu-day fu-mon" cx="276" cy="256" r="11" fill="#31b996"/><circle class="fu-day fu-thu" cx="156" cy="256" r="11" fill="#31b996"/>
+          </g>
+        </svg>
+        <span class="chip">בין הפגישות</span>
+      </div><div class="rail-body"><h3>מעקב צמוד</h3><p>שקילה פעמיים בשבוע, ליווי יומי בוואטסאפ ופגישה אישית כל שבועיים, בקליניקה באשדוד או בזום.</p></div></article>
+    </div>
+  </section>
+
+  <!-- ═══ Reviews: verbatim from the Google Business Profile ═══ -->
+  <section class="section reviews" id="reviews" aria-labelledby="reviews-title">
+    <div class="reviews-head">
+      <div>
+        <p class="label">המלצות מטופלים</p>
+        <div class="section-head"><h2 id="reviews-title">מה <em>אומרים</em></h2></div>
+      </div>
+      <a class="g-badge" href="https://www.google.com/maps/search/?api=1&amp;query=%D7%A0%D7%AA%D7%90%20%D7%A7%D7%9C%D7%99%D7%A0%D7%99%D7%A7%D7%AA%20%D7%AA%D7%96%D7%95%D7%A0%D7%94" target="_blank" rel="noopener" aria-label="דירוג 5.0 מתוך 5 בביקורות מאומתות מ-Google. לכל הביקורות ב-Google, נפתח בחלון חדש">
+        <span class="g-score" dir="ltr">5.0</span>
+        <span class="g-meta"><span class="stars" aria-hidden="true">★★★★★</span><span>ביקורות מאומתות מ־Google</span><span class="g-link">לכל הביקורות <span aria-hidden="true">←</span></span></span>
+      </a>
+    </div>
+    <div class="review-marquee">
+      <div class="review-track" data-reviews>
+      <article class="review"><header><span class="avatar" aria-hidden="true">נ</span><div><b>נ.י.</b><span class="stars" role="img" aria-label="5 כוכבים">★★★★★</span></div></header>
+        <p class="review-text" data-review-text>אחת המתנות הכי טובות שהייתי יכולה לתת לעצמי!<br>החל מהמפגשים הפרונטלים ועד הליווי הרציף בווצאפ. הליווי של נתנאל היה יוצא מן הכלל. מאוד מעשיפ ומלא תמיכה ומוטיבציה.<br>קבלתי גם תוצאות פרקטיות שאפשר לראות ולהרגיש על עצמי אבל יותר חשוב קיבלתי כלים לאורך חיים בריא שהוא ישים ומותאם עבורי שאני יכולה להתמיד בו 🙏🏼</p>
+        <button type="button" class="review-more" aria-expanded="false" hidden data-review-more>להמשך קריאה</button></article>
+      <article class="review"><header><span class="avatar" aria-hidden="true">א</span><div><b>א.ב.</b><span class="stars" role="img" aria-label="5 כוכבים">★★★★★</span></div></header>
+        <p class="review-text" data-review-text>נתא ליווה אותי לתקופה של 3 חודשים שגרמו לי לשינוי מהמם.. בעיקר פנימי וגם כמובן חיצוני אבל המספרים על המשקל לא הם הדבר החשוב מהתהליך איתו אלא ההבנה של יצירת הרגלים חדשים ובריאים ובעיקר מותאמים לי אישית. הבנתי ממה התזונה משמעותית בחיינו ובשילוב של כושר הגעתי לתוצאה שהצבתי ויותר מכך - אני כבר 3 חודשים אחרי הליווי ועדיין שומרת על התוצאה כי פשוט נוצרה שגרה חדשה. וכל זה לא היה קורה בלי נתנאל! האיש והאיש, המענה הסבלני והרצון שלו באמת שאצליח כי התהליך האמיתי הוא שלי והוא כאן לתת את הכלים הנכונים לכך. אז תודה על תקופה שלא אשכח, סליחה על כל הקיטורים בדרך ובהצלחה לכל מי שיבחר בך כמנטור - ההחלטה הכי טובה שעשיתי בשביל עצמי ב2026</p>
+        <button type="button" class="review-more" aria-expanded="false" hidden data-review-more>להמשך קריאה</button></article>
+      <article class="review"><header><span class="avatar" aria-hidden="true">ש</span><div><b>ש.ב.</b><span class="stars" role="img" aria-label="5 כוכבים">★★★★★</span></div></header>
+        <p class="review-text" data-review-text>נתנאל פשוט אלוף! תוכנית התזונה שלו הותאמה בדיוק לצרכים האישיים שלי. לאורך כל הדרך הוא היה קשוב בצורה יוצאת דופן לכל שאלה ובקשה. ברגעים שהרגשתי שהכל תקוע, הוא ידע להגיד בדיוק את המילה הנכונה, לתמוך ולייצר את השינויים המדויקים בתהליך כדי להמשיך להתקדם. המעקב הצמוד והחיזוק המנטלי שלו היו משמעותיים עבורי ברמות. ממליצה מכל הלב.</p>
+        <button type="button" class="review-more" aria-expanded="false" hidden data-review-more>להמשך קריאה</button></article>
+      <article class="review"><header><span class="avatar" aria-hidden="true">ש</span><div><b>ש.מ.</b><span class="stars" role="img" aria-label="5 כוכבים">★★★★★</span></div></header>
+        <p class="review-text" data-review-text>עברתי עם נתנאל תהליך מדהים ומשמעותי.<br>מהשיח המעמיק על האתגרים, דרך בניית תהליך מותאם אישית – הכל נעשה בגובה העיניים, עם הבנה, הכלה וליווי אמיתי לאורך כל הדרך.<br>בנינו הרגלים, הצלחנו לייצר מערכת יחסים בריאה עם אוכל ולמדתי איך לשלב עומס, חופשות ותקופות מורכבות בלי לאבד איזון. מקצוען אמיתי וחד משמעית הכי טוב בתחום.<br>ממליצה לכל אחד לבחור בנתנאל להתחיל איתו תהליך בחיים.</p>
+        <button type="button" class="review-more" aria-expanded="false" hidden data-review-more>להמשך קריאה</button></article>
+      <article class="review"><header><span class="avatar" aria-hidden="true">ע</span><div><b>ע.ש.</b><span class="stars" role="img" aria-label="5 כוכבים">★★★★★</span></div></header>
+        <p class="review-text" data-review-text>מניסיוני עם תזונאים נוספים<br>אין כמו נתנאל ולכן אני ממליץ עליו בחום.<br>קשוב, הכי מקצועי שיש, נותן ליווי לאורך התהליך<br>מאוד איכותי וחשוב לציין שהוא ספורטאי בעצמו ומאמן כושר ויודע ומבין איך לשלב מצויין בין תחום התזונה לעולם הכושר והספורט.<br>נתנאל כל הזמן מקפיד ללמוד ולהתפתח והידע שהוא מפגין ניכר בתוצאות.<br>תודה רבה נתנאל ישר כוח 💪</p>
+        <button type="button" class="review-more" aria-expanded="false" hidden data-review-more>להמשך קריאה</button></article>
+      <article class="review"><header><span class="avatar" aria-hidden="true">ר</span><div><b>ר.ש.</b><span class="stars" role="img" aria-label="5 כוכבים">★★★★★</span></div></header>
+        <p class="review-text" data-review-text>נתחיל מהסוף, ממליצה מאוד מאוד על התהליך עם נתנאל. במיוחד למי שמרגישה שיש לה בלאגן בראש, שלא יודעת כמה באמת צריך לאכול כדי לרדת במשקל ואיך משלבים שגרה עם בילויים, נופש ואפילו תקופות מורכבות.<br>נתנאל מביא איתו ידע וניסיון רב, יחד עם הסתכלות בריאה, מאוזנת וחיובית על החיים. הוא נותן תפריט התחלתי, אבל גם מלמד איך "לשחק" איתו, איך לבחור נכון ואיך להמשיך להתקדם גם מחוץ למסגרת.<br>בפעם הראשונה באמת ברור לי איך אמור להיראות היום שאחרי.<br>הגישה של מאפשרת להבין שאפשר לאכול הכל, זה עניין של בחירה, איזון והקשבה. בזכותו הצלחתי ללמוד לבחור מתוך מקום מודע, בלי לרחם על עצמי ובלי רגשות אשם.<br>ממליצה בחום לכל מי שמחפשת שינוי אמיתי, שפוי ויציב לאורך זמן ❤️</p>
+        <button type="button" class="review-more" aria-expanded="false" hidden data-review-more>להמשך קריאה</button></article>
       </div>
     </div>
   </section>
 
-
-  <!-- ══════════════════════════════════════════════
-       SECTION 1b — STATS
-  ══════════════════════════════════════════════ -->
-  <section id="stats">
-    <div class="stats-inner">
-      <div class="stats-grid">
-        <div class="stat-card fade-in-on-scroll">
-          <span class="stat-num">200+</span>
-          <span class="stat-label">לקוחות שעברו תהליך</span>
-        </div>
-        <div class="stat-card fade-in-on-scroll">
-          <span class="stat-num">2+</span>
-          <span class="stat-label">שנות ניסיון קליני מורשה</span>
-        </div>
-        <div class="stat-card fade-in-on-scroll">
-          <span class="stat-num">90%</span>
-          <span class="stat-label">מהלקוחות שומרים על התוצאה לטווח הרחוק</span>
-        </div>
-      </div>
+  <!-- ═══ Contact ═══ -->
+  <section class="section contact" id="contact" aria-labelledby="contact-title">
+    <div>
+      <h2 id="contact-title">בואו<br>נדבר</h2>
+      <p class="lede">משאירים פרטים, ואני חוזר אליכם לשיחת התאמה קצרה, בלי התחייבות.</p>
     </div>
+    <form class="lead-form" novalidate data-lead-form>
+      <p class="form-error" role="alert" hidden data-form-error></p>
+      <div class="field full">
+        <label for="f-interest">מה מעניין אתכם?</label>
+        <select id="f-interest" name="interest">
+          <option value="">לבחירה</option>
+          <option value="three_month">מסלול 3 חודשים</option>
+          <option value="six_month">מסלול 6 חודשים</option>
+          <option value="one_off">ייעוץ חד פעמי</option>
+          <option value="unsure">עוד לא החלטתי</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="f-name">שם מלא <span class="req">*</span></label>
+        <input id="f-name" name="full_name" type="text" autocomplete="name" required maxlength="80">
+      </div>
+      <div class="field">
+        <label for="f-phone">טלפון <span class="req">*</span></label>
+        <input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" required maxlength="20">
+      </div>
+      <div class="field full">
+        <label for="f-notes">המטרה העיקרית, או כל דבר שחשוב לדעת</label>
+        <textarea id="f-notes" name="notes" maxlength="1000"></textarea>
+      </div>
+      <div class="hp" aria-hidden="true"><label for="f-hp">לא למילוי</label><input id="f-hp" name="nt_hp" type="text" tabindex="-1" autocomplete="off"></div>
+      <div class="form-foot">
+        <small>שדות המסומנים ב־* הם שדות חובה. הפרטים משמשים רק לחזרה אליכם, כמפורט ב<a href="privacy/">מדיניות הפרטיות</a>.</small>
+        <button class="pill" type="submit" data-submit>שליחה <b aria-hidden="true">←</b></button>
+      </div>
+    </form>
   </section>
+</main>
 
+<footer class="site-footer">
+  <img src="assets/logo-light.png" width="527" height="305" alt="נתא, קליניקת תזונה">
+  <nav aria-label="פרטי קשר">
+    <a href="https://wa.me/972535779796" target="_blank" rel="noopener"><span dir="ltr">053-5779796</span> (וואטסאפ בלבד)</a>
+    <a href="mailto:nm.nutritionist@gmail.com">nm.nutritionist@gmail.com</a>
+    <span>אשדוד · זום</span>
+  </nav>
+  <nav class="legal-nav" aria-label="מידע משפטי">
+    <a href="accessibility/">הצהרת נגישות</a>
+    <a href="privacy/">מדיניות פרטיות</a>
+    <a href="terms/">תנאי שימוש</a>
+    <button type="button" data-cookie-settings>הגדרות עוגיות</button>
+  </nav>
+  <span>© 2026 נתא, קליניקת תזונה</span>
+</footer>
 
-  <!-- ══════════════════════════════════════════════
-       SECTION 2 — BELIEFS
-  ══════════════════════════════════════════════ -->
-  <section id="beliefs">
-    <div class="container">
-      <h2 class="section-title fade-in">האני מאמין שלי</h2>
-
-      <div class="beliefs-grid">
-        <div class="belief-card reveal">
-          <span class="belief-icon">🔬</span>
-          <p class="belief-title">מבוסס מחקר - לא טרנדים</p>
-          <p class="belief-desc">כל המלצה שאתן לך נשענת על קונצנזוס מדעי עדכני, לא על אינסטגרם.</p>
-        </div>
-
-        <div class="belief-card reveal reveal-delay-1">
-          <span class="belief-icon">⚖️</span>
-          <p class="belief-title">אין שחור ולבן בתזונה</p>
-          <p class="belief-desc">התחום מורכב, החיים מורכבים - והפתרון צריך להיות גמיש כמוהם.</p>
-        </div>
-
-        <div class="belief-card reveal reveal-delay-2">
-          <span class="belief-icon">🎯</span>
-          <p class="belief-title">תהליך, לא קסם</p>
-          <p class="belief-desc">אני לא מבטיח תוצאות מהירות. אני מבטיח תהליך שאפשר לחיות איתו.</p>
-        </div>
-
-        <div class="belief-card reveal reveal-delay-3">
-          <span class="belief-icon">🤝</span>
-          <p class="belief-title">מותאם לחיים שלך</p>
-          <p class="belief-desc">לו״ז, עבודה, משפחה - הכל נלקח בחשבון. לא תבנית אחת לכולם.</p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-
-  <!-- ══════════════════════════════════════════════
-       SECTION 3 — BENEFITS
-  ══════════════════════════════════════════════ -->
-  <section id="benefits">
-    <div class="container">
-      <h2 class="section-title fade-in">מה תקבל בתהליך</h2>
-
-      <div class="benefits-grid">
-        <div class="benefit-card reveal">
-          <p class="benefit-num">01</p>
-          <p class="benefit-title">ליווי אמיתי ביומיום</p>
-          <p class="benefit-desc">
-            תמיכה בוואטסאפ, מעקב שקילות פעמיים בשבוע.<br>
-            אני איתך בין הפגישות, לא רק בהן.
-          </p>
-        </div>
-
-        <div class="benefit-card reveal reveal-delay-1">
-          <p class="benefit-num">02</p>
-          <p class="benefit-title">תפריט שחי ונושם</p>
-          <p class="benefit-desc">
-            לא מסמך PDF שמעלה אבק.<br>
-            תפריט שמשתנה איתך ועם השגרה המשתנה שלך.
-          </p>
-        </div>
-
-        <div class="benefit-card reveal reveal-delay-2">
-          <p class="benefit-num">03</p>
-          <p class="benefit-title">כלים לכל החיים</p>
-          <p class="benefit-desc">
-            כל מפגש כולל למידה - כדי שתצא עם הבנה,<br>
-            לא רק עם הוראות שלא תזכור.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-
-  <!-- ══════════════════════════════════════════════
-       SECTION 4 — PROCESS
-  ══════════════════════════════════════════════ -->
-  <section id="process">
-    <div class="container">
-      <h2 class="section-title fade-in">איך זה עובד</h2>
-      <p class="section-sub fade-in">ליווי אינטנסיבי של 3 חודשים + המשך דרך לפי הצורך שלך</p>
-
-      <div class="timeline" id="timeline">
-        <div class="timeline-step reveal reveal-delay-1">
-          <p class="step-num">שלב 1</p>
-          <p class="step-title">פגישת היכרות עמוקה</p>
-          <p class="step-desc">
-            מתחילים בלהכיר אותך - השגרה, המטרות, ההיסטוריה.
-            בונים את הבסיס לתהליך שיתאים לך בדיוק.
-          </p>
-        </div>
-
-        <div class="timeline-step reveal reveal-delay-2">
-          <p class="step-num">שלב 2</p>
-          <p class="step-title">תפריט מותאם אישית</p>
-          <p class="step-desc">
-            תוך יומיים מהפגישה הראשונה - תפריט דינמי שמתחשב
-            בלו״ז, בהעדפות ובמטרה שלך.
-          </p>
-        </div>
-
-        <div class="timeline-step reveal reveal-delay-3">
-          <p class="step-num">שלב 3</p>
-          <p class="step-title">6 מפגשים + מעקב צמוד</p>
-          <p class="step-desc">
-            כל שבועיים פגישה (פרונטלית או זום) + ווצאפ יומיומי.
-            מעקב שקילות, התאמות שוטפות, למידה בכל מפגש.
-          </p>
-        </div>
-
-        <div class="timeline-step reveal reveal-delay-4">
-          <p class="step-num">שלב 4</p>
-          <p class="step-title">המשך הדרך</p>
-          <p class="step-desc">
-            בסיום 3 החודשים - מחליטים יחד על המשך.
-            ליווי חודשי מופחת או פגישות נקודתיות לפי הצורך.
-          </p>
-        </div>
-      </div>
-
-      <div class="price-box reveal">
-        <p class="price-label">עלות הליווי המלא (3 חודשים)</p>
-        <p class="price-amount">2,400 ₪</p>
-        <p class="price-includes">כולל 6 מפגשים, תפריט מותאם, ותמיכה יומיומית</p>
-      </div>
-    </div>
-  </section>
-
-
-  <!-- ══════════════════════════════════════════════
-       SECTION 5 — TESTIMONIALS
-  ══════════════════════════════════════════════ -->
-  <section id="testimonials">
-    <div class="container">
-      <h2 class="section-title fade-in">מה אומרים עליי</h2>
-
-      <div class="testimonials-grid">
-        <div class="testimonial-card reveal">
-          <p class="testimonial-quote">
-            נכנסתי לתהליך אחרי שנכוויתי כמה פעמים.
-            נתנאל היה הראשון שהסביר לי למה כל הדיאטות הקודמות נשברו.
-            בלי דרמה, בלי קיצוניות - סוף סוף משהו שמחזיק.
-          </p>
-          <p class="testimonial-meta">
-            <strong>מיכל, 34</strong>
-            מטרה: ירידה במשקל
-          </p>
-        </div>
-
-        <div class="testimonial-card reveal reveal-delay-1">
-          <p class="testimonial-quote">
-            ציפיתי לתפריט ולמנות. קיבלתי הרבה יותר מזה -
-            הבנה של הגוף שלי ושל הדפוסים שלי.
-            3 חודשים שינו את הדרך שאני מסתכל על אוכל.
-          </p>
-          <p class="testimonial-meta">
-            <strong>יואב, 28</strong>
-            מטרה: חיטוב ובניית מסה
-          </p>
-        </div>
-
-        <div class="testimonial-card reveal reveal-delay-2">
-          <p class="testimonial-quote">
-            הדבר שהכי עזר לי הוא שנתנאל לא ייחס לי אשמה.
-            הוא פשוט עזר לי להבין מה לא עבד ולמה.
-            ממליצה לכל מי שעייפה מניסוי וטעייה.
-          </p>
-          <p class="testimonial-meta">
-            <strong>שירה, 41</strong>
-            מטרה: סדר תזונתי ובריאות
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-
-  <!-- ══════════════════════════════════════════════
-       SECTION 6 — LEAD FORM
-  ══════════════════════════════════════════════ -->
-  <section id="contact">
-    <div class="container">
-      <div class="contact-header reveal">
-        <img src="assets/logo-light.png" class="contact-logo" alt="נתא" />
-        <h2 class="contact-title">מתעניינים?</h2>
-        <p class="contact-sub">
-          השאירו פרטים לשיחת היכרות קצרה - ללא עלות וללא התחייבות.
-        </p>
-      </div>
-
-      <p style="text-align:center; color:rgba(255,255,255,0.85); margin-bottom:16px; font-size:15px;">
-        או התקשרו ישירות:
-        <a href="tel:0524013226" style="color:white; font-weight:500; text-decoration:underline;">
-          052-4013226
-        </a>
-      </p>
-
-      <div class="form-card reveal" id="form-wrapper">
-        <form id="lead-form" novalidate>
-          <div class="form-group">
-            <label class="form-label" for="full_name">שם מלא *</label>
-            <input
-              class="form-input"
-              type="text"
-              id="full_name"
-              name="full_name"
-              placeholder="השם שלך"
-              required
-              autocomplete="name"
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="phone">טלפון *</label>
-            <input
-              class="form-input"
-              type="tel"
-              id="phone"
-              name="phone"
-              placeholder="050-0000000"
-              required
-              autocomplete="tel"
-              dir="ltr"
-            />
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="goal">המטרה שלי *</label>
-            <select class="form-select" id="goal" name="goal" required>
-              <option value="" disabled selected>בחר/י מטרה</option>
-              <option value="חיטוב">חיטוב</option>
-              <option value="עלייה במסת שריר">עלייה במסת שריר</option>
-              <option value="ירידה במשקל">ירידה במשקל</option>
-              <option value="סדר תזונתי">סדר תזונתי</option>
-              <option value="מסיבה בריאותית">מסיבה בריאותית</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="notes">הערות</label>
-            <textarea
-              class="form-textarea"
-              id="notes"
-              name="notes"
-              rows="3"
-              placeholder="משהו שחשוב לך שאדע מראש (לא חובה)"
-            ></textarea>
-          </div>
-
-          <button type="submit" class="form-submit" id="submit-btn">
-            שלחו פרטים ואחזור אליכם 💪
-          </button>
-
-          <p class="form-error" id="form-error" style="display:none;"></p>
-        </form>
-      </div>
-    </div>
-  </section>
-
-
-  <!-- ══════════════════════════════════════════════
-       FOOTER
-  ══════════════════════════════════════════════ -->
-  <footer>
-    <img src="assets/logo-light.png" class="footer-logo" alt="נתא | קליניקת תזונה" />
-    <p class="footer-contact">
-      נתנאל מלכה &nbsp;|&nbsp;
-      <a href="mailto:nm.nutritionist@gmail.com" style="color:rgba(255,255,255,0.7);">nm.nutritionist@gmail.com</a>
-      &nbsp;|&nbsp;
-      <a href="tel:0524013226" style="color:rgba(255,255,255,0.7);">0524013226</a>
-    </p>
-    <p class="footer-copy">© 2026 כל הזכויות שמורות</p>
-  </footer>
-
-
-  <!-- ══════════════════════════════════════════════
-       STICKY CTA BAR
-  ══════════════════════════════════════════════ -->
-  <div id="sticky-cta" role="complementary">
-    <span>מוכנים להתחיל את התהליך?</span>
-    <button onclick="document.getElementById('contact').scrollIntoView({behavior:'smooth'})">
-      השאירו פרטים
-    </button>
+<dialog class="viewer" aria-label="תמונה מוגדלת" data-viewer>
+  <div class="viewer-frame">
+    <button class="player-close" type="button" aria-label="סגירת התמונה" data-viewer-close><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    <img alt="" data-viewer-img>
   </div>
+</dialog>
 
+<dialog class="player" aria-label="נגן וידאו" data-player>
+  <div class="player-frame">
+    <button class="player-close" type="button" aria-label="סגירת הווידאו" data-player-close><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+    <video controls playsinline preload="none" data-player-video></video>
+  </div>
+</dialog>
 
-  <script>
-    // ── Scroll-to-top on page load (prevent hash jump) ────
-    if (window.location.hash) {
-      history.replaceState(null, null, ' ');
+<script>
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var motion = root.classList.contains('motion-ready');
+
+  /* ── Opening sequence ─────────────────────────────────────────────── */
+  var intro = document.querySelector('[data-intro]');
+  function enter() { root.classList.add('entered'); if (intro) intro.classList.add('is-done'); }
+  if (motion) {
+    var img = intro.querySelector('img');
+    var start = function () { setTimeout(enter, 1150); };
+    if (img.complete) start(); else { img.addEventListener('load', start); img.addEventListener('error', enter); }
+    setTimeout(enter, 2600); // never hold the page hostage
+  }
+
+  /* ── Mobile menu ──────────────────────────────────────────────────── */
+  var toggle = document.querySelector('[data-menu-toggle]');
+  var menu = document.querySelector('[data-menu]');
+  function setMenu(open) { toggle.setAttribute('aria-expanded', String(open)); menu.classList.toggle('is-open', open); toggle.setAttribute('aria-label', open ? 'סגירת תפריט' : 'פתיחת תפריט'); }
+  toggle.addEventListener('click', function () { setMenu(toggle.getAttribute('aria-expanded') !== 'true'); });
+  menu.addEventListener('click', function (e) { if (e.target.closest('a')) setMenu(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setMenu(false); });
+
+  /* ── Rotating topic ───────────────────────────────────────────────── */
+  var TOPICS = [
+    ['ירידה במשקל', 'שפויה ומאוזנת'],
+    ['איזון סוכר', 'ומדדים קליניים נוספים'],
+    ['הרגלים', 'שמחזיקים'],
+    ['ספורטאים', 'וריצות ארוכות'],
+    ['שימור', 'לטווח ארוך']
+  ];
+  var topicEl = document.querySelector('[data-topic]');
+  var topicSr = document.querySelector('[data-topic-sr]');
+  var ti = 0;
+  setInterval(function () {
+    if (document.hidden || window.scrollY > window.innerHeight || root.classList.contains('a11y-still')) return;
+    ti = (ti + 1) % TOPICS.length;
+    var apply = function () {
+      topicEl.children[0].textContent = TOPICS[ti][0];
+      topicEl.children[1].textContent = TOPICS[ti][1];
+      topicSr.textContent = TOPICS[ti][0];
+      topicEl.classList.remove('is-changing');
+    };
+    if (motion) { topicEl.classList.add('is-changing'); setTimeout(apply, 360); } else apply();
+  }, 2800);
+
+  /* ── Scroll choreography: hero planes + cards that turn in ───────── */
+  var hero = document.querySelector('[data-hero]');
+  var heroTitle = hero.querySelector('.hero-title');
+  var topicWrap = hero.querySelector('.topic-wrap');
+  var person = hero.querySelector('.person');
+  var flips = Array.prototype.slice.call(document.querySelectorAll('[data-flip]'));
+  var head = document.querySelector('[data-flip-head]');
+  var clamp = function (v) { return v < 0 ? 0 : v > 1 ? 1 : v; };
+
+  function frame() {
+    var vh = window.innerHeight, y = window.scrollY, wide = window.innerWidth > 680;
+    if (wide && y < vh * 1.2) {
+      heroTitle.style.setProperty('--t-y', (y * -0.12).toFixed(1) + 'px');
+      topicWrap.style.setProperty('--k-y', (y * -0.22).toFixed(1) + 'px');
+      person.style.setProperty('--p-y', (y * 0.1).toFixed(1) + 'px');
     }
-    window.scrollTo(0, 0);
-
-    // ── Enable smooth scrolling after page load ────────────
-    window.addEventListener('load', () => {
-      document.documentElement.style.scrollBehavior = 'smooth';
+    var stacked = window.innerWidth <= 680;
+    var gridTop = flips.length ? flips[0].offsetParent.getBoundingClientRect().top : 0;
+    flips.forEach(function (el, i) {
+      // Measure the card's resting box, not its transformed one, or the motion feeds back into itself.
+      var top = gridTop + el.offsetTop, r = { top: top, bottom: top + el.offsetHeight, height: el.offsetHeight };
+      // enter: from the card's top at the bottom edge to 55% up; cards in a row stagger
+      var lag = stacked ? 0 : i * 0.12;
+      var t = clamp((vh - r.top) / (vh * 0.5) - lag);
+      var k = Math.pow(1 - t, 1.7);
+      var dir = i % 2 ? 1 : -1;
+      // exit: as the card's top climbs past 25% of the viewport, it softens and lifts away
+      var ex = clamp((vh * 0.25 - r.top) / (vh * 0.9));
+      if (stacked) ex = clamp((vh * 0.05 - r.bottom + r.height * 0.4) / (vh * 0.6));
+      el.style.opacity = (t * (1 - ex * 0.85)).toFixed(3);
+      el.style.filter = ex > 0.001 ? 'blur(' + (ex * 3).toFixed(2) + 'px)' : 'none';
+      el.style.transform = 'translateY(' + (110 * k - ex * 36).toFixed(1) + 'px) rotateY(' + (dir * 75 * k).toFixed(2) + 'deg) scale(' + (1 - 0.14 * k - ex * 0.05).toFixed(4) + ')';
     });
+    if (head) {
+      var hr = head.getBoundingClientRect();
+      var ht = clamp((vh - hr.top) / (vh * 0.4));
+      head.style.opacity = ht.toFixed(3);
+      head.style.transform = 'translateY(' + (40 * Math.pow(1 - ht, 2)).toFixed(1) + 'px)';
+    }
+  }
+  if (motion) {
+    var queued = false;
+    var onScroll = function () { if (!queued) { queued = true; requestAnimationFrame(function () { queued = false; frame(); }); } };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    frame();
+  }
 
-    // ── Fade-in on scroll (section titles) ────────────────
-    const fadeObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-            fadeObserver.unobserve(entry.target);
-          }
+  /* ── Reels lane ───────────────────────────────────────────────────── */
+  var REELS = [
+    { id: 'r1', title: 'תגובה לחדשות 12: זריקות הרזיה' },
+    { id: 'r2', title: 'זריקות הרזיה: בושה או טיפול?' },
+    { id: 'r3', title: 'זריקות הרזיה והסיכון לראייה' },
+    { id: 'r4', title: 'מי זכאי למרשם לוויגובי?' }
+  ];
+  var BASE = 'assets/reels/';
+  var track = document.querySelector('[data-lane-track]');
+  function clip(r, decorative) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'clip'; b.setAttribute('data-reel', r.id);
+    if (decorative) { b.tabIndex = -1; b.setAttribute('aria-hidden', 'true'); }
+    else b.setAttribute('aria-label', 'צפייה בסרטון: ' + r.title);
+    var media;
+    if (motion) {
+      media = document.createElement('video');
+      media.muted = true; media.loop = true; media.playsInline = true; media.setAttribute('muted', ''); media.setAttribute('playsinline', '');
+      media.preload = 'none'; media.poster = BASE + r.id + '-poster.jpg'; media.setAttribute('data-src', BASE + r.id + '-loop.mp4');
+    } else {
+      media = document.createElement('img'); media.src = BASE + r.id + '-poster.jpg'; media.alt = ''; media.loading = 'lazy';
+    }
+    b.appendChild(media);
+    var cap = document.createElement('span'); cap.textContent = r.title; b.appendChild(cap);
+    var play = document.createElement('i'); play.className = 'play';
+    play.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.5v9l7.5-4.5z" fill="currentColor"/></svg>';
+    b.appendChild(play);
+    return b;
+  }
+  // Two identical groups make the loop seamless; each group repeats the set so it is wider than any screen.
+  for (var g = 0; g < 2; g++) {
+    var group = document.createElement('div'); group.className = 'lane-group';
+    if (g === 1) group.setAttribute('aria-hidden', 'true');
+    for (var rep = 0; rep < 2; rep++) REELS.forEach(function (r) { group.appendChild(clip(r, g === 1 || rep === 1)); });
+    track.appendChild(group);
+  }
+  // Play the loops only while the lane is on screen.
+  var vids = Array.prototype.slice.call(track.querySelectorAll('video'));
+  if (vids.length && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        vids.forEach(function (v) {
+          if (en.isIntersecting) {
+            if (!v.src) v.src = v.getAttribute('data-src');
+            var p = v.play(); if (p && p.catch) p.catch(function () {});
+          } else v.pause();
         });
-      },
-      { threshold: 0.12 }
-    );
-    document.querySelectorAll('.fade-in').forEach((el) => fadeObserver.observe(el));
+      });
+    }, { rootMargin: '200px 0px' }).observe(document.querySelector('[data-lane]'));
+  }
 
-    // ── Scroll-triggered fade-in (photo, badge, stat cards) ─
-    const scrollFadeObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('in-view');
-            scrollFadeObserver.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -50px 0px' }
-    );
-    document.querySelectorAll('.fade-in-on-scroll').forEach((el) => {
-      if (el.classList.contains('stat-card')) {
-        const idx = [...document.querySelectorAll('.stat-card')].indexOf(el);
-        el.style.transitionDelay = `${idx * 150}ms`;
-      }
-      scrollFadeObserver.observe(el);
+  /* ── Video dialog ─────────────────────────────────────────────────── */
+  var dlg = document.querySelector('[data-player]');
+  var pv = document.querySelector('[data-player-video]');
+  var lastFocus = null;
+  track.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-reel]'); if (!b) return;
+    lastFocus = b;
+    var r = REELS.filter(function (x) { return x.id === b.getAttribute('data-reel'); })[0];
+    pv.src = BASE + r.id + '-full.mp4'; pv.poster = BASE + r.id + '-poster.jpg';
+    dlg.setAttribute('aria-label', r.title);
+    dlg.showModal(); var p = pv.play(); if (p && p.catch) p.catch(function () {});
+  });
+  function closePlayer() { pv.pause(); pv.removeAttribute('src'); pv.load(); }
+  dlg.addEventListener('close', function () { closePlayer(); if (lastFocus) lastFocus.focus(); });
+  document.querySelector('[data-player-close]').addEventListener('click', function () { dlg.close(); });
+  dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
+
+  /* ── Method images open full size ─────────────────────────────────── */
+  var viewer = document.querySelector('[data-viewer]');
+  var vImg = document.querySelector('[data-viewer-img]');
+  var zoomFrom = null;
+  Array.prototype.forEach.call(document.querySelectorAll('[data-zoom]'), function (b) {
+    b.addEventListener('click', function () {
+      zoomFrom = b; vImg.src = b.getAttribute('data-zoom'); vImg.alt = b.getAttribute('data-zoom-alt') || '';
+      viewer.setAttribute('aria-label', b.getAttribute('aria-label').replace('הגדלת הדוגמה: ', ''));
+      viewer.showModal(); viewer.querySelector('.viewer-frame').scrollTop = 0;
     });
+  });
+  document.querySelector('[data-viewer-close]').addEventListener('click', function () { viewer.close(); });
+  viewer.addEventListener('click', function (e) { if (e.target === viewer) viewer.close(); });
+  viewer.addEventListener('close', function () { if (zoomFrom) zoomFrom.focus(); });
 
-    // ── Reveal animations (cards, steps, form) ────────────
-    const revealObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('visible');
-            revealObserver.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -40px 0px' }
-    );
-    document.querySelectorAll('.reveal').forEach((el) => revealObserver.observe(el));
+  /* ── About phone: the Instagram screen recording plays only while on screen ── */
+  var phVideo = document.querySelector('[data-ph-video]');
+  if (phVideo && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        var still = !motion || root.classList.contains('a11y-still');
+        if (en.isIntersecting && !still) { phVideo.play().catch(function () {}); } else phVideo.pause();
+      });
+    }, { threshold: 0.3 }).observe(phVideo);
+  }
 
-    // ── Timeline vertical line animation ──────────────────
-    const timeline = document.getElementById('timeline');
-    const lineObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            timeline.classList.add('line-visible');
-            lineObserver.unobserve(entry.target);
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-    if (timeline) lineObserver.observe(timeline);
-
-    // ── Sticky CTA — hide when contact form is visible ─────
-    const stickyBar      = document.getElementById('sticky-cta');
-    const contactSection = document.getElementById('contact');
-    const ctaObserver = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            stickyBar.classList.add('hidden');
-          } else {
-            stickyBar.classList.remove('hidden');
-          }
-        });
-      },
-      { threshold: 0.1 }
-    );
-    ctaObserver.observe(contactSection);
-
-    // ── Lead form submission ───────────────────────────────
-    const form      = document.getElementById('lead-form');
-    const submitBtn = document.getElementById('submit-btn');
-    const errorEl   = document.getElementById('form-error');
-    const wrapper   = document.getElementById('form-wrapper');
-
-    const API_BASE = window.location.protocol === 'file:'
-      ? 'http://localhost:3001'
-      : '';
-
-    function showError(msg) {
-      errorEl.textContent = msg;
-      errorEl.style.display = 'block';
-    }
-
-    function hideError() {
-      errorEl.style.display = 'none';
-    }
-
-    function showSuccess() {
-      wrapper.innerHTML = `
-        <div class="form-success">
-          <div class="success-icon">✅</div>
-          <p class="success-title">קיבלתי! אחזור אליך בהקדם 🙌</p>
-          <p class="success-note">
-            בינתיים, תרגיש/י חופשי/ה לשלוח הודעה ישירות:<br>
-            <a href="tel:0524013226" style="color:var(--blue);font-weight:700;">0524013226</a>
-          </p>
-        </div>
-      `;
-    }
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      hideError();
-
-      const full_name = form.full_name.value.trim();
-      const phone     = form.phone.value.trim();
-      const goal      = form.goal.value;
-      const notes     = form.notes.value.trim();
-
-      if (!full_name) { showError('נא להזין שם מלא.'); return; }
-      if (!phone)     { showError('נא להזין מספר טלפון.'); return; }
-      if (!goal)      { showError('נא לבחור מטרה.'); return; }
-
-      submitBtn.disabled    = true;
-      submitBtn.textContent = 'שולח...';
-
-      try {
-        const res = await fetch(`${API_BASE}/api/leads/public`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ full_name, phone, goal, notes }),
-        });
-
-        const data = await res.json();
-
-        if (res.status === 429) {
-          showError('שלחת יותר מידי בקשות. נסה שוב מאוחר יותר.');
-          submitBtn.disabled    = false;
-          submitBtn.textContent = 'שלחו פרטים ואחזור אליכם 💪';
-          return;
-        }
-
-        if (!data.success) {
-          showError(data.error || 'משהו השתבש. אפשר לפנות ישירות: 0524013226');
-          submitBtn.disabled    = false;
-          submitBtn.textContent = 'שלחו פרטים ואחזור אליכם 💪';
-          return;
-        }
-
-        showSuccess();
-      } catch {
-        showError('משהו השתבש. אפשר לפנות ישירות: 0524013226');
-        submitBtn.disabled    = false;
-        submitBtn.textContent = 'שלחו פרטים ואחזור אליכם 💪';
-      }
+  /* ── Reviews: show "להמשך קריאה" only on cards that are actually clamped ── */
+  var reviewTrack = document.querySelector('[data-reviews]');
+  // Three extra copies: the track is two identical halves (2 sets each), so the -50%..0 loop never
+  // shows an edge, even on screens wider than one set of cards.
+  var originals = Array.prototype.slice.call(reviewTrack.children);
+  for (var copy = 0; copy < 3; copy++) originals.forEach(function (card) {
+    var c = card.cloneNode(true);
+    c.setAttribute('aria-hidden', 'true'); c.setAttribute('data-clone', '');
+    c.querySelector('[data-review-more]').tabIndex = -1;
+    reviewTrack.appendChild(c);
+  });
+  var REVIEW_SPEED = 13; // px per second: a slow, steady drift
+  function reviewSpeed() { reviewTrack.style.animationDuration = Math.round(reviewTrack.scrollWidth / 2 / REVIEW_SPEED) + 's'; }
+  reviewSpeed();
+  window.addEventListener('resize', reviewSpeed);
+  var reviewEls = Array.prototype.slice.call(reviewTrack.querySelectorAll('.review'));
+  function reviewToggles() {
+    reviewEls.forEach(function (card) {
+      if (card.classList.contains('is-open')) return;
+      var t = card.querySelector('[data-review-text]');
+      card.querySelector('[data-review-more]').hidden = t.scrollHeight <= t.clientHeight + 2;
     });
-  </script>
+  }
+  reviewEls.forEach(function (card) {
+    var btn = card.querySelector('[data-review-more]');
+    btn.addEventListener('click', function () {
+      var open = card.classList.toggle('is-open');
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      btn.textContent = open ? 'הצגת פחות' : 'להמשך קריאה';
+    });
+  });
+  reviewToggles();
+  window.addEventListener('resize', reviewToggles);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(reviewToggles);
 
+  /* ── Method illustrations animate only while on screen ────────────── */
+  var ills = document.querySelectorAll('[data-ill]');
+  if ('IntersectionObserver' in window) {
+    var illIo = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { en.target.classList.toggle('is-live', en.isIntersecting); });
+    }, { threshold: 0.25 });
+    Array.prototype.forEach.call(ills, function (el) { illIo.observe(el); });
+  } else Array.prototype.forEach.call(ills, function (el) { el.classList.add('is-live'); });
+
+  /* ── Method rail arrows (RTL: "next" travels left) ────────────────── */
+  var rail = document.querySelector('[data-rail]');
+  var prev = document.querySelector('[data-rail-prev]');
+  var next = document.querySelector('[data-rail-next]');
+  function step() { var c = rail.querySelector('.rail-card'); return c ? c.getBoundingClientRect().width + 18 : 300; }
+  next.addEventListener('click', function () { rail.scrollBy({ left: -step(), behavior: motion ? 'smooth' : 'auto' }); });
+  prev.addEventListener('click', function () { rail.scrollBy({ left: step(), behavior: motion ? 'smooth' : 'auto' }); });
+  function railState() {
+    var max = rail.scrollWidth - rail.clientWidth, pos = Math.abs(rail.scrollLeft);
+    prev.disabled = pos < 4; next.disabled = pos > max - 4;
+  }
+  rail.addEventListener('scroll', railState, { passive: true }); window.addEventListener('resize', railState); railState();
+
+  /* ── Track buttons preselect the interest ─────────────────────────── */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-interest]'), function (a) {
+    a.addEventListener('click', function () { document.getElementById('f-interest').value = a.getAttribute('data-interest'); });
+  });
+
+  /* ── Lead form → POST /api/leads/public → CRM leads table ─────────── */
+  var form = document.querySelector('[data-lead-form]');
+  var errEl = document.querySelector('[data-form-error]');
+  var submit = document.querySelector('[data-submit]');
+  var FALLBACK = 'אפשר גם לשלוח הודעה: 053-5779796 (וואטסאפ בלבד).';
+  var SUBMIT_HTML = submit.innerHTML;
+  function showError(msg, field) { errEl.textContent = msg; errEl.hidden = false; if (field) { field.setAttribute('aria-invalid', 'true'); field.focus(); } }
+  function clearError() { errEl.hidden = true; Array.prototype.forEach.call(form.querySelectorAll('[aria-invalid]'), function (f) { f.removeAttribute('aria-invalid'); }); }
+  form.addEventListener('submit', function (e) {
+    e.preventDefault(); clearError();
+    var name = form.full_name.value.trim(), phone = form.phone.value.trim(), digits = phone.replace(/\D/g, '');
+    if (name.length < 2) return showError('נא למלא שם מלא.', form.full_name);
+    if (digits.length < 9 || digits.length > 12) return showError('מספר הטלפון לא נראה תקין.', form.phone);
+    submit.disabled = true; submit.textContent = 'רגע, שולחים...';
+    fetch('/api/leads/public', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ full_name: name, phone: phone, interest: form.interest.value, notes: form.notes.value.trim(), nt_hp: form.nt_hp.value })
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (d) { return { status: res.status, data: d }; });
+    }).then(function (r) {
+      if (r.status === 429) throw new Error('נשלחו כבר כמה פניות מהמכשיר הזה. ' + FALLBACK);
+      if (!r.data || !r.data.success) throw new Error((r.data && r.data.error) || ('משהו השתבש. ' + FALLBACK));
+      form.innerHTML = '';
+      var box = document.createElement('div'); box.className = 'form-success'; box.setAttribute('role', 'status'); box.tabIndex = -1;
+      var h = document.createElement('h3'); h.textContent = 'תודה, ' + name.split(' ')[0] + '. הפרטים התקבלו.';
+      var p = document.createElement('p'); p.textContent = 'אחזור אליכם בהקדם לשיחת היכרות קצרה. רוצים לכתוב כבר עכשיו? ';
+      var a = document.createElement('a'); a.href = 'https://wa.me/972535779796'; a.target = '_blank'; a.rel = 'noopener'; var num = document.createElement('span'); num.dir = 'ltr'; num.textContent = '053-5779796'; a.appendChild(num); a.appendChild(document.createTextNode(' (וואטסאפ בלבד)')); p.appendChild(a);
+      box.appendChild(h); box.appendChild(p); form.appendChild(box); box.focus();
+    }).catch(function (err) {
+      showError(err && err.message && err.message !== 'Failed to fetch' ? err.message : 'אין חיבור כרגע. ' + FALLBACK);
+      submit.disabled = false; submit.innerHTML = SUBMIT_HTML;
+    });
+  });
+})();
+</script>
 </body>
 </html>

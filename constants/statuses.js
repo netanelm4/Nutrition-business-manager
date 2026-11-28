@@ -43,6 +43,15 @@ const LEAD_SOURCE = Object.freeze({
   OTHER: 'other',
 });
 
+// Landing-page form: which offering the visitor is interested in.
+// Stored as a readable line inside leads.notes (no schema change).
+const LEAD_INTEREST_LABEL = Object.freeze({
+  three_month: 'מסלול 3 חודשים',
+  six_month:   'מסלול 6 חודשים',
+  one_off:     'ייעוץ חד פעמי',
+  unsure:      'עוד לא הוחלט, רוצים להתייעץ',
+});
+
 const TASK_STATUS = Object.freeze({
   PENDING: 'pending',
   DONE: 'done',
@@ -71,6 +80,7 @@ module.exports = {
   ALERT_STATE,
   GENDER,
   LEAD_SOURCE,
+  LEAD_INTEREST_LABEL,
   TASK_STATUS,
   ACTIVITY_FACTORS,
   GOAL_OPTIONS,

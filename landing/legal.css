@@ -1,0 +1,47 @@
+/* נתא · legal pages (accessibility statement, privacy policy, terms of use) */
+:root { --paper: #fcf4f9; --paper-2: #fffafd; --pink: #f5dbea; --blue: #567dbf; --blue-ink: #2c5295; --green-ink: #1d6f58; --ink: #1b1d2a; --ink-soft: #55506a; --navy: #15203a; --pad: clamp(16px, 4vw, 48px); }
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 400 17px/1.75 "Heebo", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+img { display: block; max-width: 100%; height: auto; }
+a { color: var(--blue-ink); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--blue-ink); outline-offset: 3px; border-radius: 6px; }
+
+.legal-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px var(--pad); background: var(--paper-2); border-bottom: 1px solid #efdfe8; }
+.legal-header img { height: 44px; width: auto; }
+.legal-header a.back { font-weight: 700; text-decoration: none; padding: 10px 18px; border: 2px solid var(--ink); border-radius: 99px; color: var(--ink); font-size: 15px; }
+.legal-header a.back:hover { background: var(--ink); color: var(--paper); }
+
+main.legal { max-width: 820px; margin: 0 auto; padding: clamp(36px, 6vw, 72px) var(--pad) 80px; }
+.legal .eyebrow { margin: 0 0 6px; font-weight: 800; font-size: 15px; color: var(--blue-ink); }
+.legal h1 { margin: 0; font-size: clamp(36px, 6vw, 60px); line-height: 1.05; font-weight: 900; letter-spacing: -0.03em; }
+.legal .updated { margin: 12px 0 0; color: var(--ink-soft); font-size: 15px; }
+.legal .lede { margin: 26px 0 0; font-size: 19px; line-height: 1.7; }
+.legal nav.toc { margin: 30px 0 0; padding: 18px 22px; background: var(--paper-2); border-radius: 18px; border: 1px solid #efdfe8; }
+.legal nav.toc h2 { margin: 0 0 8px; font-size: 16px; }
+.legal nav.toc ol { margin: 0; padding-inline-start: 1.3em; columns: 2 220px; column-gap: 28px; font-size: 15px; }
+.legal section { margin-top: 40px; scroll-margin-top: 20px; }
+.legal h2 { margin: 0 0 10px; font-size: clamp(22px, 2.6vw, 28px); font-weight: 800; line-height: 1.25; }
+.legal h3 { margin: 18px 0 6px; font-size: 18px; font-weight: 800; }
+.legal p { margin: 0 0 12px; }
+.legal ul, .legal ol { margin: 0 0 12px; padding-inline-start: 1.4em; }
+.legal li { margin-bottom: 6px; }
+.legal .note { padding: 16px 20px; border-radius: 16px; background: #e8eef9; border-inline-start: 5px solid var(--blue-ink); }
+.legal .warn { padding: 16px 20px; border-radius: 16px; background: #fdf0e1; border-inline-start: 5px solid #b5671c; }
+.legal .contact-card { padding: 20px 22px; border-radius: 18px; background: var(--paper-2); border: 1px solid #efdfe8; }
+.legal .contact-card p { margin: 0 0 4px; }
+.legal table { width: 100%; border-collapse: collapse; margin: 6px 0 14px; font-size: 15px; }
+.legal th, .legal td { text-align: right; padding: 10px 12px; border-bottom: 1px solid #ead9e3; vertical-align: top; }
+.legal th { background: var(--paper-2); font-weight: 800; }
+.legal .table-wrap { overflow-x: auto; }
+
+.site-footer { background: var(--navy); color: #d9d3e4; padding: 32px var(--pad); display: flex; flex-wrap: wrap; gap: 16px 34px; align-items: center; justify-content: space-between; font-size: 15px; }
+.site-footer img { height: 48px; width: auto; }
+.site-footer nav { display: flex; flex-wrap: wrap; gap: 18px; }
+.site-footer a, .site-footer button { color: #b9c6e4; text-decoration: underline; text-underline-offset: 3px; }
+.site-footer a[aria-current="page"] { color: #fff; font-weight: 700; }
+.site-footer button { padding: 0; border: 0; background: none; font: inherit; cursor: pointer; }
+.site-footer a:hover, .site-footer button:hover { color: #fff; }
+.site-footer :focus-visible { outline-color: #ffe14d; }
+.legal .inline-btn { padding: 0; border: 0; background: none; font: inherit; color: var(--blue-ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }

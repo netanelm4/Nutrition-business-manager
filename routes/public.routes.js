@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../database/db');
 const { upsertAction } = require('../services/action-queue.service');
+const { LEAD_SOURCE, LEAD_STATUS, LEAD_INTEREST_LABEL } = require('../constants/statuses');
 
 const router = express.Router();
 
@@ -9,38 +10,75 @@ const { createRateLimiter, publicFormLimiter, publicActionLimiter } = require('.
 // Landing-page lead form: 5 submissions per IP per hour
 const leadFormLimiter = createRateLimiter({ name: 'lead-form', windowMs: 60 * 60 * 1000, max: 5 });
 
-// ─── POST /api/leads/public ───────────────────────────────────────────────────
+// ─── POST /api/leads/public  (alias: /api/public/leads) ──────────────────────
+// Landing-page lead form. Public, rate-limited, honeypot-protected.
+// Writes into the same `leads` table the CRM reads (source=landing_page, status=new).
 
-router.post('/leads/public', leadFormLimiter, (req, res) => {
-  const { full_name, phone, goal, notes } = req.body;
+const LEAD_LIMITS = { name: 80, goal: 120, notes: 1000 };
+const HONEYPOT_FIELD = 'nt_hp'; // non-semantic name so browser autofill never fills it
 
-  if (!full_name || !full_name.trim()) {
-    return res.status(400).json({ success: false, error: 'שם מלא הוא שדה חובה.' });
-  }
-  if (!phone || !phone.trim()) {
-    return res.status(400).json({ success: false, error: 'טלפון הוא שדה חובה.' });
-  }
+function cleanText(value, max) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').trim().slice(0, max);
+}
 
+function buildLeadNotes({ interest, goal, notes }) {
+  const lines = [];
+  if (interest) lines.push(`מסלול מבוקש: ${LEAD_INTEREST_LABEL[interest]}`);
+  if (goal) lines.push(`מטרה: ${goal}`);
+  if (notes) lines.push(notes);
+  return lines.length ? lines.join('\n') : null;
+}
+
+function createPublicLead(req, res) {
   try {
+    const body = req.body || {};
+
+    // Honeypot: real visitors never see this field. Bots that fill it get a
+    // normal-looking success so they do not retry, and nothing is stored.
+    if (typeof body[HONEYPOT_FIELD] === 'string' && body[HONEYPOT_FIELD].trim() !== '') {
+      console.warn(`[POST /leads/public] honeypot triggered ip=${req.ip}`);
+      return res.json({ success: true });
+    }
+
+    const full_name = cleanText(body.full_name, LEAD_LIMITS.name);
+    const phone     = cleanText(body.phone, 20);
+    const goal      = cleanText(body.goal, LEAD_LIMITS.goal);
+    const notes     = cleanText(body.notes, LEAD_LIMITS.notes);
+    const interest  = typeof body.interest === 'string' && LEAD_INTEREST_LABEL[body.interest]
+      ? body.interest
+      : '';
+
+    if (full_name.length < 2) {
+      return res.status(400).json({ success: false, error: 'נא למלא שם מלא.' });
+    }
+    const digits = phone.replace(/\D/g, '');
+    if (!/^[0-9+\-\s()]+$/.test(phone) || digits.length < 9 || digits.length > 12) {
+      return res.status(400).json({ success: false, error: 'מספר הטלפון לא נראה תקין.' });
+    }
+    if (body.interest && !interest) {
+      return res.status(400).json({ success: false, error: 'בחירת המסלול לא תקינה.' });
+    }
+
     db.prepare(`
       INSERT INTO leads (full_name, phone, source, status, notes)
       VALUES (@full_name, @phone, @source, @status, @notes)
     `).run({
-      full_name: full_name.trim(),
-      phone: phone.trim(),
-      source: 'landing_page',
-      status: 'new',
-      notes: goal
-        ? `מטרה: ${goal}${notes?.trim() ? '\n' + notes.trim() : ''}`
-        : notes?.trim() || null,
+      full_name,
+      phone,
+      source: LEAD_SOURCE.LANDING_PAGE,
+      status: LEAD_STATUS.NEW,
+      notes: buildLeadNotes({ interest, goal, notes }),
     });
 
     return res.json({ success: true });
   } catch (err) {
     console.error('[POST /leads/public]', err);
-    return res.status(500).json({ success: false, error: 'שגיאה פנימית. נסה שוב.' });
+    return res.status(500).json({ success: false, error: 'שגיאה פנימית. אפשר לנסות שוב בעוד רגע.' });
   }
-});
+}
+
+router.post(['/leads/public', '/public/leads'], leadFormLimiter, createPublicLead);
 
 // ─── Weight entry helpers (duplicated to keep this file self-contained) ───────
 
