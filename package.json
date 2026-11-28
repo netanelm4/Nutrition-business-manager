@@ -8,7 +8,8 @@
     "dev": "nodemon server.js",
     "build": "cd client && npm install && npm run build",
     "postinstall": "cd client && npm install",
-    "test:routes": "node scripts/test-routes.js"
+    "test:routes": "node scripts/test-routes.js",
+    "test:landing-domain": "node scripts/test-landing-domain.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.4.0",

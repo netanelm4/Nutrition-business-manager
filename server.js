@@ -7,6 +7,7 @@ const path = require('path');
 const db = require('./database/db');
 const { runSeed, seedProtocols } = require('./database/seed');
 const { requireAuth } = require('./middleware/auth');
+const { createLandingDomainGuard } = require('./middleware/landing-domain');
 
 const clientsRouter = require('./routes/clients.routes');
 const sessionsRouter = require('./routes/sessions.routes');
@@ -58,6 +59,15 @@ const app = express();
 
 // Railway terminates TLS at one proxy hop — needed for a real req.ip (rate limiting)
 app.set('trust proxy', 1);
+
+// ─── Public landing domain isolation (LANDING_DOMAIN) ────────────────────────
+// Must run before every route: on the public domain only the landing page, the
+// legal pages, client token pages and public endpoints exist; the CRM is 404.
+app.use(createLandingDomainGuard({
+  domain: process.env.LANDING_DOMAIN,
+  landingDir: path.join(__dirname, 'landing'),
+  clientDist: path.join(__dirname, 'client', 'dist'),
+}));
 
 app.use(cors());
 // Keep the raw bytes: webhook signature verification must HMAC the exact payload
@@ -127,6 +137,10 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ─── Start ────────────────────────────────────────────────────────────────────
+// Listen (and start background jobs) only when run directly (`node server.js`);
+// tests require() the app without starting the server.
+module.exports = app;
+if (require.main === module) {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, async () => {
   console.log(`[server] Nutrition CRM running on http://localhost:${PORT}`);
@@ -197,3 +211,4 @@ app.listen(PORT, async () => {
   // No startup run: every deploy used to re-run the full Claude analysis.
   // Manual run: POST /api/ai-recommendations/run (Inbox → "הרץ ניתוח AI").
 });
+}

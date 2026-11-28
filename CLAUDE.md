@@ -100,6 +100,7 @@ Local dev server runs on: http://localhost:3001
 - AI: claude-sonnet-5-5 for the interactive agent and tool use, claude-haiku-5-5 for background jobs (config/ai.js, per-task effort). Hebrew responses only; client-facing text follows prompts/voice.md
 - WhatsApp: client messages are manual wa.me links only (services/whatsapp.service.js). The only automated channel is the Kapso admin channel to Netanel: webhook /api/integrations/whatsapp/webhook (HMAC, mounted before auth), services/kapso.service.js + admin-whatsapp.service.js. The legacy Meta bot (/api/whatsapp/webhook) was removed.
 - Calendly: webhook at /api/calendly/webhook (mounted before auth)
+- Public domain isolation: middleware/landing-domain.js, driven by LANDING_DOMAIN. On that host (and www.) only the landing page (served at /), its legal pages, /w/:token, /food/:token and public endpoints (POST /api/leads/public, /api/public/*) exist; every CRM route and non-public /api route is 404. The Railway domain keeps the full CRM. Test: npm run test:landing-domain (needs client/dist)
 
 ## Key Files
 - server.js — entry point, route mounting order matters
@@ -115,7 +116,8 @@ Local dev server runs on: http://localhost:3001
 PORT, NODE_ENV, AUTH_PASSWORD, ANTHROPIC_API_KEY,
 DB_PATH, CALENDLY_TOKEN,
 KAPSO_API_KEY, KAPSO_PHONE_NUMBER_ID, KAPSO_WEBHOOK_SECRET, ADMIN_WHATSAPP_PHONE,
-CALENDLY_FOLLOWUP_LINK, CALENDLY_FIRST_LINK
+CALENDLY_FOLLOWUP_LINK, CALENDLY_FIRST_LINK,
+LANDING_DOMAIN (public site domain, e.g. example.co.il; unset = isolation off)
 
 ## Brand (for landing page and UI)
 Colors: #fcf4f9 (bg), #F5DBEA (pink), #567DBF (blue), #31B996 (green)
